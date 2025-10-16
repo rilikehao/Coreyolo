@@ -1,18 +1,22 @@
 fun main(args: Array<String>) {
     SystemUtils.checkHostTools()
-    val commands = if (args.isEmpty()) listOf("download", "native") else args.toList()
+    val commands = if (args.isEmpty()) listOf("download", "rga", "mpp", "rknpu2", "ffmpeg", "mnn", "native") else args.toList()
 
     commands.forEach { command ->
         when (command) {
             "download" -> PackageDownloader().downloadAll()
-            "native" -> ProjectBuilder.buildNative()
             "rga" -> ProjectBuilder.buildRGA()
             "mpp" -> ProjectBuilder.buildMPP()
             "rknpu2" -> ProjectBuilder.buildRKNPU2()
             "ffmpeg" -> ProjectBuilder.buildFFmpeg()
             "mnn" -> ProjectBuilder.buildMNN()
+            "native" -> ProjectBuilder.buildNative()
             "clean" -> ProjectBuilder.clean()
             "image" -> ProjectBuilder.buildAppImage()
+            "train" -> TrainEnvBuilder.buildTrainEnv()
+            "train-cuda" -> TrainEnvBuilder.buildTrainEnv("cuda")
+            "train-export" -> TrainEnvBuilder.exportModels()
+            "train-clean" -> TrainEnvBuilder.clean()
             else -> throw Error("未识别的参数")
         }
     }

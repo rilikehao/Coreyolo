@@ -77,9 +77,25 @@ object ProjectBuilder {
         ProcessBuilder("make", "install").directory(mnnBuildDir).runCommand()
 
         val vulkanLib = File("${archConfig.name}/MNN/build/source/backend/vulkan/libMNN_Vulkan.so")
+        val convertDepsLib = File("${archConfig.name}/MNN/build/tools/converter/libMNNConvertDeps.so")
+        val trainLib = File("${archConfig.name}/MNN/build/tools/train/libMNNTrain.so")
+        val trainUtilsLib = File("${archConfig.name}/MNN/build/tools/train/libMNNTrainUtils.so")
         val targetLibDir = File("${archConfig.installPrefix}/lib")
+
         if (vulkanLib.exists()) {
             ProcessBuilder("cp", vulkanLib.absolutePath, targetLibDir.absolutePath).runCommand()
+        }
+
+        if (convertDepsLib.exists()) {
+            ProcessBuilder("cp", convertDepsLib.absolutePath, targetLibDir.absolutePath).runCommand()
+        }
+
+        if (trainLib.exists()) {
+            ProcessBuilder("cp", trainLib.absolutePath, targetLibDir.absolutePath).runCommand()
+        }
+
+        if (trainUtilsLib.exists()) {
+            ProcessBuilder("cp", trainUtilsLib.absolutePath, targetLibDir.absolutePath).runCommand()
         }
 
         val tools = listOf("MNNConvert", "quantized.out", "GetMNNInfo")
