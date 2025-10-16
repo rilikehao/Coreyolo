@@ -17,7 +17,7 @@ import kotlin.time.TimeSource
 @OptIn(ExperimentalForeignApi::class, ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 object SourceVideo : Runnable {
     data class Task(val pts: Instant, val inferTask: CPointer<InferTask>)
-
+    
     override fun run() = memScoped {
         RAIIOutput().use { output ->
             runBlocking {
@@ -89,6 +89,7 @@ object SourceVideo : Runnable {
                     delayMs = delayed.inWholeMilliseconds.toInt()
                 }
                 SendToOutput(output.value, GetImage(task.inferTask), text.toString())
+                DestroyInferTask(task.inferTask)
             }
         }
     }
