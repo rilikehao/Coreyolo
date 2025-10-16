@@ -80,27 +80,28 @@ abstract class Camera(val fd: Int) : Video {
             while (ioctl(fd, VIDIOC_ENUM_FMT, fmtDesc.ptr) == 0) {
                 val desc = fmtDesc.description.reinterpret<ByteVar>().toKString()
                 println("Found format: $desc")
-                if (!SupportFormat(fmtDesc.pixelformat)) continue
-                val fsize = alloc<v4l2_frmsizeenum>()
-                fsize.pixel_format = fmtDesc.pixelformat
-                fsize.index = 0u
-                while (platform.linux.ioctl(fd, VIDIOC_ENUM_FRAMESIZES, fsize.ptr) == 0) {
-                    val (w, h) = maxFrameSize(fsize)
-                    println("  ${w}x${h}")
-                    yield(Resolution(w, h, fmtDesc.pixelformat, desc))
-                    ++fsize.index
+                if (SupportFormat(fmtDesc.pixelformat)) {
+                    val fsize = alloc<v4l2_frmsizeenum>()
+                    fsize.pixel_format = fmtDesc.pixelformat
+                    fsize.index = 0u
+                    while (platform.linux.ioctl(fd, VIDIOC_ENUM_FRAMESIZES, fsize.ptr) == 0) {
+                        val (w, h) = maxFrameSize(fsize)
+                        println("  ${w}x${h}")
+                        yield(Resolution(w, h, fmtDesc.pixelformat, desc))
+                        ++fsize.index
+                    }
                 }
                 ++fmtDesc.index
             }
-        }.maxBy { it.w * it.h }.let {
+        }.maxByOrNull { it.w * it.h }.let {
             val fmt = alloc<v4l2_format>()
-            setFormat(it, fmt)
-            if (ioctl(fd, VIDIOC_S_FMT, fmt.ptr) < 0) {
-                if (ioctl(fd, VIDIOC_G_FMT, fmt.ptr) < 0) throw Error("VIDIOC_S_FMT & VIDIOC_G_FMT 均失败")
-                getFormat(fmt)
-            } else {
-                it
+            fmt.type = bufType()
+            if (it != null) {
+                setFormat(it, fmt)
+                if (ioctl(fd, VIDIOC_S_FMT, fmt.ptr) == 0) return@let it
             }
+            if (ioctl(fd, VIDIOC_G_FMT, fmt.ptr) < 0) throw Error("VIDIOC_S_FMT & VIDIOC_G_FMT 均失败")
+            getFormat(fmt)
         }.also {
             println("Set to highest resolution: ${it.w}x${it.h} (${it.desc})")
         }
@@ -117,17 +118,16 @@ abstract class Camera(val fd: Int) : Video {
                 yield(maxFrameRate(frmival))
                 ++frmival.index
             }
-        }.maxBy { (num, denom) -> denom.toFloat() / num.toFloat() }.let { (num, denom) ->
+        }.maxByOrNull { (num, denom) -> denom.toFloat() / num.toFloat() }.let {
             val parm = alloc<v4l2_streamparm>()
             parm.type = bufType()
-            parm.parm.capture.timeperframe.numerator = num
-            parm.parm.capture.timeperframe.denominator = denom
-            if (ioctl(fd, VIDIOC_S_PARM, parm.ptr) < 0) {
-                if (ioctl(fd, VIDIOC_G_PARM, parm.ptr) < 0) throw Error("VIDIOC_S_PARM & VIDIOC_G_PARM 均失败")
-                parm.parm.capture.timeperframe.denominator / parm.parm.capture.timeperframe.numerator
-            } else {
-                denom / num
+            if (it != null) {
+                parm.parm.capture.timeperframe.numerator = it.first
+                parm.parm.capture.timeperframe.denominator = it.second
+                if (ioctl(fd, VIDIOC_S_PARM, parm.ptr) ==0) return it.second.toDouble() / it.first.toDouble()
             }
+            if (ioctl(fd, VIDIOC_G_PARM, parm.ptr) < 0) return 1.0
+            parm.parm.capture.timeperframe.denominator.toDouble() / parm.parm.capture.timeperframe.numerator.toDouble()
         }.also {
             println("Set fps to $it")
         }
