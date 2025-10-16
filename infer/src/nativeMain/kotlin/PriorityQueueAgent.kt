@@ -1,0 +1,34 @@
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
+
+class PriorityQueueAgent<T>(val queue: PriorityQueue<T>) {
+    sealed class Operation<T>
+    class Send<T>(val item: T) : Operation<T>()
+    class Receive<T>(val deferred: CompletableDeferred<T>) : Operation<T>()
+
+    val ch = Channel<Operation<T>>(Channel.UNLIMITED)
+    val wait = Channel<Receive<T>>(Channel.UNLIMITED)
+
+    suspend fun run() {
+        for (op in ch) {
+            when (op) {
+                is Send<T> -> when (val value = wait.tryReceive().getOrNull()) {
+                    null -> queue.push(op.item)
+                    else -> value.deferred.complete(op.item)
+                }
+
+                is Receive<T> -> when (val value = queue.pop()) {
+                    null -> wait.send(op)
+                    else -> op.deferred.complete(value)
+                }
+            }
+        }
+    }
+
+    suspend fun send(item: T) = ch.send(Send(item))
+
+    suspend fun receive() = CompletableDeferred<T>().let {
+        ch.send(Receive(it))
+        it.await()
+    }
+}

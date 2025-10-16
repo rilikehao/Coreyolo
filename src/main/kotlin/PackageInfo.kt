@@ -1,0 +1,1 @@
+data class PackageInfo(val repo: String, val version: String, val arch: String)

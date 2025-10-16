@@ -1,0 +1,10 @@
+build/
+cache/
+sysroot/
+
+.idea/
+.gradle/
+.kotlin/
+
+rk3588/
+x64/
