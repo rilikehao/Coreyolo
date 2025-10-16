@@ -39,11 +39,12 @@ void DestroyOutput(Output* out) { delete out; }
 void SendToOutput(Output* out, Image* image, const char* text) {
     QMetaObject::invokeMethod(
         QApplication::instance(),
-        [out, qImage = image->data_.copy(), s = QString(text)] {
+        [out, image, s = QString(text)] {
             out->image_->setPixmap(
-                QPixmap::fromImage(qImage)
+                QPixmap::fromImage(image->data_)
                     .scaled(out->image_->size(), Qt::KeepAspectRatio,
                             Qt::SmoothTransformation));
+            DestroyImage(image);
             out->text_->setText(s);
         },
         Qt::QueuedConnection);

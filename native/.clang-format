@@ -1,0 +1,5 @@
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 72
+AccessModifierOffset: -4
+PenaltyBreakBeforeFirstCallParameter: 0

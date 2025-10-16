@@ -46,8 +46,8 @@ struct InferTask* CreateInferTask();
 void DestroyInferTask(struct InferTask* task);
 void Detect0(struct Infer* infer, struct InferTask* task, int no);
 void Detect1(struct Infer* infer, struct InferTask* task);
-struct Image* GetImage(struct InferTask* task);
-void SetImage(struct InferTask* task, struct Image* image);
+struct Image* GetImage(struct InferTask* task);  // task 将放弃 image 所有权
+void SetImage(struct InferTask* task, struct Image* image);  // task 将拥有 image 所有权
 int SizeDetections(struct InferTask* task);
 struct Detection* PtrDetections(struct InferTask* task);
 const char* GetError(struct InferTask* task);
@@ -57,7 +57,7 @@ struct Output;
 struct Output* CreateOutput();
 void DestroyOutput(struct Output* out);
 void SendToOutput(struct Output* out, struct Image* image,
-                  const char* text);
+                  const char* text);  // 调用者将放弃 image 所有权
 
 void DrawRect(                               //
     struct Image* image, struct Rect* rect,  //

@@ -150,9 +150,8 @@ abstract class Camera(val fd: Int) : Video {
         }
     }
 
-    fun unmapBuffers(buffers: Array<Memory>) = memScoped {
-        buffers.forEach { munmap(it.ptr, it.size.toULong()) }
-    }
+    fun unmapBuffers(buffers: Array<Memory>) = buffers.forEach { munmap(it.ptr, it.size.toULong()) }
+
 
     fun setStreamOn() = memScoped {
         val type = alloc<UIntVarOf<v4l2_buf_type>>()

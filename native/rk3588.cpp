@@ -28,7 +28,7 @@ struct Infer {
 };
 
 struct InferTask {
-    Image image_;
+    Image* image_;
     std::vector<Detection> detections_;
     int infer_;
     std::string error_;
@@ -156,7 +156,7 @@ void DestroyInferTask(struct InferTask* task) { delete task; }
 void Detect0(Infer* infer, InferTask* task, int no) {
     int h = infer->sessions_[no].h_, w = infer->sessions_[no].w_;
     QImage scaled =
-        ScalePadToRGB(task->image_.data_, w, h, task->scale_);
+        ScalePadToRGB(task->image_->data_, w, h, task->scale_);
     const uchar* data = scaled.constBits();
     rknn_input input;
     input.index = 0;
@@ -207,10 +207,10 @@ void Detect1(Infer* infer, InferTask* task) {
     NonMaximumSuppression(task->detections_);
 }
 
-struct Image* GetImage(struct InferTask* task) { return &task->image_; }
+struct Image* GetImage(struct InferTask* task) { return task->image_; }
 
 void SetImage(struct InferTask* task, struct Image* image) {
-    task->image_ = *image;
+    task->image_ = image;
 }
 
 int SizeDetections(InferTask* task) { return task->detections_.size(); }
