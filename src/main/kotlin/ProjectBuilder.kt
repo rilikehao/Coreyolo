@@ -214,20 +214,24 @@ object ProjectBuilder {
         }
     }
 
-    const val appImageTool = "x64/appimagetool"
-    const val appImageRuntime = "x64/runtime"
+    const val APP_IMAGE_TOOL = "x64/appimagetool"
+    const val APP_IMAGE_RUNTIME = "x64/runtime"
 
     fun buildAppImage() {
-        ProcessBuilder(
-            "wget", "-O", File(appImageTool).absolutePath,
-            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-        ).runCommand()
-        ProcessBuilder("chmod", "+x", File(appImageTool).absolutePath).runCommand()
-        Config.archConfigs.map { it.cpu }.distinct().forEach {
+        if (!File(APP_IMAGE_TOOL).exists()) {
             ProcessBuilder(
-                "wget", "-O", File("$appImageRuntime-$it").absolutePath,
-                "https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-$it",
+                "wget", "-O", File(APP_IMAGE_TOOL).absolutePath,
+                "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
             ).runCommand()
+            ProcessBuilder("chmod", "+x", File(APP_IMAGE_TOOL).absolutePath).runCommand()
+        }
+        Config.archConfigs.map { it.cpu }.distinct().forEach {
+            if (!File("$APP_IMAGE_RUNTIME-$it").exists()) {
+                ProcessBuilder(
+                    "wget", "-O", File("$APP_IMAGE_RUNTIME-$it").absolutePath,
+                    "https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-$it",
+                ).runCommand()
+            }
         }
         Config.archConfigs.forEach { buildAppImage(it) }
     }
@@ -252,15 +256,15 @@ object ProjectBuilder {
                         $$"""
                             #!/bin/bash
                             APP_DIR="$(dirname "$(readlink -f "$0")")"
-                            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib"
+                            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
                             LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" exec "$APP_DIR/usr/local/bin/YoloInfer" "$@"
                         """.trimIndent()
                     )
                 }.let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }
                 ProcessBuilder(
-                    File(appImageTool).absolutePath,
-                    "--runtime-file", File("$appImageRuntime-x86_64").absolutePath,
+                    File(APP_IMAGE_TOOL).absolutePath,
+                    "--runtime-file", File("$APP_IMAGE_RUNTIME-x86_64").absolutePath,
                     File("${archConfig.name}/root").absolutePath,
                     File("${archConfig.name}/YoloInfer.AppImage").absolutePath,
                 ).runCommand()
@@ -292,15 +296,15 @@ object ProjectBuilder {
                         $$"""
                             #!/bin/bash
                             APP_DIR="$(dirname "$(readlink -f "$0")")"
-                            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib"
+                            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
                             exec "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"
                         """.trimIndent()
                     )
                 }.let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }
                 ProcessBuilder(
-                    File(appImageTool).absolutePath,
-                    "--runtime-file", File("$appImageRuntime-aarch64").absolutePath,
+                    File(APP_IMAGE_TOOL).absolutePath,
+                    "--runtime-file", File("$APP_IMAGE_RUNTIME-aarch64").absolutePath,
                     File("${archConfig.name}/root").absolutePath,
                     File("${archConfig.name}/YoloInfer.AppImage").absolutePath,
                 ).apply {

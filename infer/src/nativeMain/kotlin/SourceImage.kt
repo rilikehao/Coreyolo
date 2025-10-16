@@ -8,7 +8,7 @@ object SourceImage : Runnable {
         val config = alloc<InferConfig>()
         config.path_model_ = AppArguments.instance.pathModel.cstr.ptr
         config.path_description_ = AppArguments.instance.pathDescription.cstr.ptr
-        config.threads_ = 3
+        config.threads_ = 1
         val infer = CreateInfer(config.ptr)
         val image = CreateImagePath(AppArguments.instance.pathSource)
         val task = CreateInferTask()

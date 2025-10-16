@@ -36,7 +36,7 @@ object SourceVideo : Runnable {
         val config = alloc<InferConfig>()
         config.path_model_ = AppArguments.instance.pathModel.cstr.ptr
         config.path_description_ = AppArguments.instance.pathDescription.cstr.ptr
-        config.threads_ = 1
+        config.threads_ = 3
         val manager0 = Manager(config.threads_)
         val manager1 = Manager(config.threads_)
         RAIIInfer(config.ptr).use { infer ->
