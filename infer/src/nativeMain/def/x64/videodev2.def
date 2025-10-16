@@ -1,0 +1,4 @@
+package = platform.videodev2
+headers = linux/videodev2.h
+compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../x64/root/usr/include -I../x64/root/usr/local/include
+linkerOpts = -Lx64/root/usr/lib -Lx64/root/usr/local/lib --allow-shlib-undefined -lv4l2 -lv4lconvert

@@ -1,0 +1,5 @@
+package = platform.lua
+headers = lua.h lualib.h lauxlib.h
+compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../rk3588/root/usr/include -I../rk3588/root/usr/local/include
+linkerOpts = -Lrk3588/root/usr/lib -Lrk3588/root/usr/local/lib -llua -lm
+noStringConversion = lua_pushstring
