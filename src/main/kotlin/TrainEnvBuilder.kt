@@ -77,7 +77,7 @@ object TrainEnvBuilder {
         println("  - 包含所有必要的依赖包")
         println()
         println("使用方法：")
-        println("  ./gradlew run --args='export'")
+        println("  ./gradlew run --args='train-export'")
         println()
         println("更多使用说明请参考相关文档")
     }

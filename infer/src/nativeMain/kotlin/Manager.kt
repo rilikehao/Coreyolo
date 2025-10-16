@@ -5,12 +5,12 @@ class Manager(val size: Int) {
         repeat(size) { trySend(it) }
     }
 
-    suspend fun use(block: suspend (Int) -> Unit) {
-        val id = availableIds.receive()
+    suspend fun use(block: suspend (Int?) -> Unit) {
+        val id = availableIds.tryReceive().getOrNull()
         try {
             block(id)
         } finally {
-            availableIds.send(id)
+            id?.let { availableIds.trySend(it) }
         }
     }
 }

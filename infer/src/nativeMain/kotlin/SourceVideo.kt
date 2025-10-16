@@ -2,11 +2,6 @@ import StringFormat.toString
 import cnames.structs.InferTask
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import platform.native.*
@@ -35,23 +30,6 @@ object SourceVideo : Runnable {
         }
     }
 
-
-    fun <T> Flow<T>.bufferWithDropCallback(
-        capacity: Int,
-        onBufferOverflow: BufferOverflow,
-        onDrop: (T) -> Unit
-    ): Flow<T> = channelFlow {
-        val channel = Channel<T>(capacity, onBufferOverflow, onUndeliveredElement = { onDrop(it) })
-        val producer = launch {
-            collect { element -> channel.send(element) }
-            channel.close()
-        }
-        for (element in channel) {
-            send(element)
-        }
-        producer.join()
-    }.buffer(0)
-
     suspend fun runSend(tasksAgent: PriorityQueueAgent<Task>) =
         memScoped {
             val config = alloc<InferConfig>()
@@ -60,32 +38,40 @@ object SourceVideo : Runnable {
             config.threads_ = THREADS
             RAIIInfer(config.ptr)
         }.use { infer ->
-            val manager0 = Manager(THREADS)
-            val manager1 = Manager(THREADS)
             Video.open(AppArguments.instance.pathSource).use { video ->
-                video.frames()
-                    .bufferWithDropCallback(
-                        capacity = 0,
-                        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-                        onDrop = { (_, frame) -> DestroyImage(frame) }
-                    )
-                    .flatMapMerge(THREADS) { (pts, frame) ->
-                        flow {
-                            manager0.use { id ->
-                                val task = CreateInferTask()
-                                SetImage(task, frame)
-                                Detect0(infer.value, task, id)
-                                emit(Task(pts, task!!))
+                val manager0 = Manager(THREADS)
+                val manager1 = Manager(THREADS)
+                video.frames().flatMapMerge { (pts, frame) ->
+                    flow {
+                        manager0.use { id ->
+                            when (id) {
+                                null -> DestroyImage(frame)
+                                else -> {
+                                    val task = CreateInferTask()
+                                    SetImage(task, frame)
+                                    Detect0(infer.value, task, id)
+                                    emit(Task(pts, task!!))
+                                }
                             }
                         }
-                    }.flatMapMerge(THREADS) { task ->
-                        flow {
-                            manager1.use {
-                                Detect1(infer.value, task.inferTask)
-                                emit(task)
+                    }
+                }.flatMapMerge { task ->
+                    flow {
+                        manager1.use { id ->
+                            when (id) {
+                                null -> {
+                                    DestroyImage(GetImage(task.inferTask))
+                                    DestroyInferTask(task.inferTask)
+                                }
+
+                                else -> {
+                                    Detect1(infer.value, task.inferTask)
+                                    emit(task)
+                                }
                             }
                         }
-                    }.collect { tasksAgent.send(it) }
+                    }
+                }.collect { tasksAgent.send(it) }
             }
         }
 
