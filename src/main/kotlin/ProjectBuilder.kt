@@ -221,7 +221,7 @@ object ProjectBuilder {
         if (!File(APP_IMAGE_TOOL).exists()) {
             ProcessBuilder(
                 "wget", "-O", File(APP_IMAGE_TOOL).absolutePath,
-                "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+                "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
             ).runCommand()
             ProcessBuilder("chmod", "+x", File(APP_IMAGE_TOOL).absolutePath).runCommand()
         }
@@ -229,7 +229,7 @@ object ProjectBuilder {
             if (!File("$APP_IMAGE_RUNTIME-$it").exists()) {
                 ProcessBuilder(
                     "wget", "-O", File("$APP_IMAGE_RUNTIME-$it").absolutePath,
-                    "https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-$it",
+                    "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-$it",
                 ).runCommand()
             }
         }

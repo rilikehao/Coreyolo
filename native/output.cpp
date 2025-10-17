@@ -13,7 +13,7 @@ extern "C" {
 
 struct Output {
     QMainWindow window_;
-    QLabel *text_, *image_;
+    QLabel* image_;
 };
 
 Output* CreateOutput() {
@@ -25,27 +25,21 @@ Output* CreateOutput() {
     out->image_->setAlignment(Qt::AlignCenter);
     out->image_->setText("Waiting for video stream...");
     main_layout->addWidget(out->image_, 1);
-    QHBoxLayout* info_layout = new QHBoxLayout();
-    out->text_ = new QLabel("FPS: 0.0", &out->window_);
-    info_layout->addWidget(out->text_);
-    info_layout->addStretch();
-    main_layout->addLayout(info_layout);
     out->window_.showMaximized();
     return out;
 }
 
 void DestroyOutput(Output* out) { delete out; }
 
-void SendToOutput(Output* out, Image* image, const char* text) {
+void SendToOutput(Output* out, Image* image) {
     QMetaObject::invokeMethod(
         QApplication::instance(),
-        [out, image, s = QString(text)] {
+        [out, image] {
             out->image_->setPixmap(
                 QPixmap::fromImage(image->data_)
                     .scaled(out->image_->size(), Qt::KeepAspectRatio,
                             Qt::SmoothTransformation));
             DestroyImage(image);
-            out->text_->setText(s);
         },
         Qt::QueuedConnection);
 }
