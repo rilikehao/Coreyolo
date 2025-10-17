@@ -39,13 +39,6 @@ class RtspInput(val url: String) : Video {
                 try {
                     avcodec_parameters_to_context(codecCtx.value, codecParams)
                     if (avcodec_open2(codecCtx.value, codec, null) < 0) throw Error("avcodec_open2 失败")
-
-                    val hwDeviceCtx = codecCtx.pointed?.hw_device_ctx
-                    if (hwDeviceCtx != null) {
-                        println("FFmpeg 使用硬件加速解码")
-                    } else {
-                        println("FFmpeg 使用软件解码")
-                    }
                     val swsCtx = alloc<CPointerVar<SwsContext>>().also {
                         it.value = sws_getContext(
                             codecParams.pointed.width,
