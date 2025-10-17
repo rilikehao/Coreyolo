@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import platform.native.*
+import kotlin.math.max
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -96,7 +97,8 @@ object SourceVideo : Runnable {
                     } else {
                         val fps = 1.seconds / (frame0.elapsedNow() / ++frames)
                         text.append("每秒帧数: ${fps.toString(2)} ")
-                        text.append("延迟增量/毫秒: ${frame0.elapsedNow() - task.pts} ")
+                        val delayed = frame0.elapsedNow() - task.pts
+                        if (delayed.isPositive()) text.append("额外延迟/毫秒: $delayed ")
                     }
                     val detections = SizeDetections(task.inferTask)
                     text.append("检测数量: $detections")
@@ -111,15 +113,15 @@ object SourceVideo : Runnable {
     suspend fun runReceive(receive: Flow<Pair<Duration, CPointer<Image>>>, output: RAIIOutput) {
         var delayMs = 0
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
+        val delays = ArrayDeque<Pair<TimeSource.Monotonic.ValueTimeMark, Duration>>()
         receive.collect { (pts, frame) ->
             if (frame0 == null) frame0 = TimeSource.Monotonic.markNow()
             val delayed = frame0.elapsedNow() - pts
-            if (delayed < delayMs.milliseconds) {
-                delay(delayMs.milliseconds - delayed)
-            } else {
-                delayMs = delayed.inWholeMilliseconds.toInt()
-            }
-            println(delayMs)
+            while (delays.isNotEmpty() && delayed < delays.last().second) delays.removeLast()
+            delays.addLast(Pair(TimeSource.Monotonic.markNow(), delayed))
+            while (delays.isNotEmpty() && 1.seconds < delays.first().first.elapsedNow()) delays.removeFirst()
+            if (delays.isNotEmpty()) delayMs = delayMs.coerceAtLeast(delays.first().second.inWholeMilliseconds.toInt())
+            delay(delayMs.milliseconds - delayed)
             SendToOutput(output.value, frame)
         }
     }
