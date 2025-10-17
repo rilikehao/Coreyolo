@@ -20,6 +20,7 @@ class RtspInput(val url: String) : Video {
             av_dict_set(options.ptr, "fflags", "nobuffer", 0)
             av_dict_set(options.ptr, "rtsp_transport", "tcp", 0)
             val formatCtx = alloc<CPointerVar<AVFormatContext>>()
+            val timeBegin = Clock.System.now()
             if (avformat_open_input(formatCtx.ptr, url, null, options.ptr) != 0) throw Error("avformat_open_input 失败")
             try {
                 if (avformat_find_stream_info(formatCtx.value, null) < 0) throw Error("avformat_find_stream_info 失败")
@@ -38,6 +39,13 @@ class RtspInput(val url: String) : Video {
                 try {
                     avcodec_parameters_to_context(codecCtx.value, codecParams)
                     if (avcodec_open2(codecCtx.value, codec, null) < 0) throw Error("avcodec_open2 失败")
+
+                    val hwDeviceCtx = codecCtx.pointed?.hw_device_ctx
+                    if (hwDeviceCtx != null) {
+                        println("FFmpeg 使用硬件加速解码")
+                    } else {
+                        println("FFmpeg 使用软件解码")
+                    }
                     val swsCtx = alloc<CPointerVar<SwsContext>>().also {
                         it.value = sws_getContext(
                             codecParams.pointed.width,
@@ -55,7 +63,6 @@ class RtspInput(val url: String) : Video {
                         val frame = alloc<CPointerVar<AVFrame>>().also { it.value = av_frame_alloc() }
                         try {
                             val timeBase = formatCtx.pointed!!.streams!![videoStreamIndex]!!.pointed.time_base
-                            val timeBegin = Clock.System.now()
                             while (true) {
                                 val ret = av_read_frame(formatCtx.value, packet.value)
                                 if (ret < 0) {

@@ -114,7 +114,6 @@ void NonMaximumSuppression(std::vector<Detection>& detections) {
         std::sort(indices.begin(), indices.end(), [&](int i0, int i1) {
             return detections[i1].score_ < detections[i0].score_;
         });
-
         for (int i = 0; i < indices.size(); ++i) {
             int idx_i = indices[i];
             if (suppressed[idx_i]) continue;
@@ -127,11 +126,16 @@ void NonMaximumSuppression(std::vector<Detection>& detections) {
             }
         }
     }
+    std::vector<int> indices;
     std::vector<Detection> filtered;
     for (int i = 0; i < detections.size(); ++i) {
-        if (!suppressed[i]) {
-            filtered.emplace_back(std::move(detections[i]));
-        }
+        if (!suppressed[i]) indices.emplace_back(i);
+    }
+    std::sort(indices.begin(), indices.end(), [&](int i0, int i1) {
+        return detections[i1].score_ < detections[i0].score_;
+    });
+    for (int i : indices) {
+        filtered.emplace_back(std::move(detections[i]));
     }
     std::swap(detections, filtered);
 }

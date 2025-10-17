@@ -18,17 +18,17 @@ end
 
 -- 颜色计算函数：基于score实现颜色渐变
 -- score=1.0时显示为红色(255,0,0)
--- score=0.0时显示为灰色(128,128,128)
+-- score=0.0时显示为黑色(0,0,0)
 -- 中间score值进行线性插值计算
 function CalculateColor(score)
     -- 确保score在0-1范围内
     score = math.max(0.0, math.min(1.0, score))
 
     -- 使用通用的alpha混色算法
-    -- 起始颜色：灰色(128,128,128)
+    -- 起始颜色：黑色(0,0,0)
     -- 结束颜色：红色(255,0,0)
     -- alpha值：score
-    return AlphaBlend(128, 128, 128, 255, 0, 0, score)
+    return AlphaBlend(0, 0, 0, 255, 0, 0, score)
 end
 
 -- 绘制检测框函数：使用颜色渐变
@@ -171,8 +171,16 @@ end
 -- 全局 Process 函数：处理每一帧数据
 -- 参数：detections - 检测框数组，每个元素包含 x0, x1, y0, y1, score, text 字段
 function Process(detections)
+    -- 限制最多画5个框
+    local max_boxes = 5
+    local count = 0
+
     -- 遍历所有检测框
     for i, detection in ipairs(detections) do
+        if count >= max_boxes then
+            break
+        end
+
         -- 翻译标签为中文
         detection.text = Translate(detection.text)
 
@@ -181,6 +189,8 @@ function Process(detections)
 
         -- 根据条件发送HTTP报警
         SendAlertIfNeeded(detection)
+
+        count = count + 1
     end
 end
 
@@ -194,7 +204,7 @@ end
 -- 5. HttpGet(url) - 发送 HTTP GET 请求
 -- 6. CalculateColor(score) - 基于置信度计算颜色渐变
 --    - score=1.0: 红色(255, 0, 0)
---    - score=0.0: 灰色(128, 128, 128)
+--    - score=0.0: 黑色(0,0,0)
 --    - 中间值线性插值
 
 -- 常见使用场景：
