@@ -1,4 +1,4 @@
-class PriorityQueue<T>(selector: (T) -> Comparable<*>? = { it as Comparable<*> }) {
+class PriorityQueue<T>(val bufferSize: Int, selector: (T) -> Comparable<*>? = { it as Comparable<*> }) {
     private val comparator: Comparator<T> = compareBy(selector)
     private val heap = mutableListOf<T>()
     private fun parent(i: Int): Int = (i - 1) / 2
@@ -11,7 +11,7 @@ class PriorityQueue<T>(selector: (T) -> Comparable<*>? = { it as Comparable<*> }
     }
 
     fun pop(): T? {
-        if (heap.isEmpty()) return null
+        if (heap.size <= bufferSize) return null
 
         return if (heap.size == 1) {
             heap.removeAt(0)
@@ -22,10 +22,6 @@ class PriorityQueue<T>(selector: (T) -> Comparable<*>? = { it as Comparable<*> }
             minItem
         }
     }
-
-    fun isEmpty(): Boolean = heap.isEmpty()
-
-    fun size(): Int = heap.size
 
     private fun siftUp(i: Int) {
         var child = i

@@ -5,7 +5,6 @@ import platform.ffmpeg.*
 import platform.native.Bits
 import platform.native.BytesPerLine
 import platform.native.CreateImageRGB24
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
@@ -20,7 +19,6 @@ class RtspInput(val url: String) : Video {
             av_dict_set(options.ptr, "fflags", "nobuffer", 0)
             av_dict_set(options.ptr, "rtsp_transport", "tcp", 0)
             val formatCtx = alloc<CPointerVar<AVFormatContext>>()
-            val timeBegin = Clock.System.now()
             if (avformat_open_input(formatCtx.ptr, url, null, options.ptr) != 0) throw Error("avformat_open_input 失败")
             try {
                 if (avformat_find_stream_info(formatCtx.value, null) < 0) throw Error("avformat_find_stream_info 失败")
@@ -67,7 +65,7 @@ class RtspInput(val url: String) : Video {
                                         if (avcodec_send_packet(codecCtx.value, packet.value) < 0) continue
                                         while (0 <= avcodec_receive_frame(codecCtx.value, frame.value)) {
                                             val present = frame.pointed!!.pts.toDouble() * timeBase.num / timeBase.den
-                                            emit(Pair(timeBegin + present.seconds, toImage(frame, swsCtx)))
+                                            emit(Pair(present.seconds, toImage(frame, swsCtx)))
                                         }
                                     }
                                 } finally {

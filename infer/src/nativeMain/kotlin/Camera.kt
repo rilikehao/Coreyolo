@@ -9,6 +9,7 @@ import platform.posix.*
 import platform.videodev2.*
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class)
 abstract class Camera(val fd: Int) : Video {
@@ -48,6 +49,7 @@ abstract class Camera(val fd: Int) : Video {
 
     @OptIn(ExperimentalTime::class)
     override fun frames() = flow {
+        var frame0: TimeSource.Monotonic.ValueTimeMark? = null
         val resolution = setResolution()
         setFrameRate(resolution)
         val buffers = mapBuffers()
@@ -63,7 +65,8 @@ abstract class Camera(val fd: Int) : Video {
                     val h = resolution.h.toInt()
                     val image = CreateImage(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
                     if (ioctl(fd, VIDIOC_QBUF, buf.ptr) < 0) throw Error("VIDIOC_QBUF 失败")
-                    emit(Pair(Clock.System.now(), image!!))
+                    if (frame0 == null) frame0 = TimeSource.Monotonic.markNow()
+                    emit(Pair(frame0.elapsedNow(), image!!))
                 }
             }
         } finally {

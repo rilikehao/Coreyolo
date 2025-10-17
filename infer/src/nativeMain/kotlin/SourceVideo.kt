@@ -1,11 +1,14 @@
 import StringFormat.toString
 import cnames.structs.InferTask
+import cnames.structs.Image
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import platform.native.*
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -16,15 +19,15 @@ import kotlin.time.TimeSource
 object SourceVideo : Runnable {
     const val THREADS = 3
 
-    data class Task(val pts: Instant, val inferTask: CPointer<InferTask>)
+    data class Task(val pts: Duration, val inferTask: CPointer<InferTask>)
 
     override fun run() = RAIIOutput().use { output ->
         runBlocking {
-            val tasks = PriorityQueue<Task> { it.pts }
+            val tasks = PriorityQueue<Task>(THREADS) { it.pts }
             val tasksAgent = PriorityQueueAgent(tasks)
             withJob({ tasksAgent.run() }) {
                 withJob({ runSend(tasksAgent) }) {
-                    withJob({ runReceive(tasksAgent, output) }) { Exec() }
+                    withJob({ runReceive(receive(tasksAgent), output) }) { Exec() }
                 }
             }
         }
@@ -75,12 +78,11 @@ object SourceVideo : Runnable {
             }
         }
 
-    suspend fun runReceive(tasksAgent: PriorityQueueAgent<Task>, output: RAIIOutput) {
+    fun receive(tasksAgent: PriorityQueueAgent<Task>) = flow {
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
         var frames = 0
-        var delayMs = 0
         DrawScript(AppArguments.instance.pathDrawScript).use { draw ->
-            var ptsLast: Instant? = null
+            var ptsLast: Duration? = null
             while (true) {
                 val task = tasksAgent.receive()
                 if (ptsLast != null && task.pts < ptsLast) {
@@ -94,20 +96,31 @@ object SourceVideo : Runnable {
                     } else {
                         val fps = 1.seconds / (frame0.elapsedNow() / ++frames)
                         text.append("每秒帧数: ${fps.toString(2)} ")
-                        text.append("延迟/毫秒: $delayMs ")
+                        text.append("延迟/毫秒: ${Clock.System.now() - task.pts} ")
                     }
                     val detections = SizeDetections(task.inferTask)
                     text.append("检测数量: $detections")
-                    val delayed = Clock.System.now() - task.pts
-                    if (delayed < delayMs.milliseconds) {
-                        delay(delayMs.milliseconds - delayed)
-                    } else {
-                        delayMs = delayed.inWholeMilliseconds.toInt()
-                    }
-                    SendToOutput(output.value, GetImage(task.inferTask), text.toString())
+                    println(text)
+                    emit(Pair(task.pts, GetImage(task.inferTask)!!))
                 }
                 DestroyInferTask(task.inferTask)
             }
+        }
+    }
+
+    suspend fun runReceive(receive: Flow<Pair<Duration, CPointer<Image>>>, output: RAIIOutput) {
+        var delayMs = 0
+        var frame0: TimeSource.Monotonic.ValueTimeMark? = null
+        receive.collect { (pts, frame) ->
+            if (frame0 == null) frame0 = TimeSource.Monotonic.markNow()
+            val delayed = frame0.elapsedNow() - pts
+            if (delayed < delayMs.milliseconds) {
+                delay(delayMs.milliseconds - delayed)
+            } else {
+                delayMs = delayed.inWholeMilliseconds.toInt()
+            }
+            println(delayMs)
+            SendToOutput(output.value, frame, "")
         }
     }
 
