@@ -16,5 +16,6 @@ class AppArguments(parser: ArgParser) {
     val pathModel by parser.option(ArgType.String, "model").required()
     val pathDescription by parser.option(ArgType.String, "description").required()
     val pathSource by parser.option(ArgType.String, "source").required()
+    val pathTarget by parser.option(ArgType.String, "target").default("")
     val pathDrawScript by parser.option(ArgType.String, "draw-script").default("")
 }
