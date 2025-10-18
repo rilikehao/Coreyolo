@@ -111,7 +111,7 @@ class RtspOutput(val url: String) {
                     f.data, f.linesize
                 )
 
-                f.pts = (pts.inWholeMilliseconds * 25 / 1000)
+                f.pts = pts.inWholeMilliseconds
             }
 
             if (avcodec_send_frame(codecCtx, frame.value) < 0) return@memScoped
