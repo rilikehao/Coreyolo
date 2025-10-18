@@ -29,16 +29,15 @@ class RtspOutput(val url: String) {
                 ctx.width = 1920
                 ctx.height = 1080
                 ctx.pix_fmt = AV_PIX_FMT_YUV420P
-                ctx.gop_size = 10
-                ctx.max_b_frames = 1
-
+                ctx.max_b_frames = 0
+                ctx.time_base.num = 1
+                ctx.time_base.den = 1000
                 if (avcodec_open2(codecCtx.value, codec, null) < 0)
                     throw Error("avcodec_open2 失败")
 
                 val videoStream = avformat_new_stream(formatCtx.value, codec)
                     ?: throw Error("avformat_new_stream 失败")
                 avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
-                // time_base handled by avformat parameters from context
 
                 val pbPtr = alloc<CPointerVar<AVIOContext>>()
                 if (avio_open(pbPtr.ptr, url, AVIO_FLAG_WRITE) < 0)

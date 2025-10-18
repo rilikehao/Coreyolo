@@ -24,7 +24,7 @@ object SourceVideo : Runnable {
 
     override fun run() = RAIIOutput().use { output ->
         runBlocking {
-            val tasks = PriorityQueue<Task>(THREADS) { it.pts }
+            val tasks = PriorityQueue<Task>(1) { it.pts }
             val tasksAgent = PriorityQueueAgent(tasks)
             withJob({ tasksAgent.run() }) {
                 withJob({ runSend(tasksAgent) }) {
