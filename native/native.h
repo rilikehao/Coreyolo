@@ -53,6 +53,9 @@ struct Image* GetImage(struct InferTask* task);
 // task 将拥有 image 所有权
 void SetImage(struct InferTask* task, struct Image* image);
 
+int GetWidth(struct Image* image);
+int GetHeight(struct Image* image);
+
 int SizeDetections(struct InferTask* task);
 struct Detection* PtrDetections(struct InferTask* task);
 const char* GetError(struct InferTask* task);

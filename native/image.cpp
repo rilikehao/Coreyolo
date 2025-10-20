@@ -42,6 +42,9 @@ int BytesPerLine(struct Image* image) {
 
 uint8_t* Bits(struct Image* image) { return image->data_.bits(); }
 
+int GetWidth(struct Image* image) { return image->data_.width(); }
+int GetHeight(struct Image* image) { return image->data_.height(); }
+
 }  // extern
 
 QImage DecodeMotionJPEG(void* data, int width, int height) {
