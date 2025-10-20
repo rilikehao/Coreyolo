@@ -80,6 +80,7 @@ object SourceVideo : Runnable {
 
     fun receive(tasksAgent: PriorityQueueAgent<Task>) = flow {
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
+        var pts0 = Duration.ZERO
         var frames = 0
         DrawScript(AppArguments.instance.pathDrawScript).use { draw ->
             var ptsLast: Duration? = null
@@ -93,11 +94,12 @@ object SourceVideo : Runnable {
                     val text = StringBuilder()
                     if (frame0 == null) {
                         frame0 = TimeSource.Monotonic.markNow()
+                        pts0 = task.pts
                     } else {
                         val fps = 1.seconds / (frame0.elapsedNow() / ++frames)
                         text.append("每秒帧数: ${fps.toString(2)} ")
-                        val delayed = frame0.elapsedNow() - task.pts
-                        if (delayed.isPositive()) text.append("额外延迟/毫秒: $delayed ")
+                        val delayed = frame0.elapsedNow() - (task.pts - pts0)
+                        text.append("额外延迟: $delayed ")
                     }
                     val detections = SizeDetections(task.inferTask)
                     text.append("检测数量: $detections")
@@ -112,10 +114,14 @@ object SourceVideo : Runnable {
     suspend fun runReceive(receive: Flow<Pair<Duration, CPointer<Image>>>, output: RAIIOutput) {
         var delayMs = 0
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
+        var pts0 = Duration.ZERO
         val delays = ArrayDeque<Pair<TimeSource.Monotonic.ValueTimeMark, Duration>>()
         receive.collect { (pts, frame) ->
-            if (frame0 == null) frame0 = TimeSource.Monotonic.markNow()
-            val delayed = frame0.elapsedNow() - pts
+            if (frame0 == null) {
+                frame0 = TimeSource.Monotonic.markNow()
+                pts0 = pts
+            }
+            val delayed = frame0.elapsedNow() - (pts - pts0)
             while (delays.isNotEmpty() && delayed < delays.last().second) delays.removeLast()
             delays.addLast(Pair(TimeSource.Monotonic.markNow(), delayed))
             while (delays.isNotEmpty() && 1.seconds < delays.first().first.elapsedNow()) delays.removeFirst()

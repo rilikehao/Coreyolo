@@ -1,9 +1,9 @@
 class PriorityQueue<T>(val bufferSize: Int, selector: (T) -> Comparable<*>? = { it as Comparable<*> }) {
-    private val comparator: Comparator<T> = compareBy(selector)
-    private val heap = mutableListOf<T>()
-    private fun parent(i: Int): Int = (i - 1) / 2
-    private fun left(i: Int): Int = 2 * i + 1
-    private fun right(i: Int): Int = 2 * i + 2
+    val comparator: Comparator<T> = compareBy(selector)
+    val heap = mutableListOf<T>()
+    fun parent(i: Int): Int = (i - 1) / 2
+    fun left(i: Int): Int = 2 * i + 1
+    fun right(i: Int): Int = 2 * i + 2
 
     fun push(item: T) {
         heap.add(item)
@@ -23,7 +23,7 @@ class PriorityQueue<T>(val bufferSize: Int, selector: (T) -> Comparable<*>? = { 
         }
     }
 
-    private fun siftUp(i: Int) {
+    fun siftUp(i: Int) {
         var child = i
         while (child > 0) {
             val p = parent(child)
@@ -36,7 +36,7 @@ class PriorityQueue<T>(val bufferSize: Int, selector: (T) -> Comparable<*>? = { 
         }
     }
 
-    private fun siftDown(i: Int) {
+    fun siftDown(i: Int) {
         var parent = i
         val size = heap.size
         while (true) {
@@ -60,7 +60,7 @@ class PriorityQueue<T>(val bufferSize: Int, selector: (T) -> Comparable<*>? = { 
         }
     }
 
-    private fun swap(i: Int, j: Int) {
+    fun swap(i: Int, j: Int) {
         val temp = heap[i]
         heap[i] = heap[j]
         heap[j] = temp

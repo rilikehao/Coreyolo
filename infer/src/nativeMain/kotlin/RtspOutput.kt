@@ -27,8 +27,11 @@ class RtspOutput(val url: String) {
                 ctx.codec_type = AVMEDIA_TYPE_VIDEO
                 ctx.pix_fmt = AV_PIX_FMT_YUV420P
                 ctx.max_b_frames = 0
+                ctx.gop_size = 10
                 ctx.time_base.num = 1
-                ctx.time_base.den = 1000
+                ctx.time_base.den = 90000
+                ctx.thread_type = FF_THREAD_SLICE
+                ctx.thread_count = 0
                 var videoStream: CPointer<AVStream>? = null
                 val swsCtx = alloc<CPointerVar<SwsContext>>()
                 try {
@@ -36,9 +39,12 @@ class RtspOutput(val url: String) {
                         if (ctx.width == 0) {
                             ctx.width = GetWidth(frame)
                             ctx.height = GetHeight(frame)
-                            if (avcodec_open2(codecCtx.value, codec, null) < 0) {
+                            val codecOptions = alloc<CPointerVar<AVDictionary>>()
+                            av_dict_set(codecOptions.ptr, "profile", "baseline", 0)
+                            if (avcodec_open2(codecCtx.value, codec, codecOptions.ptr) < 0) {
                                 throw Error("avcodec_open2 失败")
                             }
+                            av_dict_free(codecOptions.ptr)
                             videoStream = avformat_new_stream(formatCtx.value, codec)
                                 ?: throw Error("avformat_new_stream 失败")
                             avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
@@ -96,7 +102,7 @@ class RtspOutput(val url: String) {
                     0, f.height,
                     f.data, f.linesize
                 )
-                f.pts = pts.inWholeMilliseconds
+                f.pts = pts.inWholeMicroseconds * 90 / 1000
             }
             if (avcodec_send_frame(codecCtx, frame.value) < 0) throw Error("avcodec_send_frame 失败")
             while (0 <= avcodec_receive_packet(codecCtx, packet.value)) {
