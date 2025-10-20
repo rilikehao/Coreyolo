@@ -15,61 +15,66 @@ class RtspOutput(val url: String) {
         val options = alloc<CPointerVar<AVDictionary>>()
         av_dict_set(options.ptr, "rtsp_transport", "tcp", 0)
         av_dict_set(options.ptr, "tune", "zerolatency", 0)
-
         val formatCtx = alloc<CPointerVar<AVFormatContext>>()
-        if (avformat_alloc_output_context2(formatCtx.ptr, null, "rtsp", url) < 0)
+        if (avformat_alloc_output_context2(formatCtx.ptr, null, null, url) < 0)
             throw Error("avformat_alloc_output_context2 失败")
         try {
-            val codec = avcodec_find_encoder(AV_CODEC_ID_H264)
-                ?: throw Error("avcodec_find_encoder H264 失败")
-            val codecCtx = alloc<CPointerVar<AVCodecContext>>().also {
-                it.value = avcodec_alloc_context3(codec)
+            val pbPtr = alloc<CPointerVar<AVIOContext>>()
+            val result = avio_open(pbPtr.ptr, url, AVIO_FLAG_WRITE)
+            if (result < 0) {
+                val errorBuf = allocArray<ByteVar>(256)
+                av_strerror(result, errorBuf, 256UL)
+                val errorMsg = errorBuf.toKString()
+                throw Error("avio_open 失败: $errorMsg (code: $result)")
             }
+            formatCtx.value!!.pointed.pb = pbPtr.value
             try {
-                val ctx = codecCtx.value!!.pointed
-                ctx.codec_type = AVMEDIA_TYPE_VIDEO
-                ctx.pix_fmt = AV_PIX_FMT_YUV420P
-                ctx.max_b_frames = 0
-                ctx.time_base.num = 1
-                ctx.time_base.den = 1000
-
-                var videoStream: CPointer<AVStream>? = null
-                val pbPtr = alloc<CPointerVar<AVIOContext>>()
-                val swsCtx = alloc<CPointerVar<SwsContext>>()
+                val codec = avcodec_find_encoder(AV_CODEC_ID_H264)
+                    ?: throw Error("avcodec_find_encoder H264 失败")
+                val codecCtx = alloc<CPointerVar<AVCodecContext>>().also {
+                    it.value = avcodec_alloc_context3(codec)
+                }
                 try {
-                    receive.collect { (pts, frame) ->
-                        if (ctx.width == 0) {
-                            ctx.width = GetWidth(frame)
-                            ctx.height = GetHeight(frame)
-                            if (avcodec_open2(codecCtx.value, codec, null) < 0) {
-                                throw Error("avcodec_open2 失败")
+                    val ctx = codecCtx.value!!.pointed
+                    ctx.codec_type = AVMEDIA_TYPE_VIDEO
+                    ctx.pix_fmt = AV_PIX_FMT_YUV420P
+                    ctx.max_b_frames = 0
+                    ctx.time_base.num = 1
+                    ctx.time_base.den = 1000
+                    var videoStream: CPointer<AVStream>? = null
+                    val swsCtx = alloc<CPointerVar<SwsContext>>()
+                    try {
+                        receive.collect { (pts, frame) ->
+                            if (ctx.width == 0) {
+                                ctx.width = GetWidth(frame)
+                                ctx.height = GetHeight(frame)
+                                if (avcodec_open2(codecCtx.value, codec, null) < 0) {
+                                    throw Error("avcodec_open2 失败")
+                                }
+                                videoStream = avformat_new_stream(formatCtx.value, codec)
+                                    ?: throw Error("avformat_new_stream 失败")
+                                avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
+                                if (avformat_write_header(formatCtx.value, options.ptr) < 0) {
+                                    throw Error("avformat_write_header 失败")
+                                }
+                                swsCtx.value = sws_getContext(
+                                    ctx.width, ctx.height, AV_PIX_FMT_RGB24,
+                                    ctx.width, ctx.height, AV_PIX_FMT_YUV420P,
+                                    SWS_BILINEAR.toInt(),
+                                    null, null, null,
+                                )
                             }
-                            videoStream = avformat_new_stream(formatCtx.value, codec)
-                                ?: throw Error("avformat_new_stream 失败")
-                            avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
-                            if (avio_open(pbPtr.ptr, url, AVIO_FLAG_WRITE) < 0) throw Error("avio_open 失败")
-                            formatCtx.value!!.pointed.pb = pbPtr.value
-                            if (avformat_write_header(formatCtx.value, options.ptr) < 0) {
-                                throw Error("avformat_write_header 失败")
-                            }
-                            swsCtx.value = sws_getContext(
-                                ctx.width, ctx.height, AV_PIX_FMT_RGB24,
-                                ctx.width, ctx.height, AV_PIX_FMT_YUV420P,
-                                SWS_BILINEAR.toInt(),
-                                null, null, null,
-                            )
+                            toOutput(pts, frame, formatCtx.value!!, videoStream!!, codecCtx.value!!, swsCtx.value!!)
                         }
-                        toOutput(pts, frame, formatCtx.value!!, videoStream!!, codecCtx.value!!, swsCtx.value!!)
+                        av_write_trailer(formatCtx.value)
+                    } finally {
+                        if (swsCtx.value != nativeNullPtr) sws_freeContext(swsCtx.value)
                     }
                 } finally {
-                    if (swsCtx.value != nativeNullPtr) sws_freeContext(swsCtx.value)
-                    if (pbPtr.value != nativeNullPtr) {
-                        av_write_trailer(formatCtx.value)
-                        avio_closep(pbPtr.ptr)
-                    }
+                    avcodec_free_context(codecCtx.ptr)
                 }
             } finally {
-                avcodec_free_context(codecCtx.ptr)
+                avio_closep(pbPtr.ptr)
             }
         } finally {
             avformat_free_context(formatCtx.value)
@@ -103,7 +108,7 @@ class RtspOutput(val url: String) {
                 )
                 f.pts = pts.inWholeMilliseconds
             }
-            if (avcodec_send_frame(codecCtx, frame.value) < 0) return@memScoped
+            if (avcodec_send_frame(codecCtx, frame.value) < 0) throw Error("avcodec_send_frame 失败")
             while (0 <= avcodec_receive_packet(codecCtx, packet.value)) {
                 packet.value!!.pointed.stream_index = videoStream.pointed.index
                 av_interleaved_write_frame(formatCtx, packet.value)

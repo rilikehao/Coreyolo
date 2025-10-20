@@ -1,19 +1,16 @@
 import StringFormat.toString
-import cnames.structs.InferTask
 import cnames.structs.Image
+import cnames.structs.InferTask
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import platform.native.*
-import kotlin.math.max
-import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalCoroutinesApi::class, ExperimentalTime::class)
@@ -22,13 +19,15 @@ object SourceVideo : Runnable {
 
     data class Task(val pts: Duration, val inferTask: CPointer<InferTask>)
 
-    override fun run() = RAIIOutput().use { output ->
-        runBlocking {
-            val tasks = PriorityQueue<Task>(1) { it.pts }
-            val tasksAgent = PriorityQueueAgent(tasks)
-            withJob({ tasksAgent.run() }) {
-                withJob({ runSend(tasksAgent) }) {
-                    withJob({ runReceive(receive(tasksAgent), output) }) { Exec() }
+    override fun run() = runBlocking {
+        val tasks = PriorityQueue<Task>(1) { it.pts }
+        val tasksAgent = PriorityQueueAgent(tasks)
+        withJob({ tasksAgent.run() }) {
+            withJob({ runSend(tasksAgent) }) {
+                if (AppArguments.instance.pathTarget.isEmpty()) {
+                    RAIIOutput().use { output -> withJob({ runReceive(receive(tasksAgent), output) }) { Exec() } }
+                } else {
+                    RtspOutput(AppArguments.instance.pathTarget).runReceive(receive(tasksAgent))
                 }
             }
         }

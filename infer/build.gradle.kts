@@ -37,10 +37,12 @@ kotlin {
 tasks.register("install") {
     dependsOn("x64Binaries", "rk3588Binaries")
 
+    val buildType = project.findProperty("buildType") as String? ?: "Release"
+
     doLast {
         val platforms = listOf("x64", "rk3588")
         platforms.forEach { platform ->
-            val executableFile = file("build/bin/$platform/YoloInfer-${platform}ReleaseExecutable/YoloInfer-$platform.kexe")
+            val executableFile = file("build/bin/$platform/YoloInfer-${platform}${buildType}Executable/YoloInfer-$platform.kexe")
             val installDir = file("../$platform/root/usr/local/bin")
             val targetFile = file("$installDir/YoloInfer")
 
@@ -52,7 +54,7 @@ tasks.register("install") {
             executableFile.copyTo(targetFile, overwrite = true)
             targetFile.setExecutable(true)
 
-            println("Installed ${executableFile.name} to ${targetFile.absolutePath}")
+            println("Installed ${executableFile.name} (${buildType.lowercase()}) to ${targetFile.absolutePath}")
         }
     }
 }
