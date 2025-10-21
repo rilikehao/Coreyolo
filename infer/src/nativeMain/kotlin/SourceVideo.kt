@@ -99,7 +99,7 @@ object SourceVideo : Runnable {
                         val fps = 1.seconds / (frame0.elapsedNow() / ++frames)
                         text.append("每秒帧数: ${fps.toString(2)} ")
                         val delayed = frame0.elapsedNow() - (task.pts - pts0)
-                        text.append("额外延迟: $delayed ")
+                        if (delayed.isPositive()) text.append("额外延迟: $delayed ")
                     }
                     val detections = SizeDetections(task.inferTask)
                     text.append("检测数量: $detections")

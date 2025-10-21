@@ -3,10 +3,7 @@ import cnames.structs.Image
 import kotlinx.cinterop.*
 import kotlinx.coroutines.flow.Flow
 import platform.ffmpeg.*
-import platform.native.Bits
-import platform.native.BytesPerLine
-import platform.native.GetHeight
-import platform.native.GetWidth
+import platform.native.*
 import kotlin.time.Duration
 
 @OptIn(ExperimentalForeignApi::class)
@@ -20,7 +17,8 @@ class RtspOutput(val url: String) {
             throw Error("avformat_alloc_output_context2 失败")
         }
         try {
-            val codec = avcodec_find_encoder(AV_CODEC_ID_H264) ?: throw Error("avcodec_find_encoder H264 失败")
+            val codec = avcodec_find_encoder_by_name(H264.ENCODER_NAME)
+                ?: throw Error("avcodec_find_encoder H264 失败")
             val codecCtx = alloc<CPointerVar<AVCodecContext>>().also { it.value = avcodec_alloc_context3(codec) }
             try {
                 val ctx = codecCtx.value!!.pointed
@@ -36,29 +34,33 @@ class RtspOutput(val url: String) {
                 val swsCtx = alloc<CPointerVar<SwsContext>>()
                 try {
                     receive.collect { (pts, frame) ->
-                        if (ctx.width == 0) {
-                            ctx.width = GetWidth(frame)
-                            ctx.height = GetHeight(frame)
-                            val codecOptions = alloc<CPointerVar<AVDictionary>>()
-                            av_dict_set(codecOptions.ptr, "profile", "baseline", 0)
-                            if (avcodec_open2(codecCtx.value, codec, codecOptions.ptr) < 0) {
-                                throw Error("avcodec_open2 失败")
+                        try {
+                            if (ctx.width == 0) {
+                                ctx.width = GetWidth(frame)
+                                ctx.height = GetHeight(frame)
+                                val codecOptions = alloc<CPointerVar<AVDictionary>>()
+                                H264.setEncoderOptions(codecOptions)
+                                if (avcodec_open2(codecCtx.value, codec, codecOptions.ptr) < 0) {
+                                    throw Error("avcodec_open2 失败")
+                                }
+                                av_dict_free(codecOptions.ptr)
+                                videoStream = avformat_new_stream(formatCtx.value, codec)
+                                    ?: throw Error("avformat_new_stream 失败")
+                                avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
+                                if (avformat_write_header(formatCtx.value, options.ptr) < 0) {
+                                    throw Error("avformat_write_header 失败")
+                                }
+                                swsCtx.value = sws_getContext(
+                                    ctx.width, ctx.height, AV_PIX_FMT_RGB24,
+                                    ctx.width, ctx.height, AV_PIX_FMT_YUV420P,
+                                    SWS_BILINEAR.toInt(),
+                                    null, null, null,
+                                )
                             }
-                            av_dict_free(codecOptions.ptr)
-                            videoStream = avformat_new_stream(formatCtx.value, codec)
-                                ?: throw Error("avformat_new_stream 失败")
-                            avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
-                            if (avformat_write_header(formatCtx.value, options.ptr) < 0) {
-                                throw Error("avformat_write_header 失败")
-                            }
-                            swsCtx.value = sws_getContext(
-                                ctx.width, ctx.height, AV_PIX_FMT_RGB24,
-                                ctx.width, ctx.height, AV_PIX_FMT_YUV420P,
-                                SWS_BILINEAR.toInt(),
-                                null, null, null,
-                            )
+                            toOutput(pts, frame, formatCtx.value!!, videoStream!!, codecCtx.value!!, swsCtx.value!!)
+                        } finally {
+                            DestroyImage(frame)
                         }
-                        toOutput(pts, frame, formatCtx.value!!, videoStream!!, codecCtx.value!!, swsCtx.value!!)
                     }
                     av_write_trailer(formatCtx.value)
                 } finally {
