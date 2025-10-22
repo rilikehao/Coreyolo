@@ -1,9 +1,19 @@
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.staticCFunction
-import kotlinx.cinterop.toCStringArray
 import cli.ArgParser
+import kotlinx.cinterop.*
+import platform.ffmpeg.AV_ERROR_MAX_STRING_SIZE
+import platform.ffmpeg.av_make_error_string
 import platform.native.Main
+
+@OptIn(ExperimentalForeignApi::class)
+fun Int.check(api: String) {
+    if (this < 0) {
+        memScoped {
+            val buf = allocArray<ByteVar>(AV_ERROR_MAX_STRING_SIZE)
+            av_make_error_string(buf.pointed.ptr, AV_ERROR_MAX_STRING_SIZE.toULong(), this@check)
+            throw Error("$api 失败: ${buf.toKString()}")
+        }
+    }
+}
 
 @OptIn(ExperimentalForeignApi::class)
 fun main(args: Array<String>) {

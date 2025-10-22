@@ -1,15 +1,14 @@
 import cnames.structs.Image
-import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 interface Video : AutoCloseable {
-    fun frames(): Flow<Pair<Duration, CPointer<Image>>>
+    data class Frame(val timestamp: Duration, val image: CPointer<Image>)
+    fun frames(): Flow<Frame>
 
     companion object {
         fun open(source: String) =

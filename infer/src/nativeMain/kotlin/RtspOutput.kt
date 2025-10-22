@@ -13,11 +13,9 @@ class RtspOutput(val url: String) {
         av_dict_set(options.ptr, "rtsp_transport", "tcp", 0)
         av_dict_set(options.ptr, "tune", "zerolatency", 0)
         val formatCtx = alloc<CPointerVar<AVFormatContext>>()
-        if (avformat_alloc_output_context2(formatCtx.ptr, null, "rtsp", url) < 0) {
-            throw Error("avformat_alloc_output_context2 失败")
-        }
+        avformat_alloc_output_context2(formatCtx.ptr, null, "rtsp", url).check("avformat_alloc_output_context2")
         try {
-            val codec = avcodec_find_encoder_by_name(H264.ENCODER_NAME)
+            val codec = avcodec_find_encoder_by_name(Device.H264_ENCODER_NAME)
                 ?: throw Error("avcodec_find_encoder H264 失败")
             val codecCtx = alloc<CPointerVar<AVCodecContext>>().also { it.value = avcodec_alloc_context3(codec) }
             try {
@@ -39,17 +37,13 @@ class RtspOutput(val url: String) {
                                 ctx.width = GetWidth(frame)
                                 ctx.height = GetHeight(frame)
                                 val codecOptions = alloc<CPointerVar<AVDictionary>>()
-                                H264.setEncoderOptions(codecOptions)
-                                if (avcodec_open2(codecCtx.value, codec, codecOptions.ptr) < 0) {
-                                    throw Error("avcodec_open2 失败")
-                                }
+                                Device.setEncoderOptions(codecOptions)
+                                avcodec_open2(codecCtx.value, codec, codecOptions.ptr).check("avcodec_open2")
                                 av_dict_free(codecOptions.ptr)
                                 videoStream = avformat_new_stream(formatCtx.value, codec)
                                     ?: throw Error("avformat_new_stream 失败")
                                 avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
-                                if (avformat_write_header(formatCtx.value, options.ptr) < 0) {
-                                    throw Error("avformat_write_header 失败")
-                                }
+                                avformat_write_header(formatCtx.value, options.ptr).check("avformat_write_header")
                                 swsCtx.value = sws_getContext(
                                     ctx.width, ctx.height, AV_PIX_FMT_RGB24,
                                     ctx.width, ctx.height, AV_PIX_FMT_YUV420P,
@@ -94,8 +88,8 @@ class RtspOutput(val url: String) {
                 f.width = codecCtx.pointed.width
                 f.height = codecCtx.pointed.height
                 f.format = codecCtx.pointed.pix_fmt
-                if (av_frame_get_buffer(f.ptr, 0) < 0) throw Error("av_frame_get_buffer 失败")
-                if (av_frame_make_writable(f.ptr) < 0) throw Error("av_frame_make_writable 失败")
+                av_frame_get_buffer(f.ptr, 0).check("av_frame_get_buffer")
+                av_frame_make_writable(f.ptr).check("av_frame_make_writable")
                 val srcData = alloc<CPointerVar<UByteVar>>().also { it.value = Bits(image) }
                 val srcLinesize = alloc<IntVar>().also { it.value = BytesPerLine(image) }
                 sws_scale(
@@ -106,7 +100,7 @@ class RtspOutput(val url: String) {
                 )
                 f.pts = pts.inWholeMicroseconds * 90 / 1000
             }
-            if (avcodec_send_frame(codecCtx, frame.value) < 0) throw Error("avcodec_send_frame 失败")
+            avcodec_send_frame(codecCtx, frame.value).check("avcodec_send_frame")
             while (0 <= avcodec_receive_packet(codecCtx, packet.value)) {
                 packet.value!!.pointed.stream_index = videoStream.pointed.index
                 av_interleaved_write_frame(formatCtx, packet.value)

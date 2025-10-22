@@ -17,10 +17,10 @@ import kotlin.time.TimeSource
 object SourceVideo : Runnable {
     const val THREADS = 3
 
-    data class Task(val pts: Duration, val inferTask: CPointer<InferTask>)
+    data class Task(val timestamp: Duration, val inferTask: CPointer<InferTask>)
 
     override fun run() = runBlocking {
-        val tasks = PriorityQueue<Task>(1) { it.pts }
+        val tasks = PriorityQueue<Task>(1) { it.timestamp }
         val tasksAgent = PriorityQueueAgent(tasks)
         withJob({ tasksAgent.run() }) {
             withJob({ runSend(tasksAgent) }) {
@@ -44,16 +44,16 @@ object SourceVideo : Runnable {
             Video.open(AppArguments.instance.pathSource).use { video ->
                 val manager0 = Manager(THREADS)
                 val manager1 = Manager(THREADS)
-                video.frames().flatMapMerge { (pts, frame) ->
+                video.frames().flatMapMerge { frame ->
                     flow {
                         manager0.use { id ->
                             when (id) {
-                                null -> DestroyImage(frame)
+                                null -> DestroyImage(frame.image)
                                 else -> {
-                                    val task = CreateInferTask()
-                                    SetImage(task, frame)
+                                    val task = CreateInferTask()!!
+                                    SetImage(task, frame.image)
                                     Detect0(infer.value, task, id)
-                                    emit(Task(pts, task!!))
+                                    emit(Task(frame.timestamp, task))
                                 }
                             }
                         }
@@ -83,28 +83,28 @@ object SourceVideo : Runnable {
         var pts0 = Duration.ZERO
         var frames = 0
         DrawScript(AppArguments.instance.pathDrawScript).use { draw ->
-            var ptsLast: Duration? = null
+            var timestampLast: Duration? = null
             while (true) {
                 val task = tasksAgent.receive()
-                if (ptsLast != null && task.pts < ptsLast) {
+                if (timestampLast != null && task.timestamp < timestampLast) {
                     DestroyImage(GetImage(task.inferTask))
                 } else {
-                    ptsLast = task.pts
+                    timestampLast = task.timestamp
                     draw.execute(task.inferTask)
                     val text = StringBuilder()
                     if (frame0 == null) {
                         frame0 = TimeSource.Monotonic.markNow()
-                        pts0 = task.pts
+                        pts0 = task.timestamp
                     } else {
                         val fps = 1.seconds / (frame0.elapsedNow() / ++frames)
                         text.append("每秒帧数: ${fps.toString(2)} ")
-                        val delayed = frame0.elapsedNow() - (task.pts - pts0)
+                        val delayed = frame0.elapsedNow() - (task.timestamp - pts0)
                         if (delayed.isPositive()) text.append("额外延迟: $delayed ")
                     }
                     val detections = SizeDetections(task.inferTask)
                     text.append("检测数量: $detections")
                     println(text)
-                    emit(Pair(task.pts, GetImage(task.inferTask)!!))
+                    emit(Pair(task.timestamp, GetImage(task.inferTask)!!))
                 }
                 DestroyInferTask(task.inferTask)
             }

@@ -7,7 +7,6 @@ import platform.native.CreateImage
 import platform.native.SupportFormat
 import platform.posix.*
 import platform.videodev2.*
-import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
@@ -18,7 +17,7 @@ abstract class Camera(val fd: Int) : Video {
 
         fun open(source: String): Camera {
             val fd = open(source, O_RDWR)
-            if (fd < 0) throw Error("摄像头 open 失败")
+            fd.check("摄像头 open")
             sequence {
                 yield(CameraS(fd))
                 yield(CameraM(fd))
@@ -64,8 +63,8 @@ abstract class Camera(val fd: Int) : Video {
                     val w = resolution.w.toInt()
                     val h = resolution.h.toInt()
                     val image = CreateImage(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
-                    if (ioctl(fd, VIDIOC_QBUF, buf.ptr) < 0) throw Error("VIDIOC_QBUF 失败")
-                    emit(Pair(timeBegin.elapsedNow(), image!!))
+                    ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
+                    emit(Video.Frame(timeBegin.elapsedNow(), image!!))
                 }
             }
         } finally {
@@ -102,7 +101,7 @@ abstract class Camera(val fd: Int) : Video {
                 setFormat(it, fmt)
                 if (ioctl(fd, VIDIOC_S_FMT, fmt.ptr) == 0) return@let it
             }
-            if (ioctl(fd, VIDIOC_G_FMT, fmt.ptr) < 0) throw Error("VIDIOC_S_FMT & VIDIOC_G_FMT 均失败")
+            ioctl(fd, VIDIOC_G_FMT, fmt.ptr).check("VIDIOC_S_FMT & VIDIOC_G_FMT")
             getFormat(fmt)
         }.also {
             println("Set to highest resolution: ${it.w}x${it.h} (${it.desc})")
@@ -140,7 +139,7 @@ abstract class Camera(val fd: Int) : Video {
         req.count = BUFFER_COUNT.toUInt()
         req.type = bufType()
         req.memory = V4L2_MEMORY_MMAP
-        if (ioctl(fd, VIDIOC_REQBUFS, req.ptr) < 0) throw Error("VIDIOC_REQBUFS 失败")
+        ioctl(fd, VIDIOC_REQBUFS, req.ptr).check("VIDIOC_REQBUFS")
         Array(BUFFER_COUNT) {
             val buf = alloc<v4l2_buffer>()
             buf.type = bufType()
@@ -158,13 +157,13 @@ abstract class Camera(val fd: Int) : Video {
     fun setStreamOn() = memScoped {
         val type = alloc<UIntVarOf<v4l2_buf_type>>()
         type.value = bufType()
-        if (ioctl(fd, VIDIOC_STREAMON, type.ptr) < 0) throw Error("VIDIOC_STREAMON 失败")
+        ioctl(fd, VIDIOC_STREAMON, type.ptr).check("VIDIOC_STREAMON")
     }
 
     fun setStreamOff() = memScoped {
         val type = alloc<UIntVarOf<v4l2_buf_type>>()
         type.value = bufType()
-        if (ioctl(fd, VIDIOC_STREAMOFF, type.ptr) < 0) throw Error("VIDIOC_STREAMOFF 失败")
+        ioctl(fd, VIDIOC_STREAMOFF, type.ptr).check("VIDIOC_STREAMOFF")
     }
 
     private fun maxFrameSize(size: v4l2_frmsizeenum) = when (size.type) {
@@ -194,13 +193,13 @@ abstract class Camera(val fd: Int) : Video {
             Resolution(fmt.fmt.pix.width, fmt.fmt.pix.height, fmt.fmt.pix.pixelformat, "auto")
 
         override fun queryBuf(buf: v4l2_buffer) = memScoped {
-            if (ioctl(fd, VIDIOC_QUERYBUF, buf.ptr) < 0) throw Error("VIDIOC_QUERYBUF 失败")
-            if (ioctl(fd, VIDIOC_QBUF, buf.ptr) < 0) throw Error("VIDIOC_QBUF 失败")
+            ioctl(fd, VIDIOC_QUERYBUF, buf.ptr).check("VIDIOC_QUERYBUF")
+            ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
             Pair(buf.m.offset, buf.length)
         }
 
         override fun dequeueBuf(buf: v4l2_buffer) = memScoped {
-            if (ioctl(fd, VIDIOC_DQBUF, buf.ptr) < 0) throw Error("VIDIOC_DQBUF 失败")
+            ioctl(fd, VIDIOC_DQBUF, buf.ptr).check("VIDIOC_DQBUF")
         }
     }
 
@@ -221,8 +220,8 @@ abstract class Camera(val fd: Int) : Video {
             val plane = alloc<v4l2_plane>()
             buf.m.planes = plane.ptr
             buf.length = 1u
-            if (ioctl(fd, VIDIOC_QUERYBUF, buf.ptr) < 0) throw Error("VIDIOC_QUERYBUF 失败")
-            if (ioctl(fd, VIDIOC_QBUF, buf.ptr) < 0) throw Error("VIDIOC_QBUF 失败")
+            ioctl(fd, VIDIOC_QUERYBUF, buf.ptr).check("VIDIOC_QUERYBUF")
+            ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
             Pair(plane.m.mem_offset, plane.length)
         }
 
@@ -230,7 +229,7 @@ abstract class Camera(val fd: Int) : Video {
             val plane = alloc<v4l2_plane>()
             buf.m.planes = plane.ptr
             buf.length = 1u
-            if (ioctl(fd, VIDIOC_DQBUF, buf.ptr) < 0) throw Error("VIDIOC_DQBUF 失败")
+            ioctl(fd, VIDIOC_DQBUF, buf.ptr).check("VIDIOC_DQBUF")
         }
     }
 }
