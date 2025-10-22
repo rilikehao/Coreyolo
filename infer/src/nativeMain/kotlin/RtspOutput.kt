@@ -1,114 +1,89 @@
 import cnames.structs.AVDictionary
-import cnames.structs.Image
 import kotlinx.cinterop.*
 import kotlinx.coroutines.flow.Flow
 import platform.ffmpeg.*
-import platform.native.*
-import kotlin.time.Duration
+import platform.native.DestroyImage
+import platform.native.GetHeight
+import platform.native.GetWidth
 
 @OptIn(ExperimentalForeignApi::class)
 class RtspOutput(val url: String) {
-    suspend fun runReceive(receive: Flow<Pair<Duration, CPointer<Image>>>) = memScoped {
+    suspend fun runReceive(receive: Flow<Video.Frame>) = memScoped {
         val options = alloc<CPointerVar<AVDictionary>>()
         av_dict_set(options.ptr, "rtsp_transport", "tcp", 0)
         av_dict_set(options.ptr, "tune", "zerolatency", 0)
-        val formatCtx = alloc<CPointerVar<AVFormatContext>>()
-        avformat_alloc_output_context2(formatCtx.ptr, null, "rtsp", url).check("avformat_alloc_output_context2")
         try {
-            val codec = avcodec_find_encoder_by_name(Device.H264_ENCODER_NAME)
-                ?: throw Error("avcodec_find_encoder H264 失败")
-            val codecCtx = alloc<CPointerVar<AVCodecContext>>().also { it.value = avcodec_alloc_context3(codec) }
+            val formatCtx = alloc<CPointerVar<AVFormatContext>>()
+            avformat_alloc_output_context2(formatCtx.ptr, null, "rtsp", url).check("avformat_alloc_output_context2")
             try {
-                val ctx = codecCtx.value!!.pointed
-                ctx.codec_type = AVMEDIA_TYPE_VIDEO
-                ctx.pix_fmt = AV_PIX_FMT_YUV420P
-                ctx.max_b_frames = 0
-                ctx.gop_size = 10
-                ctx.time_base.num = 1
-                ctx.time_base.den = 90000
-                ctx.thread_type = FF_THREAD_SLICE
-                ctx.thread_count = 0
-                var videoStream: CPointer<AVStream>? = null
-                val swsCtx = alloc<CPointerVar<SwsContext>>()
+                val codec = avcodec_find_encoder_by_name(Device.H264_ENCODER_NAME).check("avcodec_find_encoder_by_name")
+                val codecCtx = alloc<CPointerVar<AVCodecContext>>().also { it.value = avcodec_alloc_context3(codec) }
                 try {
-                    receive.collect { (pts, frame) ->
+                    val ctx = codecCtx.value!!.pointed
+                    ctx.codec_type = AVMEDIA_TYPE_VIDEO
+                    ctx.pix_fmt = AV_PIX_FMT_NV12
+                    ctx.max_b_frames = 0
+                    ctx.gop_size = 10
+                    ctx.time_base.num = 1
+                    ctx.time_base.den = 90000
+                    var videoStream: CPointer<AVStream>? = null
+                    FromRGBImage().use { fromRGBImage ->
+                        val frame = alloc<CPointerVar<AVFrame>>().also { it.value = av_frame_alloc() }
+                        val packet = alloc<CPointerVar<AVPacket>>().also { it.value = av_packet_alloc() }
                         try {
-                            if (ctx.width == 0) {
-                                ctx.width = GetWidth(frame)
-                                ctx.height = GetHeight(frame)
-                                val codecOptions = alloc<CPointerVar<AVDictionary>>()
-                                Device.setEncoderOptions(codecOptions)
-                                avcodec_open2(codecCtx.value, codec, codecOptions.ptr).check("avcodec_open2")
-                                av_dict_free(codecOptions.ptr)
-                                videoStream = avformat_new_stream(formatCtx.value, codec)
-                                    ?: throw Error("avformat_new_stream 失败")
-                                avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
-                                avformat_write_header(formatCtx.value, options.ptr).check("avformat_write_header")
-                                swsCtx.value = sws_getContext(
-                                    ctx.width, ctx.height, AV_PIX_FMT_RGB24,
-                                    ctx.width, ctx.height, AV_PIX_FMT_YUV420P,
-                                    SWS_BILINEAR.toInt(),
-                                    null, null, null,
-                                )
+                            receive.collect { input ->
+                                try {
+                                    if (ctx.width == 0) {
+                                        ctx.width = GetWidth(input.image)
+                                        ctx.height = GetHeight(input.image)
+                                        val codecOptions = alloc<CPointerVar<AVDictionary>>()
+                                        try {
+                                            Device.setEncoderOptions(codecOptions)
+                                            avcodec_open2(codecCtx.value, codec, codecOptions.ptr)
+                                                .check("avcodec_open2")
+                                        } finally {
+                                            av_dict_free(codecOptions.ptr)
+                                        }
+                                        videoStream = avformat_new_stream(formatCtx.value, codec)
+                                            .check("avformat_new_stream")
+                                        avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx.value)
+                                        avformat_write_header(
+                                            formatCtx.value,
+                                            options.ptr
+                                        ).check("avformat_write_header")
+                                        fromRGBImage.init(codecCtx.pointed!!)
+                                    }
+                                    frame.pointed!!.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
+                                    fromRGBImage(frame.pointed!!, input.image)
+                                    avcodec_send_frame(codecCtx.value, frame.value).check("avcodec_send_frame")
+                                    while (0 <= avcodec_receive_packet(codecCtx.value, packet.value)) {
+                                        packet.value!!.pointed.stream_index = videoStream!!.pointed.index
+                                        av_interleaved_write_frame(formatCtx.value, packet.value)
+                                        av_packet_unref(packet.value)
+                                    }
+                                } finally {
+                                    DestroyImage(input.image)
+                                }
                             }
-                            toOutput(pts, frame, formatCtx.value!!, videoStream!!, codecCtx.value!!, swsCtx.value!!)
+                            av_write_trailer(formatCtx.value)
                         } finally {
-                            DestroyImage(frame)
+                            av_packet_free(packet.ptr)
+                            av_frame_free(frame.ptr)
                         }
                     }
-                    av_write_trailer(formatCtx.value)
                 } finally {
-                    if (swsCtx.value != nativeNullPtr) sws_freeContext(swsCtx.value)
+                    avcodec_free_context(codecCtx.ptr)
                 }
             } finally {
-                avcodec_free_context(codecCtx.ptr)
+                if (formatCtx.value!!.pointed.pb != null) {
+                    val pb = alloc<CPointerVar<AVIOContext>>().also { it.value = formatCtx.value!!.pointed.pb }
+                    avio_closep(pb.ptr)
+                    formatCtx.value!!.pointed.pb = null
+                }
+                avformat_free_context(formatCtx.value)
             }
         } finally {
-            if (formatCtx.value!!.pointed.pb != null) {
-                val pb = alloc<CPointerVar<AVIOContext>>().also { it.value = formatCtx.value!!.pointed.pb }
-                avio_closep(pb.ptr)
-                formatCtx.value!!.pointed.pb = null
-            }
-            avformat_free_context(formatCtx.value)
-        }
-    }
-
-    private fun toOutput(
-        pts: Duration,
-        image: CPointer<Image>,
-        formatCtx: CPointer<AVFormatContext>,
-        videoStream: CPointer<AVStream>,
-        codecCtx: CPointer<AVCodecContext>,
-        swsCtx: CPointer<SwsContext>
-    ) = memScoped {
-        val frame = alloc<CPointerVar<AVFrame>>().also { it.value = av_frame_alloc() }
-        val packet = alloc<CPointerVar<AVPacket>>().also { it.value = av_packet_alloc() }
-        try {
-            frame.value!!.pointed.let { f ->
-                f.width = codecCtx.pointed.width
-                f.height = codecCtx.pointed.height
-                f.format = codecCtx.pointed.pix_fmt
-                av_frame_get_buffer(f.ptr, 0).check("av_frame_get_buffer")
-                av_frame_make_writable(f.ptr).check("av_frame_make_writable")
-                val srcData = alloc<CPointerVar<UByteVar>>().also { it.value = Bits(image) }
-                val srcLinesize = alloc<IntVar>().also { it.value = BytesPerLine(image) }
-                sws_scale(
-                    swsCtx,
-                    srcData.ptr, srcLinesize.ptr,
-                    0, f.height,
-                    f.data, f.linesize
-                )
-                f.pts = pts.inWholeMicroseconds * 90 / 1000
-            }
-            avcodec_send_frame(codecCtx, frame.value).check("avcodec_send_frame")
-            while (0 <= avcodec_receive_packet(codecCtx, packet.value)) {
-                packet.value!!.pointed.stream_index = videoStream.pointed.index
-                av_interleaved_write_frame(formatCtx, packet.value)
-                av_packet_unref(packet.value)
-            }
-        } finally {
-            av_packet_free(packet.ptr)
-            av_frame_free(frame.ptr)
+            av_dict_free(options.ptr)
         }
     }
 }

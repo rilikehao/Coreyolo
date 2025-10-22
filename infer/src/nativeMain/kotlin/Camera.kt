@@ -17,7 +17,7 @@ abstract class Camera(val fd: Int) : Video {
 
         fun open(source: String): Camera {
             val fd = open(source, O_RDWR)
-            fd.check("摄像头 open")
+            fd.check("打开摄像头")
             sequence {
                 yield(CameraS(fd))
                 yield(CameraM(fd))
@@ -29,7 +29,7 @@ abstract class Camera(val fd: Int) : Video {
                 }
             }
             close(fd)
-            throw Error("VIDIOC_G_FMT 失败")
+            throw Error("打开摄像头失败")
         }
     }
 

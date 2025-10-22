@@ -16,6 +16,9 @@ fun Int.check(api: String) {
 }
 
 @OptIn(ExperimentalForeignApi::class)
+fun <T : CPointed> CPointer<T>?.check(api: String): CPointer<T> = this?: throw Error("$api 失败")
+
+@OptIn(ExperimentalForeignApi::class)
 fun main(args: Array<String>) {
     val parser = ArgParser("YoloInfer")
     AppArguments.instance = AppArguments(parser)

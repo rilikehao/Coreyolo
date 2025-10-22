@@ -15,7 +15,8 @@ class Device(val ref: CPointerVar<AVBufferRef>) : AutoCloseable {
     }
 
     init {
-        av_hwdevice_ctx_create(ref.ptr, AVHWDeviceType.AV_HWDEVICE_TYPE_RKMPP, null, null, 0).check("av_hwdevice_ctx_create")
+        av_hwdevice_ctx_create(ref.ptr, AVHWDeviceType.AV_HWDEVICE_TYPE_RKMPP, null, null, 0)
+            .check("av_hwdevice_ctx_create")
     }
 
     override fun close() = av_buffer_unref(ref.ptr)
@@ -27,4 +28,3 @@ class Device(val ref: CPointerVar<AVBufferRef>) : AutoCloseable {
         }
     }
 }
-

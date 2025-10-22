@@ -1,5 +1,4 @@
 import StringFormat.toString
-import cnames.structs.Image
 import cnames.structs.InferTask
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
@@ -104,30 +103,30 @@ object SourceVideo : Runnable {
                     val detections = SizeDetections(task.inferTask)
                     text.append("检测数量: $detections")
                     println(text)
-                    emit(Pair(task.timestamp, GetImage(task.inferTask)!!))
+                    emit(Video.Frame(task.timestamp, GetImage(task.inferTask)!!))
                 }
                 DestroyInferTask(task.inferTask)
             }
         }
     }
 
-    suspend fun runReceive(receive: Flow<Pair<Duration, CPointer<Image>>>, output: RAIIOutput) {
+    suspend fun runReceive(receive: Flow<Video.Frame>, output: RAIIOutput) {
         var delayMs = 0
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
-        var pts0 = Duration.ZERO
+        var timestamp0 = Duration.ZERO
         val delays = ArrayDeque<Pair<TimeSource.Monotonic.ValueTimeMark, Duration>>()
-        receive.collect { (pts, frame) ->
+        receive.collect { input ->
             if (frame0 == null) {
                 frame0 = TimeSource.Monotonic.markNow()
-                pts0 = pts
+                timestamp0 = input.timestamp
             }
-            val delayed = frame0.elapsedNow() - (pts - pts0)
+            val delayed = frame0.elapsedNow() - (input.timestamp - timestamp0)
             while (delays.isNotEmpty() && delayed < delays.last().second) delays.removeLast()
             delays.addLast(Pair(TimeSource.Monotonic.markNow(), delayed))
             while (delays.isNotEmpty() && 1.seconds < delays.first().first.elapsedNow()) delays.removeFirst()
             if (delays.isNotEmpty()) delayMs = delayMs.coerceAtLeast(delays.first().second.inWholeMilliseconds.toInt())
             delay(delayMs.milliseconds - delayed)
-            SendToOutput(output.value, frame)
+            SendToOutput(output.value, input.image)
         }
     }
 

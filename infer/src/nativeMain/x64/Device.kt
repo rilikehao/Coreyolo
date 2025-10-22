@@ -21,6 +21,4 @@ class Device(val ref: CPointerVar<AVBufferRef>) : AutoCloseable {
     override fun close() {}
 
     fun bind(codecCtx: AVCodecContext) {}
-
-    fun transferOut(frame: CPointerVar<AVFrame>) {}
 }
