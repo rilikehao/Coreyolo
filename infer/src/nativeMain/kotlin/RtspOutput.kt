@@ -21,7 +21,7 @@ class RtspOutput(val url: String) {
                 try {
                     val ctx = codecCtx.value!!.pointed
                     ctx.codec_type = AVMEDIA_TYPE_VIDEO
-                    ctx.pix_fmt = AV_PIX_FMT_NV12
+                    ctx.pix_fmt = AV_PIX_FMT_YUV420P
                     ctx.max_b_frames = 0
                     ctx.gop_size = 10
                     ctx.time_base.num = 1
@@ -56,6 +56,7 @@ class RtspOutput(val url: String) {
                                     frame.pointed!!.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
                                     fromRGBImage(frame.pointed!!, input.image)
                                     avcodec_send_frame(codecCtx.value, frame.value).check("avcodec_send_frame")
+                                    av_frame_unref(frame.value)
                                     while (0 <= avcodec_receive_packet(codecCtx.value, packet.value)) {
                                         packet.value!!.pointed.stream_index = videoStream!!.pointed.index
                                         av_interleaved_write_frame(formatCtx.value, packet.value)
