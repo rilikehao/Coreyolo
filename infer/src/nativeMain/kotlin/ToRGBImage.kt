@@ -1,4 +1,6 @@
-import kotlinx.cinterop.*
+import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.cValuesOf
 import platform.ffmpeg.*
 import platform.native.Bits
 import platform.native.BytesPerLine
@@ -20,13 +22,9 @@ class ToRGBImage : AutoCloseable {
 
     operator fun invoke(frame: AVFrame) =
         CreateImageRGB24(frame.width, frame.height)!!.also { image ->
-            memScoped {
-                val data = alloc<CPointerVar<UByteVar>>().also { it.value = Bits(image) }
-                val linesize = alloc<IntVar>().also { it.value = BytesPerLine(image) }
-                sws_scale(
-                    swsCtx, frame.data, frame.linesize, 0,
-                    frame.height, data.ptr, linesize.ptr,
-                )
-            }
+            sws_scale(
+                swsCtx, frame.data, frame.linesize, 0,
+                frame.height, cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
+            )
         }
 }

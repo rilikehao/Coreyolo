@@ -1,6 +1,7 @@
 class PriorityQueue<T>(val bufferSize: Int, selector: (T) -> Comparable<*>? = { it as Comparable<*> }) {
     val comparator: Comparator<T> = compareBy(selector)
     val heap = mutableListOf<T>()
+
     fun parent(i: Int): Int = (i - 1) / 2
     fun left(i: Int): Int = 2 * i + 1
     fun right(i: Int): Int = 2 * i + 2

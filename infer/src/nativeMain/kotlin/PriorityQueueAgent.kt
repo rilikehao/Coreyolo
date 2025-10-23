@@ -9,19 +9,25 @@ class PriorityQueueAgent<T>(val queue: PriorityQueue<T>) {
     val ch = Channel<Operation<T>>(Channel.UNLIMITED)
     val wait = Channel<Receive<T>>(Channel.UNLIMITED)
 
-    suspend fun run() {
-        for (op in ch) {
-            when (op) {
-                is Send<T> -> when (val value = wait.tryReceive().getOrNull()) {
-                    null -> queue.push(op.item)
-                    else -> value.deferred.complete(op.item)
-                }
+    suspend fun run(destroy: (T) -> Unit) {
+        try {
+            for (op in ch) {
+                when (op) {
+                    is Send<T> -> when (val value = wait.tryReceive().getOrNull()) {
+                        null -> queue.push(op.item)
+                        else -> value.deferred.complete(op.item)
+                    }
 
-                is Receive<T> -> when (val value = queue.pop()) {
-                    null -> wait.send(op)
-                    else -> op.deferred.complete(value)
+                    is Receive<T> -> when (val value = queue.pop()) {
+                        null -> wait.send(op)
+                        else -> op.deferred.complete(value)
+                    }
                 }
             }
+        } finally {
+            ch.close()
+            wait.close()
+            queue.heap.forEach { destroy(it) }
         }
     }
 

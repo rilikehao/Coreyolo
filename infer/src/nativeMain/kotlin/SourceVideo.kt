@@ -18,10 +18,15 @@ object SourceVideo : Runnable {
 
     data class Task(val timestamp: Duration, val inferTask: CPointer<InferTask>)
 
+    fun CPointer<InferTask>.destroyWithImage() {
+        DestroyImage(GetImage(this))
+        DestroyInferTask(this)
+    }
+
     override fun run() = runBlocking {
         val tasks = PriorityQueue<Task>(1) { it.timestamp }
         val tasksAgent = PriorityQueueAgent(tasks)
-        withJob({ tasksAgent.run() }) {
+        withJob({ tasksAgent.run { it.inferTask.destroyWithImage() } }) {
             withJob({ runSend(tasksAgent) }) {
                 if (AppArguments.instance.pathTarget.isEmpty()) {
                     RAIIOutput().use { output -> withJob({ runReceive(receive(tasksAgent), output) }) { Exec() } }
@@ -61,11 +66,7 @@ object SourceVideo : Runnable {
                     flow {
                         manager1.use { id ->
                             when (id) {
-                                null -> {
-                                    DestroyImage(GetImage(task.inferTask))
-                                    DestroyInferTask(task.inferTask)
-                                }
-
+                                null -> task.inferTask.destroyWithImage()
                                 else -> {
                                     Detect1(infer.value, task.inferTask)
                                     emit(task)
@@ -126,7 +127,7 @@ object SourceVideo : Runnable {
             while (delays.isNotEmpty() && 1.seconds < delays.first().first.elapsedNow()) delays.removeFirst()
             if (delays.isNotEmpty()) delayMs = delayMs.coerceAtLeast(delays.first().second.inWholeMilliseconds.toInt())
             delay(delayMs.milliseconds - delayed)
-            SendToOutput(output.value, input.image)
+            SendToOutput(output.value, input.image)  // image 由 SendToOutput 负责销毁
         }
     }
 

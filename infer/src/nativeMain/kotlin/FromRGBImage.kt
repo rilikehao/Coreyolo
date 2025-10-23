@@ -1,5 +1,9 @@
+import Utils.check
 import cnames.structs.Image
-import kotlinx.cinterop.*
+import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.cValuesOf
+import kotlinx.cinterop.ptr
 import platform.ffmpeg.*
 import platform.native.Bits
 import platform.native.BytesPerLine
@@ -28,15 +32,10 @@ class FromRGBImage : AutoCloseable {
         frame.format = format
         av_frame_get_buffer(frame.ptr, 0).check("av_frame_get_buffer")
         av_frame_make_writable(frame.ptr).check("av_frame_make_writable")
-        memScoped {
-            val srcData = alloc<CPointerVar<UByteVar>>().also { it.value = Bits(image) }
-            val srcLinesize = alloc<IntVar>().also { it.value = BytesPerLine(image) }
-            sws_scale(
-                swsCtx,
-                srcData.ptr, srcLinesize.ptr,
-                0, frame.height,
-                frame.data, frame.linesize,
-            )
-        }
+        sws_scale(
+            swsCtx,
+            cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
+            0, frame.height, frame.data, frame.linesize,
+        )
     }
 }
