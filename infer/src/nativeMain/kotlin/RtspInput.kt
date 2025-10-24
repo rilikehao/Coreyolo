@@ -6,6 +6,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.get
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import platform.ffmpeg.*
 import kotlin.time.Duration.Companion.seconds
@@ -68,5 +69,5 @@ class RtspInput(val url: String) : Video {
                 }
             }
         }
-    }
+    }.buffer(0)
 }

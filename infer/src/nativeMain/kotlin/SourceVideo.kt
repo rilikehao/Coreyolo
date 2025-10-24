@@ -1,8 +1,12 @@
 import StringFormat.toString
 import cnames.structs.InferTask
+import co.touchlab.kermit.Logger
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import platform.native.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -17,7 +21,6 @@ object SourceVideo : Runnable {
     data class Task(
         val timestamp: Duration,
         val inferTask: CPointer<InferTask>,
-        val id: Long,
         var drop: Boolean,
     )
 
@@ -42,88 +45,86 @@ object SourceVideo : Runnable {
         val draw = DrawScript(AppArguments.instance.pathDrawScript)
         val manager0 = Manager(THREADS)
         val manager1 = Manager(THREADS)
-        var frames = 0L
-        var sendId = 0L
-        var receiveId = 0L
-        val receiveQueue = mutableMapOf<Long, Task>()
+        var inputFrames = 0L
+        var outputFrames = 0L
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
         var timestamp0 = Duration.ZERO
-        var inferTaskLast: CPointer<InferTask>? = null
+        var taskLast: CPointer<InferTask>? = null
         return map { frame ->
-            val task = CreateInferTask()!!
-            SetImage(task, frame.image)
-            if (sendId == 0L) timestamp0 = frame.timestamp
-            if (frames <= maxFrames(frame.timestamp - timestamp0)) {
-                ++frames
-                Task(frame.timestamp, task, sendId++, false)
-            } else {
-                Task(frame.timestamp, task, sendId++, true)
-            }
-        }.flatMapMerge(THREADS + 1) { task ->
-            flow {
-                if (!task.drop) manager0.use { id ->
-                    if (id == null) {
-                        println("NPU 过载丢帧")
+            CoroutineScope(Dispatchers.IO).async {
+                Task(frame.timestamp, CreateInferTask()!!, false).also { task ->
+                    SetImage(task.inferTask, frame.image)
+                    if (inputFrames == 0L) timestamp0 = frame.timestamp
+                    if (maxFrames(frame.timestamp - timestamp0) < inputFrames) {
                         task.drop = true
                     } else {
-                        Detect0(infer.value, task.inferTask, id)
+                        ++inputFrames
                     }
-                }
-                emit(task)
-            }
-        }.flatMapMerge(THREADS + 1) { task ->
-            flow {
-                if (!task.drop) manager1.use { id ->
-                    if (id == null) {
-                        println("CPU 过载丢帧")
-                        task.drop = true
-                    } else {
-                        Detect1(infer.value, task.inferTask)
-                    }
-                }
-                emit(task)
-            }
-        }.flatMapConcat { newTask ->
-            flow {
-                receiveQueue[newTask.id] = newTask
-                while (true) {
-                    val task = receiveQueue[receiveId] ?: break
-                    ++receiveId
-                    if (task.drop) {
-                        if (inferTaskLast != null) {
-                            SetImage(inferTaskLast, GetImage(task.inferTask))
-                            DestroyInferTask(task.inferTask)
-                            draw.execute(inferTaskLast!!)
-                            emit(Video.Frame(task.timestamp, GetImage(inferTaskLast)!!))
+                    if (!task.drop) manager0.use { id ->
+                        if (id == null) {
+                            Logger.i { "卷积过载丢帧" }
+                            task.drop = true
                         } else {
-                            emit(Video.Frame(task.timestamp, GetImage(task.inferTask)!!))
-                            DestroyInferTask(task.inferTask)
+                            Detect0(infer.value, task.inferTask, id)
                         }
-                    } else {
-                        draw.execute(task.inferTask)
+                    }
+                }
+            }
+        }.buffer(THREADS).map { deferred ->
+            CoroutineScope(Dispatchers.IO).async {
+                deferred.await().also { task ->
+                    if (!task.drop) manager1.use { id ->
+                        if (id == null) {
+                            Logger.i { "后处理过载丢帧" }
+                            task.drop = true
+                        } else {
+                            Detect1(infer.value, task.inferTask)
+                        }
+                    }
+                }
+            }
+        }.buffer(THREADS).map { deferred ->
+            val task = deferred.await()
+            if (!task.drop) {
+                try {
+                    Logger.i {
                         val text = StringBuilder()
                         if (frame0 == null) {
                             frame0 = TimeSource.Monotonic.markNow()
                         } else {
-                            val fps = 1.seconds / (frame0!!.elapsedNow() / (++frames).toDouble())
-                            text.append("每秒帧数: ${fps.toString(2)} ")
-                            val delayed = frame0!!.elapsedNow() - (task.timestamp - timestamp0)
+                            val fps = 1.seconds / (frame0.elapsedNow() / (++outputFrames).toDouble())
+                            text.append("编码前的每秒帧数: ${fps.toString(2)} ")
+                            val delayed = frame0.elapsedNow() - (task.timestamp - timestamp0)
                             if (delayed.isPositive()) text.append("额外延迟: $delayed ")
                         }
                         val detections = SizeDetections(task.inferTask)
                         text.append("检测数量: $detections")
-                        println(text)
-                        emit(Video.Frame(task.timestamp, GetImage(task.inferTask)!!))
-                        inferTaskLast?.let { DestroyInferTask(it) }
-                        inferTaskLast = task.inferTask
+                        text.toString()
                     }
+                    draw.execute(task.inferTask)
+                    GetImage(task.inferTask)
+                } finally {
+                    taskLast?.let { DestroyInferTask(it) }
+                    taskLast = task.inferTask
                 }
-            }
+            } else {
+                try {
+                    if (taskLast == null) {
+                        GetImage(task.inferTask)
+                    } else {
+                        SetImage(taskLast, GetImage(task.inferTask))
+                        draw.execute(taskLast)
+                        GetImage(taskLast)
+                    }
+                } finally {
+                    DestroyInferTask(task.inferTask)
+                }
+            }.let { Video.Frame(task.timestamp, it!!) }
         }.onCompletion {
-            inferTaskLast?.let { DestroyInferTask(it) }
+            taskLast?.let { DestroyInferTask(it) }
             draw.close()
             infer.close()
-        }
+        }.buffer(0)
     }
 
     suspend fun runReceive(receive: Flow<Video.Frame>, output: RAIIOutput) {

@@ -20,6 +20,7 @@ kotlin {
                 kotlin.srcDir("src/nativeMain/kotlin")
                 kotlin.srcDir("src/nativeMain/$targetName")
                 dependencies {
+                    implementation("co.touchlab:kermit:2.0.8")
                     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
                 }
             }
@@ -42,7 +43,8 @@ tasks.register("install") {
     doLast {
         val platforms = listOf("x64", "rk3588")
         platforms.forEach { platform ->
-            val executableFile = file("build/bin/$platform/YoloInfer-${platform}${buildType}Executable/YoloInfer-$platform.kexe")
+            val executableFile =
+                file("build/bin/$platform/YoloInfer-${platform}${buildType}Executable/YoloInfer-$platform.kexe")
             val installDir = file("../$platform/root/usr/local/bin")
             val targetFile = file("$installDir/YoloInfer")
 
