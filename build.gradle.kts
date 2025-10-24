@@ -17,3 +17,10 @@ dependencies {
 application {
     mainClass.set("MainKt")
 }
+
+tasks.register<Exec>("image") {
+    description = "Build native, install infer, and run image target"
+    executable = "bash"
+    args("-c", "./gradlew run --args native && ./gradlew :infer:install && ./gradlew run --args image")
+    workingDir = projectDir
+}

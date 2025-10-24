@@ -52,39 +52,35 @@ object SourceVideo : Runnable {
         var taskLast: CPointer<InferTask>? = null
         return map { frame ->
             CoroutineScope(Dispatchers.IO).async {
-                Task(frame.timestamp, CreateInferTask()!!, false).also { task ->
-                    SetImage(task.inferTask, frame.image)
-                    if (inputFrames == 0L) timestamp0 = frame.timestamp
-                    if (maxFrames(frame.timestamp - timestamp0) < inputFrames) {
+                val task = Task(frame.timestamp, CreateInferTask()!!, false)
+                SetImage(task.inferTask, frame.image)
+                if (inputFrames == 0L) timestamp0 = frame.timestamp
+                if (maxFrames(frame.timestamp - timestamp0) < inputFrames) {
+                    task.drop = true
+                } else {
+                    ++inputFrames
+                }
+                if (!task.drop) manager0.use { id ->
+                    if (id == null) {
+                        Logger.w { "卷积过载丢帧" }
                         task.drop = true
                     } else {
-                        ++inputFrames
+                        Detect0(infer.value, task.inferTask, id)
                     }
-                    if (!task.drop) manager0.use { id ->
-                        if (id == null) {
-                            Logger.i { "卷积过载丢帧" }
-                            task.drop = true
-                        } else {
-                            Detect0(infer.value, task.inferTask, id)
-                        }
-                    }
-                }
+                }; task
             }
-        }.buffer(THREADS).map { deferred ->
+        }.buffer(THREADS).map { deferred -> deferred.await() }.buffer(0).map { task ->
             CoroutineScope(Dispatchers.IO).async {
-                deferred.await().also { task ->
-                    if (!task.drop) manager1.use { id ->
-                        if (id == null) {
-                            Logger.i { "后处理过载丢帧" }
-                            task.drop = true
-                        } else {
-                            Detect1(infer.value, task.inferTask)
-                        }
+                if (!task.drop) manager1.use { id ->
+                    if (id == null) {
+                        Logger.w { "后处理过载丢帧" }
+                        task.drop = true
+                    } else {
+                        Detect1(infer.value, task.inferTask)
                     }
-                }
+                }; task
             }
-        }.buffer(THREADS).map { deferred ->
-            val task = deferred.await()
+        }.buffer(THREADS).map { deferred -> deferred.await() }.buffer(0).map { task ->
             if (!task.drop) {
                 try {
                     Logger.i {

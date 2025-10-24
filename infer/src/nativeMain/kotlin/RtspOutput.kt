@@ -55,7 +55,7 @@ class RtspOutput(val url: String) {
                                 try {
                                     manager.use { id ->
                                         if (id == null) {
-                                            Logger.i { "编码器过载丢帧" }
+                                            Logger.w { "编码器过载丢帧" }
                                         } else {
                                             frame.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
                                             FromRGBImage(frame, input.image)
