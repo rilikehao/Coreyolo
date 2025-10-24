@@ -53,7 +53,7 @@ object SourceVideo : Runnable {
                         manager0.use { id ->
                             when (id) {
                                 null -> {
-                                    println("drop0")
+                                    println("NPU 过载丢帧")
                                     DestroyImage(frame.image)
                                 }
                                 else -> {
@@ -70,7 +70,7 @@ object SourceVideo : Runnable {
                         manager1.use { id ->
                             when (id) {
                                 null -> {
-                                    println("drop1")
+                                    println("CPU 过载丢帧")
                                     task.inferTask.destroyWithImage()
                                 }
                                 else -> {
@@ -93,7 +93,7 @@ object SourceVideo : Runnable {
             while (true) {
                 val task = tasksAgent.receive()
                 if (timestampLast != null && task.timestamp < timestampLast) {
-                    println("drop2")
+                    println("时间顺序重整丢帧")
                     DestroyImage(GetImage(task.inferTask))
                 } else {
                     timestampLast = task.timestamp

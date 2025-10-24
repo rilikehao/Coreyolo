@@ -8,6 +8,7 @@ import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.coroutines.flow.flow
 import platform.ffmpeg.*
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
@@ -44,6 +45,8 @@ class RtspInput(val url: String) : Video {
                         av_packet_alloc()!!.use({ av_packet_free(it) }) { packet ->
                             av_frame_alloc()!!.use({ av_frame_free(it) }) { frame ->
                                 val timeBase = formatCtx.streams!![videoStreamIndex]!!.pointed.time_base
+                                var frames = 0
+                                var timestamp0: Duration? = null
                                 while (true) {
                                     val ret = av_read_frame(formatCtx.ptr, packet.ptr)
                                     if (ret < 0 && ret != AVERROR_EOF) continue
@@ -52,8 +55,13 @@ class RtspInput(val url: String) : Video {
                                             val pPacket = if (ret == AVERROR_EOF) null else packet.ptr
                                             avcodec_send_packet(codecCtx.ptr, pPacket).check("avcodec_send_packet")
                                             while (avcodec_receive_frame(codecCtx.ptr, frame.ptr) == 0) {
-                                                val timestamp = frame.pts.toDouble() * timeBase.num / timeBase.den
-                                                emit(Video.Frame(timestamp.seconds, toRGBImage(frame)))
+                                                val pts = frame.pts.toDouble() * timeBase.num / timeBase.den
+                                                val timestamp = pts.seconds
+                                                if (frames == 0) timestamp0 = timestamp
+                                                if (frames <= maxFrames(timestamp - timestamp0!!)) {
+                                                    ++frames
+                                                    emit(Video.Frame(timestamp, toRGBImage(frame)))
+                                                }
                                             }
                                         }
                                     } finally {
@@ -68,4 +76,6 @@ class RtspInput(val url: String) : Video {
             }
         }
     }
+
+    fun maxFrames(duration: Duration) = (duration * AppArguments.instance.fps).inWholeSeconds.toInt()
 }
