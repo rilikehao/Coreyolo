@@ -14,7 +14,7 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 object SourceVideo : Runnable {
-    const val THREADS = 3
+    const val THREADS = 6
 
     data class Task(val timestamp: Duration, val inferTask: CPointer<InferTask>)
 
@@ -24,7 +24,7 @@ object SourceVideo : Runnable {
     }
 
     override fun run() = runBlocking {
-        val tasks = PriorityQueue<Task>(1) { it.timestamp }
+        val tasks = PriorityQueue<Task>(THREADS / 2) { it.timestamp }
         val tasksAgent = PriorityQueueAgent(tasks)
         withJob({ tasksAgent.run { it.inferTask.destroyWithImage() } }) {
             withJob({ runSend(tasksAgent) }) {
@@ -48,11 +48,14 @@ object SourceVideo : Runnable {
             Video.open(AppArguments.instance.pathSource).use { video ->
                 val manager0 = Manager(THREADS)
                 val manager1 = Manager(THREADS)
-                video.frames().flatMapMerge { frame ->
+                video.frames().flatMapMerge(THREADS + 1) { frame ->
                     flow {
                         manager0.use { id ->
                             when (id) {
-                                null -> DestroyImage(frame.image)
+                                null -> {
+                                    println("drop0")
+                                    DestroyImage(frame.image)
+                                }
                                 else -> {
                                     val task = CreateInferTask()!!
                                     SetImage(task, frame.image)
@@ -62,11 +65,14 @@ object SourceVideo : Runnable {
                             }
                         }
                     }
-                }.flatMapMerge { task ->
+                }.flatMapMerge(THREADS + 1) { task ->
                     flow {
                         manager1.use { id ->
                             when (id) {
-                                null -> task.inferTask.destroyWithImage()
+                                null -> {
+                                    println("drop1")
+                                    task.inferTask.destroyWithImage()
+                                }
                                 else -> {
                                     Detect1(infer.value, task.inferTask)
                                     emit(task)
@@ -87,6 +93,7 @@ object SourceVideo : Runnable {
             while (true) {
                 val task = tasksAgent.receive()
                 if (timestampLast != null && task.timestamp < timestampLast) {
+                    println("drop2")
                     DestroyImage(GetImage(task.inferTask))
                 } else {
                     timestampLast = task.timestamp

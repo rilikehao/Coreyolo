@@ -7,6 +7,7 @@
 - 🚀 高性能 YOLO11 目标检测推理
 - 🔄 跨平台支持：RK3588 (ARM64) 和 x64 (x86_64)
 - 🎯 多种推理引擎：MNN、RKNN、ONNX
+- 📡 RTSP 流输出支持，实时推流处理结果
 - 📦 一键式构建和部署
 - 🛠️ 集成训练环境，支持模型导出和量化
 - 📱 支持 AppImage 打包部署
@@ -99,6 +100,9 @@ x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --descript
 
 # 图像推理 (在 rk3588 运行)
 rk3588/YoloInfer.AppImage --source-type image --model assets/yolo11s.rknn --description assets/yolo11s.txt --source assets/bus.jpg
+
+# RTSP 流输出
+x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --source rtsp://127.0.0.1:8554/input/stream.mp4 --target rtsp://127.0.0.1:8554/output/stream.mp4
 
 # 其他类似
 ```
