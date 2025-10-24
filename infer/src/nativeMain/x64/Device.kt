@@ -5,7 +5,7 @@ import platform.ffmpeg.AVCodecContext
 class Device : AutoCloseable {
     companion object {
         const val H264_DECODER_NAME = "h264"
-        const val H264_ENCODER_NAME = "libx264"
+        const val H264_ENCODER_NAME = "libx264rgb"
         val encoderOptions = arrayOf("qp" to "20")
     }
 
