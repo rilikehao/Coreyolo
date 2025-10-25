@@ -17,8 +17,6 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 object SourceVideo : Runnable {
-    const val THREADS = 6
-
     data class Task(
         val timestamp: Duration,
         val inferTask: CPointer<InferTask>,
@@ -40,15 +38,15 @@ object SourceVideo : Runnable {
             val config = alloc<InferConfig>()
             config.path_model_ = AppArguments.instance.pathModel.cstr.ptr
             config.path_description_ = AppArguments.instance.pathDescription.cstr.ptr
-            config.threads_ = THREADS
+            config.threads_ = Device.THREADS
             RAIIInfer(config.ptr)
         }
         val draw = DrawScript(AppArguments.instance.pathDrawScript)
-        val manager0 = Manager(THREADS) { task: Task ->
+        val manager0 = Manager(Device.THREADS) { task: Task ->
             Logger.w { "卷积过载丢帧" }
             task.also { it.drop = true }
         }
-        val manager1 = Manager(THREADS) { task: Task ->
+        val manager1 = Manager(Device.THREADS) { task: Task ->
             Logger.w { "后处理过载丢帧" }
             task.also { it.drop = true }
         }
