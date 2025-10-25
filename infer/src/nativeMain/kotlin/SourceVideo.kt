@@ -3,6 +3,7 @@ import cnames.structs.InferTask
 import co.touchlab.kermit.Logger
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.map
@@ -43,44 +44,40 @@ object SourceVideo : Runnable {
             RAIIInfer(config.ptr)
         }
         val draw = DrawScript(AppArguments.instance.pathDrawScript)
-        val manager0 = Manager(THREADS)
-        val manager1 = Manager(THREADS)
+        val manager0 = Manager(THREADS) { task: Task ->
+            Logger.w { "卷积过载丢帧" }
+            task.also { it.drop = true }
+        }
+        val manager1 = Manager(THREADS) { task: Task ->
+            Logger.w { "后处理过载丢帧" }
+            task.also { it.drop = true }
+        }
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
         var timestamp0 = Duration.ZERO
         var taskLast: CPointer<InferTask>? = null
         return map { frame ->
-            CoroutineScope(Dispatchers.IO).async {
-                val task = Task(frame.timestamp, CreateInferTask()!!, false)
-                SetImage(task.inferTask, frame.image)
-                if (inputFrames == 0L) timestamp0 = frame.timestamp
-                if (maxFrames(frame.timestamp - timestamp0) < inputFrames) {
-                    task.drop = true
-                } else {
-                    ++inputFrames
-                }
-                if (!task.drop) manager0.use { id ->
-                    if (id == null) {
-                        Logger.w { "卷积过载丢帧" }
-                        task.drop = true
-                    } else {
-                        Detect0(infer.value, task.inferTask, id)
-                    }
-                }; task
+            val task = Task(frame.timestamp, CreateInferTask()!!, false)
+            SetImage(task.inferTask, frame.image)
+            if (inputFrames == 0L) timestamp0 = frame.timestamp
+            if (maxFrames(frame.timestamp - timestamp0) < inputFrames) {
+                task.drop = true
+            } else {
+                ++inputFrames
             }
-        }.buffer(THREADS + 1).map { deferred -> deferred.await() }.buffer(THREADS + 1).map { task ->
-            CoroutineScope(Dispatchers.IO).async {
-                if (!task.drop) manager1.use { id ->
-                    if (id == null) {
-                        Logger.w { "后处理过载丢帧" }
-                        task.drop = true
-                    } else {
-                        Detect1(infer.value, task.inferTask)
-                    }
-                }; task
+            if (task.drop) {
+                CompletableDeferred(task)
+            } else {
+                manager0.use(task) { id -> task.also { Detect0(infer.value, it.inferTask, id) } }
             }
-        }.buffer(THREADS + 1).map { deferred -> deferred.await() }.buffer(THREADS + 1).map { task ->
+        }.buffer(Channel.UNLIMITED).map { deferred -> deferred.await() }.map { task ->
+            if (task.drop) {
+                CompletableDeferred(task)
+            } else {
+                manager1.use(task) { task.also { Detect1(infer.value, it.inferTask) } }
+            }
+        }.buffer(Channel.UNLIMITED).map { deferred -> deferred.await() }.map { task ->
             if (!task.drop) {
                 try {
                     Logger.i {
@@ -120,7 +117,7 @@ object SourceVideo : Runnable {
             taskLast?.let { DestroyInferTask(it) }
             draw.close()
             infer.close()
-        }.buffer(THREADS + 1)
+        }.buffer(1)
     }
 
     suspend fun runReceive(receive: Flow<Video.Frame>, output: RAIIOutput) {

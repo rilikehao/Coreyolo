@@ -1,14 +1,14 @@
+import SourceVideo.Task
 import Utils.cPointer
 import Utils.check
 import Utils.use
 import Utils.withOptions
 import co.touchlab.kermit.Logger
 import kotlinx.cinterop.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.map
 import platform.ffmpeg.*
 import platform.native.DestroyImage
 import platform.native.GetHeight
@@ -31,7 +31,10 @@ class RtspOutput(val url: String) {
                 av_packet_alloc()!!.use({ av_packet_free(it) }) { packet ->
                     av_frame_alloc()!!.use({ av_frame_free(it) }) { frame ->
                         var videoStream: CPointer<AVStream>? = null
-                        val manager = Manager(1)
+                        val manager = Manager(1) { input: Video.Frame ->
+                            Logger.w { "编码器过载丢帧" }
+                            DestroyImage(input.image)
+                        }
                         receive.map { input ->
                             try {
                                 if (codecCtx.width == 0) {
@@ -51,28 +54,22 @@ class RtspOutput(val url: String) {
                                 DestroyImage(input.image)
                                 throw e
                             }
-                            CoroutineScope(Dispatchers.IO).launch {
+                            manager.use(input) {
                                 try {
-                                    manager.use { id ->
-                                        if (id == null) {
-                                            Logger.w { "编码器过载丢帧" }
-                                        } else {
-                                            frame.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
-                                            FromRGBImage(frame, input.image)
-                                            avcodec_send_frame(codecCtx.ptr, frame.ptr).check("avcodec_send_frame")
-                                            av_frame_unref(frame.ptr)
-                                            while (0 <= avcodec_receive_packet(codecCtx.ptr, packet.ptr)) {
-                                                packet.stream_index = videoStream!!.pointed.index
-                                                av_interleaved_write_frame(formatCtx.ptr, packet.ptr)
-                                                av_packet_unref(packet.ptr)
-                                            }
-                                        }
+                                    frame.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
+                                    FromRGBImage(frame, input.image)
+                                    avcodec_send_frame(codecCtx.ptr, frame.ptr).check("avcodec_send_frame")
+                                    av_frame_unref(frame.ptr)
+                                    while (0 <= avcodec_receive_packet(codecCtx.ptr, packet.ptr)) {
+                                        packet.stream_index = videoStream!!.pointed.index
+                                        av_interleaved_write_frame(formatCtx.ptr, packet.ptr)
+                                        av_packet_unref(packet.ptr)
                                     }
                                 } finally {
                                     DestroyImage(input.image)
                                 }
                             }
-                        }.buffer(1).collect { it.join() }
+                        }.buffer(Channel.UNLIMITED).collect { it.await() }
                         av_write_trailer(formatCtx.ptr)
                     }
                 }
