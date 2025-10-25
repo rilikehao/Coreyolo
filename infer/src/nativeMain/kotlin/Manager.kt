@@ -5,7 +5,7 @@ class Manager(val size: Int) {
         repeat(size) { trySend(it) }
     }
 
-    suspend fun use(block: suspend (Int?) -> Unit) {
+    fun use(block: (Int?) -> Unit) {
         val id = availableIds.tryReceive().getOrNull()
         try {
             block(id)

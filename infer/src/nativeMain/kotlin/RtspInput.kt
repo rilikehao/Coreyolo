@@ -69,5 +69,5 @@ class RtspInput(val url: String) : Video {
                 }
             }
         }
-    }.buffer(0)
+    }.buffer(1)
 }

@@ -69,7 +69,7 @@ object SourceVideo : Runnable {
                     }
                 }; task
             }
-        }.buffer(THREADS).map { deferred -> deferred.await() }.buffer(0).map { task ->
+        }.buffer(THREADS + 1).map { deferred -> deferred.await() }.buffer(THREADS + 1).map { task ->
             CoroutineScope(Dispatchers.IO).async {
                 if (!task.drop) manager1.use { id ->
                     if (id == null) {
@@ -80,7 +80,7 @@ object SourceVideo : Runnable {
                     }
                 }; task
             }
-        }.buffer(THREADS).map { deferred -> deferred.await() }.buffer(0).map { task ->
+        }.buffer(THREADS + 1).map { deferred -> deferred.await() }.buffer(THREADS + 1).map { task ->
             if (!task.drop) {
                 try {
                     Logger.i {
@@ -120,7 +120,7 @@ object SourceVideo : Runnable {
             taskLast?.let { DestroyInferTask(it) }
             draw.close()
             infer.close()
-        }.buffer(0)
+        }.buffer(THREADS + 1)
     }
 
     suspend fun runReceive(receive: Flow<Video.Frame>, output: RAIIOutput) {

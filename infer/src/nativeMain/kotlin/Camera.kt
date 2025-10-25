@@ -2,6 +2,7 @@ import Utils.check
 import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import platform.native.CreateImage
@@ -72,7 +73,7 @@ abstract class Camera(val fd: Int) : Video {
             setStreamOff()
             unmapBuffers(buffers)
         }
-    }
+    }.buffer(1)
 
     fun setResolution() = memScoped {
         sequence {

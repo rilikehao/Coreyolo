@@ -72,7 +72,8 @@ class RtspOutput(val url: String) {
                                     DestroyImage(input.image)
                                 }
                             }
-                        }.buffer(1).onEach { it.join() }.onCompletion { av_write_trailer(formatCtx.ptr) }.collect()
+                        }.buffer(1).collect { it.join() }
+                        av_write_trailer(formatCtx.ptr)
                     }
                 }
             }
