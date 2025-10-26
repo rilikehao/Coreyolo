@@ -42,14 +42,8 @@ object SourceVideo : Runnable {
             RAIIInfer(config.ptr)
         }
         val draw = DrawScript(AppArguments.instance.pathDrawScript)
-        val manager0 = Manager(Device.THREADS) { task: Task ->
-            Logger.w { "卷积过载丢帧" }
-            task.also { it.drop = true }
-        }
-        val manager1 = Manager(Device.THREADS) { task: Task ->
-            Logger.w { "后处理过载丢帧" }
-            task.also { it.drop = true }
-        }
+        val manager0 = Manager(Device.THREADS)
+        val manager1 = Manager(Device.THREADS)
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0: TimeSource.Monotonic.ValueTimeMark? = null
@@ -67,13 +61,13 @@ object SourceVideo : Runnable {
             if (task.drop) {
                 CompletableDeferred(task)
             } else {
-                manager0.use(task) { id -> task.also { Detect0(infer.value, it.inferTask, id) } }
+                manager0.use { id -> task.also { Detect0(infer.value, task.inferTask, id) } }
             }
         }.buffer(Channel.UNLIMITED).map { deferred -> deferred.await() }.map { task ->
             if (task.drop) {
                 CompletableDeferred(task)
             } else {
-                manager1.use(task) { task.also { Detect1(infer.value, it.inferTask) } }
+                manager1.use { task.also { Detect1(infer.value, it.inferTask) } }
             }
         }.buffer(Channel.UNLIMITED).map { deferred -> deferred.await() }.map { task ->
             if (!task.drop) {
@@ -113,9 +107,11 @@ object SourceVideo : Runnable {
             }.let { Video.Frame(task.timestamp, it!!) }
         }.onCompletion {
             taskLast?.let { DestroyInferTask(it) }
+            manager1.close()
+            manager0.close()
             draw.close()
             infer.close()
-        }.buffer(1)
+        }.buffer(Channel.UNLIMITED)
     }
 
     suspend fun runReceive(receive: Flow<Video.Frame>, output: RAIIOutput) {

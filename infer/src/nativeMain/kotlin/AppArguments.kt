@@ -19,5 +19,6 @@ class AppArguments(parser: ArgParser) {
     val pathTarget by parser.option(ArgType.String, "target").default("")
     val pathDrawScript by parser.option(ArgType.String, "draw-script").default("")
     val fps by parser.option(ArgType.Double, "fps").default(90000.0)
+    val encodeFps by parser.option(ArgType.Double, "encode-fps").default(90000.0)
     val mute by parser.option(ArgType.Boolean, "mute").default(false)
 }

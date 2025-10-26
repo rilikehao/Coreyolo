@@ -4,10 +4,10 @@ import platform.ffmpeg.AVCodecContext
 @OptIn(ExperimentalForeignApi::class)
 class Device : AutoCloseable {
     companion object {
-        const val THREADS = 1
+        const val THREADS = 3
         const val H264_DECODER_NAME = "h264"
         const val H264_ENCODER_NAME = "libx264rgb"
-        val encoderOptions = arrayOf("qp" to "20")
+        val encoderOptions = arrayOf("qp" to "20", "preset" to "fast")
     }
 
     override fun close() = Unit

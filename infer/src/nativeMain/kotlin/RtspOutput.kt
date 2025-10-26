@@ -1,18 +1,18 @@
-import SourceVideo.Task
+import StringFormat.toString
 import Utils.cPointer
 import Utils.check
 import Utils.use
 import Utils.withOptions
 import co.touchlab.kermit.Logger
 import kotlinx.cinterop.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.map
 import platform.ffmpeg.*
 import platform.native.DestroyImage
 import platform.native.GetHeight
 import platform.native.GetWidth
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class)
 class RtspOutput(val url: String) {
@@ -31,11 +31,11 @@ class RtspOutput(val url: String) {
                 av_packet_alloc()!!.use({ av_packet_free(it) }) { packet ->
                     av_frame_alloc()!!.use({ av_frame_free(it) }) { frame ->
                         var videoStream: CPointer<AVStream>? = null
-                        val manager = Manager(1) { input: Video.Frame ->
-                            Logger.w { "编码器过载丢帧" }
-                            DestroyImage(input.image)
-                        }
-                        receive.map { input ->
+                        var inputFrames = 0L
+                        var outputFrames = 0L
+                        var frame0: TimeSource.Monotonic.ValueTimeMark? = null
+                        var timestamp0 = Duration.ZERO
+                        receive.collect { input ->
                             try {
                                 if (codecCtx.width == 0) {
                                     codecCtx.width = GetWidth(input.image)
@@ -50,30 +50,40 @@ class RtspOutput(val url: String) {
                                         avformat_write_header(formatCtx.ptr, it).check("avformat_write_header")
                                     }
                                 }
-                            } catch (e: Exception) {
-                                DestroyImage(input.image)
-                                throw e
-                            }
-                            manager.use(input) {
-                                try {
-                                    frame.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
-                                    FromRGBImage(frame, input.image)
-                                    avcodec_send_frame(codecCtx.ptr, frame.ptr).check("avcodec_send_frame")
-                                    av_frame_unref(frame.ptr)
-                                    while (0 <= avcodec_receive_packet(codecCtx.ptr, packet.ptr)) {
-                                        packet.stream_index = videoStream!!.pointed.index
-                                        av_interleaved_write_frame(formatCtx.ptr, packet.ptr)
-                                        av_packet_unref(packet.ptr)
+                                if (inputFrames == 0L) timestamp0 = input.timestamp
+                                if (maxFrames(input.timestamp - timestamp0) < inputFrames) return@collect
+                                ++inputFrames
+                                frame.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
+                                FromRGBImage(frame, input.image)
+                                avcodec_send_frame(codecCtx.ptr, frame.ptr).check("avcodec_send_frame")
+                                av_frame_unref(frame.ptr)
+                                Logger.i {
+                                    val text = StringBuilder()
+                                    if (frame0 == null) {
+                                        frame0 = TimeSource.Monotonic.markNow()
+                                    } else {
+                                        val fps = 1.seconds / (frame0.elapsedNow() / (++outputFrames).toDouble())
+                                        text.append("编码后的每秒帧数: ${fps.toString(2)} ")
+                                        val delayed = frame0.elapsedNow() - (input.timestamp - timestamp0)
+                                        if (delayed.isPositive()) text.append("额外延迟: $delayed ")
                                     }
-                                } finally {
-                                    DestroyImage(input.image)
+                                    text.toString()
                                 }
+                                while (0 <= avcodec_receive_packet(codecCtx.ptr, packet.ptr)) {
+                                    packet.stream_index = videoStream!!.pointed.index
+                                    av_interleaved_write_frame(formatCtx.ptr, packet.ptr)
+                                    av_packet_unref(packet.ptr)
+                                }
+                            } finally {
+                                DestroyImage(input.image)
                             }
-                        }.buffer(Channel.UNLIMITED).collect { it.await() }
+                        }
                         av_write_trailer(formatCtx.ptr)
                     }
                 }
             }
         }
     }
+
+    fun maxFrames(duration: Duration) = (duration * AppArguments.instance.encodeFps).inWholeSeconds
 }

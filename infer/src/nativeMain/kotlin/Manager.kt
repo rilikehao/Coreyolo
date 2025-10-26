@@ -1,14 +1,17 @@
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 
-class Manager<T, R>(val size: Int, val onDrop: (T) -> R) {
-    val availableIds = Channel<Int>(capacity = size).apply {
-        repeat(size) { trySend(it) }
-    }
+class Manager(val size: Int) {
+    @OptIn(DelicateCoroutinesApi::class)
+    val dispatcher = newFixedThreadPoolContext(size + 1, "dispatcher")
 
-    fun use(input: T, block: (Int) -> R) = when (val id = availableIds.tryReceive().getOrNull()) {
-        null -> CompletableDeferred(onDrop(input))
-        else -> CoroutineScope(Dispatchers.IO).async {
+    val scope = CoroutineScope(SupervisorJob() + dispatcher)
+
+    val availableIds = Channel<Int>(capacity = size).apply { repeat(size) { trySend(it) } }
+
+    suspend fun <T> use(block: (Int) -> T): Deferred<T> {
+        val id = availableIds.receive()
+        return scope.async {
             try {
                 block(id)
             } finally {
@@ -16,4 +19,6 @@ class Manager<T, R>(val size: Int, val onDrop: (T) -> R) {
             }
         }
     }
+
+    suspend fun close() { scope.coroutineContext[Job]?.cancelAndJoin() }
 }

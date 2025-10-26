@@ -3,7 +3,6 @@ import co.touchlab.kermit.Severity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 
-
 object ActorLogWriter : CommonWriter(), AutoCloseable {
     data class LogData(
         val severity: Severity,
