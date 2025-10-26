@@ -6,12 +6,12 @@ import platform.native.*
 object SourceImage : Runnable {
     override fun run() = memScoped {
         val config = alloc<InferConfig>()
-        config.path_model_ = AppArguments.instance.pathModel.cstr.ptr
-        config.path_description_ = AppArguments.instance.pathDescription.cstr.ptr
+        config.path_model_ = AppConfig.instance.paths.model.cstr.ptr
+        config.path_description_ = AppConfig.instance.paths.description.cstr.ptr
         config.threads_ = 1
         CreateInfer(config.ptr)
     }.let { infer ->
-        val image = CreateImagePath(AppArguments.instance.pathSource)
+        val image = CreateImagePath(AppConfig.instance.paths.source)
         val task = CreateInferTask()
         SetImage(task, image)
         Detect0(infer, task, 0)

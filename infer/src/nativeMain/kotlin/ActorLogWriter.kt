@@ -31,7 +31,7 @@ object ActorLogWriter : CommonWriter(), AutoCloseable {
         throwable: Throwable?
     ) { if (isLoggable(tag, severity)) { logChannel.trySend(LogData(severity, message, tag, throwable)) } }
 
-    override fun isLoggable(tag: String, severity: Severity) = !AppArguments.instance.mute
+    override fun isLoggable(tag: String, severity: Severity) = !AppConfig.instance.processing.mute
 
     override fun close() {
         logChannel.close()

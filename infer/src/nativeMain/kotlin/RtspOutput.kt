@@ -85,5 +85,5 @@ class RtspOutput(val url: String) {
         }
     }
 
-    fun maxFrames(duration: Duration) = (duration * AppArguments.instance.encodeFps).inWholeSeconds
+    fun maxFrames(duration: Duration) = (duration * AppConfig.instance.processing.fpsEncode).inWholeSeconds
 }

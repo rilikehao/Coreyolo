@@ -1,5 +1,6 @@
 plugins {
     kotlin("multiplatform")
+    kotlin("plugin.serialization") version "2.1.0"
 }
 
 repositories {
@@ -21,7 +22,11 @@ kotlin {
                 kotlin.srcDir("src/nativeMain/$targetName")
                 dependencies {
                     implementation("co.touchlab:kermit:2.0.8")
+                    implementation("com.akuleshov7:ktoml-core:0.7.1")
+                    implementation("com.akuleshov7:ktoml-file:0.7.1")
+                    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
                     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+                    // implementation("com.squareup.okio:okio:3.16.2")
                 }
             }
             cinterops {

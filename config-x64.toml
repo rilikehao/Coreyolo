@@ -1,0 +1,14 @@
+[source]
+type = "VIDEO"
+
+[paths]
+model = "assets/yolo11s.mnn"
+description = "assets/yolo11s.txt"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+target = "rtsp://127.0.0.1:8554/2025/2025-00.mp4"
+drawScript = "lua/example.lua"
+
+[processing]
+fpsYolo = 15.0
+fpsEncode = 30.0
+mute = false

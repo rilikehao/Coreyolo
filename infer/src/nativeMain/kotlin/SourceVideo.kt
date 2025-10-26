@@ -24,24 +24,24 @@ object SourceVideo : Runnable {
     )
 
     override fun run() = runBlocking {
-        val video = Video.open(AppArguments.instance.pathSource)
+        val video = Video.open(AppConfig.instance.paths.source)
         val detected = video.frames().onCompletion { video.close() }.detect()
-        if (AppArguments.instance.pathTarget.isEmpty()) {
+        if (AppConfig.instance.paths.target.isEmpty()) {
             RAIIOutput().use { output -> withJob({ runReceive(detected, output) }) { Exec() } }
         } else {
-            RtspOutput(AppArguments.instance.pathTarget).runReceive(detected)
+            RtspOutput(AppConfig.instance.paths.target).runReceive(detected)
         }
     }
 
     fun Flow<Video.Frame>.detect(): Flow<Video.Frame> {
         val infer = memScoped {
             val config = alloc<InferConfig>()
-            config.path_model_ = AppArguments.instance.pathModel.cstr.ptr
-            config.path_description_ = AppArguments.instance.pathDescription.cstr.ptr
+            config.path_model_ = AppConfig.instance.paths.model.cstr.ptr
+            config.path_description_ = AppConfig.instance.paths.description.cstr.ptr
             config.threads_ = Device.THREADS
             RAIIInfer(config.ptr)
         }
-        val draw = DrawScript(AppArguments.instance.pathDrawScript)
+        val draw = DrawScript(AppConfig.instance.paths.drawScript)
         val manager0 = Manager(Device.THREADS)
         val manager1 = Manager(Device.THREADS)
         var inputFrames = 0L
@@ -150,5 +150,5 @@ object SourceVideo : Runnable {
         job.cancelAndJoin()
     }
 
-    fun maxFrames(duration: Duration) = (duration * AppArguments.instance.fps).inWholeSeconds
+    fun maxFrames(duration: Duration) = (duration * AppConfig.instance.processing.fpsYolo).inWholeSeconds
 }
