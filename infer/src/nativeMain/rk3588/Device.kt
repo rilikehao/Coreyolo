@@ -9,7 +9,8 @@ import platform.ffmpeg.*
 @OptIn(ExperimentalForeignApi::class)
 class Device : AutoCloseable {
     companion object {
-        const val THREADS = 3
+        const val NPU_THREADS = 3
+        const val CPU_THREADS = 8
         const val H264_DECODER_NAME = "h264_rkmpp"
         const val H264_ENCODER_NAME = "h264_rkmpp"
         val encoderOptions = arrayOf("rc_mode" to "CQP", "qp_init" to "20")

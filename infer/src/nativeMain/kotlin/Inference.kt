@@ -23,11 +23,11 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
         val config = alloc<InferConfig>()
         config.path_model_ = AppConfig.instance.paths.model.cstr.ptr
         config.path_description_ = AppConfig.instance.paths.description.cstr.ptr
-        config.threads_ = Device.THREADS
+        config.threads_ = Device.NPU_THREADS
         CreateInfer(config.ptr)!!
     }
-    val detect0Manager = Manager(Device.THREADS)
-    val detect1Manager = Manager(Device.THREADS)
+    val detect0Manager = Manager(Device.NPU_THREADS)
+    val detect1Manager = Manager(Device.CPU_THREADS)
 
     override fun close() = runBlocking {
         detect1Manager.close()
