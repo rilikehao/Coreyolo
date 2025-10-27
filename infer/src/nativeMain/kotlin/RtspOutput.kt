@@ -52,7 +52,6 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
                                     }
                                 }
                                 if (inputFrames == 0L) timestamp0 = input.timestamp
-                                if (maxFrames(input.timestamp - timestamp0) < inputFrames) return@collect
                                 ++inputFrames
                                 frame.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
                                 FromRGBImage(frame, input.image)
@@ -80,6 +79,4 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
             }
         }
     }
-
-    fun maxFrames(duration: Duration) = (duration * AppConfig.instance.processing.fpsEncode).inWholeSeconds
 }

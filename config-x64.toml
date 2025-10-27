@@ -17,6 +17,6 @@ source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
 target = "rtsp://127.0.0.1:8554/2025/2025-01.mp4"
 
 [processing]
+fpsDecode = 10.0
 fpsYolo = 5.0
-fpsEncode = 10.0
 mute = false

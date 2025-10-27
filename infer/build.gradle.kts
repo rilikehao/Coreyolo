@@ -1,5 +1,5 @@
 plugins {
-    kotlin("multiplatform")
+    kotlin("multiplatform") version "2.2.20"
     kotlin("plugin.serialization") version "2.2.20"
 }
 
@@ -61,7 +61,7 @@ tasks.register("install") {
             executableFile.copyTo(targetFile, overwrite = true)
             targetFile.setExecutable(true)
 
-            println("Installed ${executableFile.name} (${buildType.lowercase()}) to ${targetFile.absolutePath}")
+            println("Installed ${executableFile.name} ($buildType) to ${targetFile.absolutePath}")
         }
     }
 }

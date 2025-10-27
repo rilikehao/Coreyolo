@@ -9,6 +9,7 @@ import kotlinx.cinterop.ptr
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import platform.ffmpeg.*
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
@@ -19,6 +20,8 @@ class RtspInput(val url: String) : Video {
     override fun frames() = flow {
         Device().use { device ->
             var videoStreamIndex = -1
+            var inputFrames = 0L
+            var timestamp0 = Duration.ZERO
             cPointer { ptr ->
                 withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp") {
                     avformat_open_input(ptr, url, null, it).check("avformat_open_input")
@@ -55,6 +58,9 @@ class RtspInput(val url: String) : Video {
                                             while (avcodec_receive_frame(codecCtx.ptr, frame.ptr) == 0) {
                                                 val pts = frame.pts.toDouble() * timeBase.num / timeBase.den
                                                 val timestamp = pts.seconds
+                                                if (inputFrames == 0L) timestamp0 = timestamp
+                                                if (maxFrames(timestamp - timestamp0) < inputFrames) continue
+                                                ++inputFrames
                                                 emit(Video.Frame(timestamp, toRGBImage(frame)))
                                             }
                                         }
@@ -70,4 +76,6 @@ class RtspInput(val url: String) : Video {
             }
         }
     }.buffer(1)
+
+    fun maxFrames(duration: Duration) = (duration * AppConfig.instance.processing.fpsDecode).inWholeSeconds
 }
