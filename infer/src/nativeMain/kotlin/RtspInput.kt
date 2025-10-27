@@ -6,6 +6,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.get
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import platform.ffmpeg.*
@@ -75,7 +76,7 @@ class RtspInput(val url: String) : Video {
                 }
             }
         }
-    }.buffer(1)
+    }.buffer(Channel.UNLIMITED)
 
     fun maxFrames(duration: Duration) = (duration * AppConfig.instance.processing.fpsDecode).inWholeSeconds
 }

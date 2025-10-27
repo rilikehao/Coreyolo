@@ -10,21 +10,22 @@ extern "C" {
 
 #include <MNN/Interpreter.hpp>
 #include <MNN/Tensor.hpp>
+#include <QPainter>
 
 #include "image.h"
 #include "inference.h"
 
 struct Infer {
-    MNN::Interpreter *interpreter_ = nullptr;
+    MNN::Interpreter* interpreter_ = nullptr;
     std::vector<std::string> names_;
     std::string input_name_;
     std::vector<std::string> output_names_;
     int h_ = 0, w_ = 0;
-    std::vector<MNN::Session *> sessions_;
+    std::vector<MNN::Session*> sessions_;
 };
 
 struct InferTask {
-    Image *image_;
+    Image* image_;
     std::vector<Detection> detections_;
     int infer_;
     std::string error_;
@@ -50,24 +51,24 @@ AVPixelFormat ToAVPixelFormat(uint32_t v4l2_format) {
     }
 }
 
-int Suffix(const std::string &s) {
+int Suffix(const std::string& s) {
     int k = s.size() - 1;
     while (0 <= k && isdigit(s[k])) --k;
     return stol(s.substr(k + 1));
 }
 
-void QueryModelInfo(Infer *infer) {
+void QueryModelInfo(Infer* infer) {
     MNN::ScheduleConfig config;
     config.type = MNN_FORWARD_VULKAN;
     auto session = infer->interpreter_->createSession(config);
     auto inputs = infer->interpreter_->getSessionInputAll(session);
-    for (const auto &pair : inputs) infer->input_name_ = pair.first;
+    for (const auto& pair : inputs) infer->input_name_ = pair.first;
     auto outputs = infer->interpreter_->getSessionOutputAll(session);
     std::map<int, std::string> m;
-    for (const auto &pair : outputs) {
+    for (const auto& pair : outputs) {
         m[Suffix(pair.first)] = pair.first;
     }
-    for (const auto &pair : m) {
+    for (const auto& pair : m) {
         infer->output_names_.emplace_back(pair.second);
     }
     auto input_tensor = infer->interpreter_->getSessionInput(
@@ -77,11 +78,25 @@ void QueryModelInfo(Infer *infer) {
     infer->interpreter_->releaseSession(session);
 }
 
+QImage ScalePadToRGB(QImage image, int w, int h, float& scale) {
+    QImage scaled =
+        image.scaled(w, h, Qt::KeepAspectRatio, Qt::FastTransformation);
+    QImage target(w, h, QImage::Format_RGB888);
+    target.fill(QColor(kBgColor, kBgColor, kBgColor));
+    QPainter painter(&target);
+    painter.drawImage(0, 0, scaled);
+    painter.end();
+    float scale_h = static_cast<float>(h) / image.height();
+    float scale_w = static_cast<float>(w) / image.width();
+    scale = std::min(scale_h, scale_w);
+    return target;
+}
+
 }  // namespace
 
 extern "C" {
 
-Image *CreateImage(void *data, int w, int h, uint32_t format) {
+Image* CreateImage(void* data, int w, int h, uint32_t format) {
     if (format == V4L2_PIX_FMT_MJPEG || format == V4L2_PIX_FMT_JPEG) {
         auto result = new Image;
         result->data_ = DecodeMotionJPEG(data, w, h);
@@ -89,37 +104,37 @@ Image *CreateImage(void *data, int w, int h, uint32_t format) {
     }
     auto result = CreateImageRGB24(w, h);
     AVPixelFormat src_format = ToAVPixelFormat(format);
-    AVFrame *src_frame = av_frame_alloc();
+    AVFrame* src_frame = av_frame_alloc();
     switch (format) {
         case V4L2_PIX_FMT_BGR24:
-            src_frame->data[0] = (uint8_t *)data;
+            src_frame->data[0] = (uint8_t*)data;
             src_frame->linesize[0] = w * 3;
             break;
         case V4L2_PIX_FMT_NV12: {
             size_t y_size = w * h;
-            src_frame->data[0] = (uint8_t *)data;
-            src_frame->data[1] = (uint8_t *)data + y_size;
+            src_frame->data[0] = (uint8_t*)data;
+            src_frame->data[1] = (uint8_t*)data + y_size;
             src_frame->linesize[0] = w;
             src_frame->linesize[1] = w;
             break;
         }
         case V4L2_PIX_FMT_NV16: {
             size_t y_size = w * h;
-            src_frame->data[0] = (uint8_t *)data;
-            src_frame->data[1] = (uint8_t *)data + y_size;
+            src_frame->data[0] = (uint8_t*)data;
+            src_frame->data[1] = (uint8_t*)data + y_size;
             src_frame->linesize[0] = w;
             src_frame->linesize[1] = w;
             break;
         }
         case V4L2_PIX_FMT_YUYV:
-            src_frame->data[0] = (uint8_t *)data;
+            src_frame->data[0] = (uint8_t*)data;
             src_frame->linesize[0] = w * 2;
             break;
     }
-    SwsContext *sws_ctx =
+    SwsContext* sws_ctx =
         sws_getContext(w, h, src_format, w, h, AV_PIX_FMT_RGB24,
                        SWS_BILINEAR, nullptr, nullptr, nullptr);
-    uint8_t *dst_data = result->data_.bits();
+    uint8_t* dst_data = result->data_.bits();
     int dst_linesize = result->data_.bytesPerLine();
     sws_scale(sws_ctx, src_frame->data, src_frame->linesize, 0, h,
               &dst_data, &dst_linesize);
@@ -128,7 +143,7 @@ Image *CreateImage(void *data, int w, int h, uint32_t format) {
     return result;
 }
 
-Infer *CreateInfer(InferConfig *config) {
+Infer* CreateInfer(InferConfig* config) {
     auto infer = new Infer;
     InitNames(infer->names_, config->path_description_);
     infer->interpreter_ =
@@ -141,14 +156,14 @@ Infer *CreateInfer(InferConfig *config) {
     infer->sessions_.resize(config->threads_);
     MNN::ScheduleConfig mnn_config;
     mnn_config.type = MNN_FORWARD_VULKAN;
-    for (auto &i : infer->sessions_) {
+    for (auto& i : infer->sessions_) {
         i = infer->interpreter_->createSession(mnn_config);
     }
     return infer;
 }
 
-void DestroyInfer(Infer *infer) {
-    for (auto &i : infer->sessions_) {
+void DestroyInfer(Infer* infer) {
+    for (auto& i : infer->sessions_) {
         if (!infer->interpreter_->releaseSession(i)) {
             throw std::runtime_error("error unload model");
         }
@@ -156,10 +171,10 @@ void DestroyInfer(Infer *infer) {
     MNN::Interpreter::destroy(infer->interpreter_);
 }
 
-struct InferTask *CreateInferTask() { return new InferTask; }
-void DestroyInferTask(struct InferTask *task) { delete task; }
+struct InferTask* CreateInferTask() { return new InferTask; }
+void DestroyInferTask(struct InferTask* task) { delete task; }
 
-void Detect0(Infer *infer, InferTask *task, int no) {
+void Detect0(Infer* infer, InferTask* task, int no) {
     auto interpreter = infer->interpreter_;
     MNN::ScheduleConfig config;
     config.type = MNN_FORWARD_VULKAN;
@@ -171,7 +186,7 @@ void Detect0(Infer *infer, InferTask *task, int no) {
         ScalePadToRGB(task->image_->data_, w, h, task->scale_);
     MNN::Tensor data(input_tensor);
     auto input = data.host<float>();
-    const uchar *imageData = scaled.constBits();
+    const uchar* imageData = scaled.constBits();
     for (int i = 0; i < h * w; ++i) {
         input[i] = imageData[i * 3] / 255.0f;
         input[h * w + i] = imageData[i * 3 + 1] / 255.0f;
@@ -183,8 +198,8 @@ void Detect0(Infer *infer, InferTask *task, int no) {
         task->error_ = "Failed to run inference";
         return;
     }
-    std::vector<MNN::Tensor *> output_tensors;
-    for (const auto &i : infer->output_names_) {
+    std::vector<MNN::Tensor*> output_tensors;
+    for (const auto& i : infer->output_names_) {
         auto tensor = interpreter->getSessionOutput(
             infer->sessions_[no], i.c_str());
         output_tensors.emplace_back(tensor);
@@ -196,7 +211,7 @@ void Detect0(Infer *infer, InferTask *task, int no) {
     output_tensors.clear();
 }
 
-void Detect1(Infer *infer, InferTask *task) {
+void Detect1(Infer* infer, InferTask* task) {
     PostProcessData data;
     data.names_ = &infer->names_;
     data.detections_ = &task->detections_;
@@ -214,20 +229,20 @@ void Detect1(Infer *infer, InferTask *task) {
     NonMaximumSuppression(task->detections_);
 }
 
-struct Image *GetImage(struct InferTask *task) { return task->image_; }
+struct Image* GetImage(struct InferTask* task) { return task->image_; }
 
-void SetImage(struct InferTask *task, struct Image *image) {
+void SetImage(struct InferTask* task, struct Image* image) {
     task->image_ = image;
 }
 
-int SizeDetections(InferTask *task) { return task->detections_.size(); }
+int SizeDetections(InferTask* task) { return task->detections_.size(); }
 
-Detection *PtrDetections(InferTask *task) {
+Detection* PtrDetections(InferTask* task) {
     return task->detections_.data();
 }
 
-const char *GetError(struct InferTask *task) {
-    return (char *)task->error_.c_str();
+const char* GetError(struct InferTask* task) {
+    return (char*)task->error_.c_str();
 }
 
 }  // extern

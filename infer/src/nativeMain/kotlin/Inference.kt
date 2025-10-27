@@ -63,7 +63,19 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                 detect1Manager.use { task.also { Detect1(infer, it.inferTask) } }
             }
         }.buffer(Channel.UNLIMITED).map { deferred -> deferred.await() }.map { task ->
-            if (!task.drop) {
+            if (task.drop) {
+                try {
+                    if (taskLast == null) {
+                        GetImage(task.inferTask)
+                    } else {
+                        SetImage(taskLast, GetImage(task.inferTask))
+                        draw.execute(taskLast!!)
+                        GetImage(taskLast)
+                    }
+                } finally {
+                    DestroyInferTask(task.inferTask)
+                }
+            } else {
                 try {
                     Logger.i {
                         if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
@@ -77,18 +89,6 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                 } finally {
                     taskLast?.let { DestroyInferTask(it) }
                     taskLast = task.inferTask
-                }
-            } else {
-                try {
-                    if (taskLast == null) {
-                        GetImage(task.inferTask)
-                    } else {
-                        SetImage(taskLast, GetImage(task.inferTask))
-                        draw.execute(taskLast)
-                        GetImage(taskLast)
-                    }
-                } finally {
-                    DestroyInferTask(task.inferTask)
                 }
             }.let { Video.Frame(task.timestamp, it!!) }
         }.onCompletion {

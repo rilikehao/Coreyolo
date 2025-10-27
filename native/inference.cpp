@@ -53,20 +53,6 @@ void InitNames(std::vector<std::string>& names, const char* path) {
     qDebug("Categories' names initialized successfully");
 }
 
-QImage ScalePadToRGB(QImage image, int w, int h, float& scale) {
-    QImage scaled =
-        image.scaled(w, h, Qt::KeepAspectRatio, Qt::FastTransformation);
-    QImage target(w, h, QImage::Format_RGB888);
-    target.fill(QColor(kBgColor, kBgColor, kBgColor));
-    QPainter painter(&target);
-    painter.drawImage(0, 0, scaled);
-    painter.end();
-    float scale_h = static_cast<float>(h) / image.height();
-    float scale_w = static_cast<float>(w) / image.width();
-    scale = std::min(scale_h, scale_w);
-    return target;
-}
-
 void PostProcess(PostProcessData& data) {
     for (int h = 0; h < data.h_grid_; h++) {
         for (int w = 0; w < data.w_grid_; w++) {
