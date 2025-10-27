@@ -3,28 +3,66 @@ import java.io.File
 
 object ProjectBuilder {
     fun buildRGA() {
-        ToolchainManager.createMesonCrossFile(Config.RK3588)
+        ToolchainManager.createCmakeToolchainFile(Config.RK3588)
         val rgaDir = File("rk3588/rkrga")
+        cloneIfNeeded(rgaDir, "https://github.com/airockchip/librga.git")
+        val targetLibDir = File("rk3588/root/usr/local/lib")
+        val targetIncludeDir = File("rk3588/root/usr/local/include")
+        targetLibDir.mkdirs()
+        targetIncludeDir.mkdirs()
+
+        val sourceLibDir = File("${rgaDir.absolutePath}/libs/Linux/gcc-aarch64")
+        val sourceIncludeDir = File("${rgaDir.absolutePath}/include")
+
+        ProcessBuilder("cp", "-r", sourceLibDir.absolutePath + "/.", targetLibDir.absolutePath).runCommand()
+        ProcessBuilder("cp", "-r", sourceIncludeDir.absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
+
+        if (!File("rk3588/rkrga/samples/utils/CMakeLists.txt.backup").exists()) {
+            ProcessBuilder(
+                "cp",
+                "rk3588/rkrga/samples/utils/CMakeLists.txt",
+                "rk3588/rkrga/samples/utils/CMakeLists.txt.backup",
+            ).runCommand()
+            ProcessBuilder(
+                "sed", "-i",
+                "s/add_library(utils_obj OBJECT \"\")/add_library(utils_obj SHARED \"\")/",
+                "rk3588/rkrga/samples/utils/CMakeLists.txt",
+            ).runCommand()
+        }
+        if (!File("rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp.backup").exists()) {
+            ProcessBuilder(
+                "cp",
+                "rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp",
+                "rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp.backup",
+            ).runCommand()
+            ProcessBuilder(
+                "sed", "-i",
+                "-e", "1i extern \"C\" {",
+                "-e", $$"$a }",
+                "rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp",
+            ).runCommand()
+        }
         val rgaBuildDir = File("rk3588/rkrga/build")
-        cloneIfNeeded(rgaDir, "https://github.com/nyanmisaka/rk-mirrors.git")
+        rgaBuildDir.mkdirs()
         ProcessBuilder(
-            "meson", "setup", rgaBuildDir.absolutePath,
-            "--prefix=${File(Config.RK3588.installPrefix).absolutePath}",
-            "--libdir=lib",
-            "--buildtype=release",
-            "--default-library=shared",
-            "--cross-file=${File(Config.RK3588.toolchainTxt).absolutePath}",
-            "-Dcpp_args=-fpermissive",
-            "-Dlibrga_demo=false"
-        ).directory(rgaDir).runCommand()
-        ProcessBuilder("ninja", "-C", rgaBuildDir.absolutePath, "install").runCommand()
+            "/usr/bin/cmake", File("rk3588/rkrga/samples/utils").absolutePath,
+            "-DCMAKE_TOOLCHAIN_FILE=${File(Config.RK3588.toolchainCmake).absolutePath}",
+            "-DCMAKE_INSTALL_PREFIX=${File(Config.RK3588.installPrefix).absolutePath}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_SHARED_LIBS=ON",
+        ).directory(rgaBuildDir).runCommand()
+        ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(rgaBuildDir).runCommand()
+
+        ProcessBuilder("cp", "-r", File("rk3588/rkrga/build/libutils_obj.so").absolutePath, targetLibDir.absolutePath).runCommand()
+        ProcessBuilder("cp", "-r", File("rk3588/rkrga/samples/utils/allocator/include").absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
     }
 
     fun buildMPP() {
         ToolchainManager.createCmakeToolchainFile(Config.RK3588)
         val mppDir = File("rk3588/rkmpp")
-        val mppBuildDir = File("rk3588/rkmpp/build")
         cloneIfNeeded(mppDir, "https://github.com/nyanmisaka/mpp.git")
+        val mppBuildDir = File("rk3588/rkmpp/build")
+        mppBuildDir.mkdirs()
         ProcessBuilder(
             "/usr/bin/cmake", mppDir.absolutePath,
             "-DCMAKE_TOOLCHAIN_FILE=${File(Config.RK3588.toolchainCmake).absolutePath}",

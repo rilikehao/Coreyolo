@@ -43,7 +43,7 @@ kotlin {
 tasks.register("install") {
     dependsOn("x64Binaries", "rk3588Binaries")
 
-    val buildType = project.findProperty("buildType") as String? ?: "Release"
+    val buildType = project.findProperty("buildType") as String
 
     doLast {
         val platforms = listOf("x64", "rk3588")
