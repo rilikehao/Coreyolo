@@ -10,13 +10,14 @@ import platform.ffmpeg.*
 import platform.native.DestroyImage
 import platform.native.GetHeight
 import platform.native.GetWidth
+import kotlin.math.max
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class)
-class RtspOutput(val url: String) {
-    suspend fun runReceive(receive: Flow<Video.Frame>) = memScoped {
+class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit {
+    override suspend fun invoke(id: String, inputFlow: Flow<Video.Frame>) = memScoped {
         cPointer {
             avformat_alloc_output_context2(it, null, "rtsp", url).check("avformat_alloc_output_context2")
         }.use({ avformat_free_context(it.ptr.pointed.value) }) { formatCtx ->
@@ -33,9 +34,9 @@ class RtspOutput(val url: String) {
                         var videoStream: CPointer<AVStream>? = null
                         var inputFrames = 0L
                         var outputFrames = 0L
-                        var frame0: TimeSource.Monotonic.ValueTimeMark? = null
+                        var frame0 = TimeSource.Monotonic.markNow()
                         var timestamp0 = Duration.ZERO
-                        receive.collect { input ->
+                        inputFlow.collect { input ->
                             try {
                                 if (codecCtx.width == 0) {
                                     codecCtx.width = GetWidth(input.image)
@@ -58,16 +59,11 @@ class RtspOutput(val url: String) {
                                 avcodec_send_frame(codecCtx.ptr, frame.ptr).check("avcodec_send_frame")
                                 av_frame_unref(frame.ptr)
                                 Logger.i {
-                                    val text = StringBuilder()
-                                    if (frame0 == null) {
-                                        frame0 = TimeSource.Monotonic.markNow()
-                                    } else {
-                                        val fps = 1.seconds / (frame0.elapsedNow() / (++outputFrames).toDouble())
-                                        text.append("编码后的每秒帧数: ${fps.toString(2)} ")
-                                        val delayed = frame0.elapsedNow() - (input.timestamp - timestamp0)
-                                        if (delayed.isPositive()) text.append("额外延迟: $delayed ")
-                                    }
-                                    text.toString()
+                                    if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
+                                    val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
+                                    val delayed = frame0.elapsedNow() - (input.timestamp - timestamp0)
+                                    val delayMs = max(0L, delayed.inWholeMilliseconds)
+                                    "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
                                 }
                                 while (0 <= avcodec_receive_packet(codecCtx.ptr, packet.ptr)) {
                                     packet.stream_index = videoStream!!.pointed.index

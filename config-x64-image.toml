@@ -4,4 +4,8 @@ type = "IMAGE"
 [paths]
 model = "assets/yolo11s.mnn"
 description = "assets/yolo11s.txt"
+
+[[streams]]
+id = "default"
 source = "assets/bus.jpg"
+target = "none"

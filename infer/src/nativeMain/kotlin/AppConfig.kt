@@ -1,6 +1,6 @@
+import com.akuleshov7.ktoml.file.TomlFileReader
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
-import com.akuleshov7.ktoml.file.TomlFileReader
 
 object AppConfig {
     lateinit var instance: Configuration
@@ -15,6 +15,7 @@ object AppConfig {
         val source: SourceConfig,
         val paths: PathsConfig,
         val processing: ProcessingConfig = ProcessingConfig(),
+        val streams: List<StreamConfig> = emptyList(),
     )
 
     @Serializable
@@ -26,9 +27,14 @@ object AppConfig {
     data class PathsConfig(
         val model: String,
         val description: String,
-        val source: String,
-        val target: String = "",
         val drawScript: String = "",
+    )
+
+    @Serializable
+    data class StreamConfig(
+        val id: String,
+        val source: String,
+        val target: String,
     )
 
     @Serializable

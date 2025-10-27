@@ -3,6 +3,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toCStringArray
+import kotlinx.coroutines.runBlocking
 import platform.native.Main
 import platform.posix.exit
 
@@ -18,8 +19,8 @@ fun main(args: Array<String>) {
         AppConfig.loadFromFile(args[0])
         
         when (AppConfig.instance.source.type) {
-            AppConfig.SourceType.IMAGE -> staticCFunction { -> SourceImage.run() }
-            AppConfig.SourceType.VIDEO -> staticCFunction { -> SourceVideo.run() }
+            AppConfig.SourceType.IMAGE -> staticCFunction { -> SourceImage() }
+            AppConfig.SourceType.VIDEO -> staticCFunction { -> runBlocking { SourceVideo() } }
         }.let { memScoped { Main(1, arrayOf("YoloInfer").toCStringArray(this), it) } }
     }
 }
