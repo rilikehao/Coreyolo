@@ -7,7 +7,8 @@ extern "C" {
 
 #include "image.h"
 
-void DrawRect(Image* image, Rect* rect, int r, int g, int b, const char* s) {
+void DrawRect(Image* image, Rect* rect, int r, int g, int b,
+              const char* s) {
     QPainter painter(&image->data_);
     painter.setPen(QPen(QColor(r, g, b), 3));
     painter.drawRect(rect->x0_, rect->y0_,  //

@@ -23,6 +23,7 @@ struct PostProcessData {
     std::vector<Detection>* detections_;
 };
 
+QImage ScalePadToRGB(QImage image, int w, int h, float& scale);
 void InitNames(std::vector<std::string>& names, const char* path);
 void PostProcess(PostProcessData& data);
 void NonMaximumSuppression(std::vector<Detection>& detections);

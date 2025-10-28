@@ -8,21 +8,25 @@ extern "C" {
 
 extern "C" {
 
-bool SupportFormat(uint32_t v4l2_format) {
-    switch (v4l2_format) {
-        case V4L2_PIX_FMT_BGR24:
-        case V4L2_PIX_FMT_NV12:
-        case V4L2_PIX_FMT_NV16:
-        case V4L2_PIX_FMT_YUYV:
-        case V4L2_PIX_FMT_MJPEG:  // Motion JPEG format support
-        case V4L2_PIX_FMT_JPEG:   // JPEG format support
-            return true;
-        default:
-            return false;
-    }
+struct Image* CreateImageRGB24(int w, int h) {
+    auto image = new Image;
+    image->data_ = QImage(w, h, QImage::Format_RGB888);
+    return image;
 }
 
-void DestroyImage(Image* image) { delete image; }
+struct Image* CreateImageJPEG(void* data, int max_size) {
+    size_t actual_size = 0;
+    auto data8 = static_cast<uint8_t*>(data);
+    for (size_t i = 1; i < max_size - 1; i++) {
+        if (reinterpret_cast<uint16_t*>(data8 + i)[0] == 0xD9FF) {
+            actual_size = i + 2;
+            break;
+        }
+    }
+    auto result = new Image;
+    result->data_.loadFromData(data8, actual_size, "JPEG");
+    return result;
+}
 
 struct Image* CreateImagePath(const char* path) {
     auto image = new Image;
@@ -30,11 +34,7 @@ struct Image* CreateImagePath(const char* path) {
     return image;
 }
 
-struct Image* CreateImageRGB24(int w, int h) {
-    auto image = new Image;
-    image->data_ = QImage(w, h, QImage::Format_RGB888);
-    return image;
-}
+void DestroyImage(Image* image) { delete image; }
 
 int BytesPerLine(struct Image* image) {
     return image->data_.bytesPerLine();
@@ -46,19 +46,3 @@ int GetWidth(struct Image* image) { return image->data_.width(); }
 int GetHeight(struct Image* image) { return image->data_.height(); }
 
 }  // extern
-
-QImage DecodeMotionJPEG(void* data, int width, int height) {
-    size_t max_size = width * height * 3;
-    size_t actual_size = 0;
-    for (size_t i = 1; i < max_size - 1; i++) {
-        if (((unsigned char*)data)[i] == 0xFF &&
-            ((unsigned char*)data)[i + 1] == 0xD9) {
-            actual_size = i + 2;
-            break;
-        }
-    }
-    QImage jpeg_image;
-    jpeg_image.loadFromData(
-        static_cast<uchar*>(data), actual_size, "JPEG");
-    return jpeg_image;
-}

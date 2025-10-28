@@ -8,20 +8,19 @@ import platform.native.CreateImageRGB24
 
 @OptIn(ExperimentalForeignApi::class)
 class ToRGBImage : AutoCloseable {
-    lateinit var swsCtx: CPointer<SwsContext>
-
-    fun init(codecCtx: AVCodecContext) {
-        swsCtx = sws_getContext(
-            codecCtx.width, codecCtx.height, codecCtx.pix_fmt,
-            codecCtx.width, codecCtx.height, AV_PIX_FMT_RGB24,
-            SWS_BILINEAR.toInt(), null, null, null,
-        )!!
-    }
+    var swsCtx: CPointer<SwsContext>? = null
 
     override fun close() = sws_freeContext(swsCtx)
 
     operator fun invoke(frame: AVFrame) =
         CreateImageRGB24(frame.width, frame.height)!!.also { image ->
+            if (swsCtx == null) {
+                swsCtx = sws_getContext(
+                    frame.width, frame.height, frame.format,
+                    frame.width, frame.height, AV_PIX_FMT_RGB24,
+                    SWS_BILINEAR.toInt(), null, null, null,
+                )
+            }
             sws_scale(
                 swsCtx, frame.data, frame.linesize, 0,
                 frame.height, cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),

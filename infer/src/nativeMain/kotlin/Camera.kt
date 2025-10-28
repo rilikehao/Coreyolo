@@ -1,12 +1,13 @@
 import Utils.check
+import Utils.use
 import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
-import platform.native.CreateImage
-import platform.native.SupportFormat
+import platform.ffmpeg.*
+import platform.native.CreateImageJPEG
 import platform.posix.*
 import platform.videodev2.*
 import kotlin.time.ExperimentalTime
@@ -16,6 +17,15 @@ import kotlin.time.TimeSource
 abstract class Camera(val fd: Int) : Video {
     companion object {
         const val BUFFER_COUNT = 4
+
+        val supportedFormat = setOf(
+            V4L2_PIX_FMT_JPEG,
+            V4L2_PIX_FMT_MJPEG,
+            V4L2_PIX_FMT_RGB24,
+            V4L2_PIX_FMT_BGR24,
+            V4L2_PIX_FMT_YUYV,
+            V4L2_PIX_FMT_NV16,
+        )
 
         fun open(source: String): Camera {
             val fd = open(source, O_RDWR)
@@ -56,17 +66,19 @@ abstract class Camera(val fd: Int) : Video {
         val buffers = mapBuffers()
         setStreamOn()
         try {
-            while (true) {
-                memScoped {
-                    val buf = alloc<v4l2_buffer>()
-                    buf.type = bufType()
-                    buf.memory = V4L2_MEMORY_MMAP
-                    withContext(Dispatchers.IO) { dequeueBuf(buf) }
-                    val w = resolution.w.toInt()
-                    val h = resolution.h.toInt()
-                    val image = CreateImage(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
-                    ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
-                    emit(Video.Frame(timeBegin.elapsedNow(), image!!))
+            ToRGBImage().use { toRGBImage ->
+                while (true) {
+                    memScoped {
+                        val buf = alloc<v4l2_buffer>()
+                        buf.type = bufType()
+                        buf.memory = V4L2_MEMORY_MMAP
+                        withContext(Dispatchers.IO) { dequeueBuf(buf) }
+                        val w = resolution.w.toInt()
+                        val h = resolution.h.toInt()
+                        val image = toRGBImage.fromOpaque(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
+                        ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
+                        emit(Video.Frame(timeBegin.elapsedNow(), image))
+                    }
                 }
             }
         } finally {
@@ -83,7 +95,7 @@ abstract class Camera(val fd: Int) : Video {
             while (ioctl(fd, VIDIOC_ENUM_FMT, fmtDesc.ptr) == 0) {
                 val desc = fmtDesc.description.reinterpret<ByteVar>().toKString()
                 println("Found format: $desc")
-                if (SupportFormat(fmtDesc.pixelformat)) {
+                if (fmtDesc.pixelformat in supportedFormat) {
                     val fsize = alloc<v4l2_frmsizeenum>()
                     fsize.pixel_format = fmtDesc.pixelformat
                     fsize.index = 0u
@@ -127,7 +139,7 @@ abstract class Camera(val fd: Int) : Video {
             if (it != null) {
                 parm.parm.capture.timeperframe.numerator = it.first
                 parm.parm.capture.timeperframe.denominator = it.second
-                if (ioctl(fd, VIDIOC_S_PARM, parm.ptr) ==0) return it.second.toDouble() / it.first.toDouble()
+                if (ioctl(fd, VIDIOC_S_PARM, parm.ptr) == 0) return it.second.toDouble() / it.first.toDouble()
             }
             if (ioctl(fd, VIDIOC_G_PARM, parm.ptr) < 0) return 1.0
             parm.parm.capture.timeperframe.denominator.toDouble() / parm.parm.capture.timeperframe.numerator.toDouble()
@@ -155,7 +167,6 @@ abstract class Camera(val fd: Int) : Video {
 
     fun unmapBuffers(buffers: Array<Memory>) = buffers.forEach { munmap(it.ptr, it.size.toULong()) }
 
-
     fun setStreamOn() = memScoped {
         val type = alloc<UIntVarOf<v4l2_buf_type>>()
         type.value = bufType()
@@ -179,6 +190,54 @@ abstract class Camera(val fd: Int) : Video {
         V4L2_FRMIVAL_TYPE_STEPWISE -> Pair(interval.stepwise.max.numerator, interval.stepwise.max.denominator)
         else -> Pair(1u, 1u)
     }
+
+    fun ToRGBImage.fromOpaque(ptr: COpaquePointer, w: Int, h: Int, v4l2Format: UInt) =
+        av_frame_alloc()!!.use({ av_frame_free(cValuesOf(it)) }) { frame ->
+            when (v4l2Format) {
+                V4L2_PIX_FMT_JPEG, V4L2_PIX_FMT_MJPEG -> CreateImageJPEG(ptr, w * h * 3)!!
+
+                V4L2_PIX_FMT_RGB24 -> {
+                    frame.format = AV_PIX_FMT_RGB24
+                    frame.linesize[0] = w * 3
+                    frame.data[0] = ptr.reinterpret()
+                    invoke(frame)
+                }
+
+                V4L2_PIX_FMT_BGR24 -> {
+                    frame.format = AV_PIX_FMT_BGR24
+                    frame.linesize[0] = w * 3
+                    frame.data[0] = ptr.reinterpret()
+                    invoke(frame)
+                }
+
+                V4L2_PIX_FMT_NV12 -> {
+                    frame.format = AV_PIX_FMT_NV12
+                    frame.linesize[0] = w
+                    frame.linesize[1] = w
+                    frame.data[0] = ptr.reinterpret()
+                    frame.data[1] = frame.data[0] + h * frame.linesize[0]
+                    invoke(frame)
+                }
+
+                V4L2_PIX_FMT_NV16 -> {
+                    frame.format = AV_PIX_FMT_NV16
+                    frame.linesize[0] = w
+                    frame.linesize[1] = w
+                    frame.data[0] = ptr.reinterpret()
+                    frame.data[1] = frame.data[0] + h * frame.linesize[0]
+                    invoke(frame)
+                }
+
+                V4L2_PIX_FMT_YUYV -> {
+                    frame.format = AV_PIX_FMT_YUYV422
+                    frame.linesize[0] = w * 2
+                    frame.data[0] = ptr.reinterpret()
+                    invoke(frame)
+                }
+
+                else -> throw Error("不支持的格式")
+            }
+        }
 
     class CameraS(fd: Int) : Camera(fd) {
         override fun bufType() = V4L2_BUF_TYPE_VIDEO_CAPTURE

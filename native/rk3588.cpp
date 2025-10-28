@@ -18,6 +18,8 @@ extern "C" {
 #include "image.h"
 #include "inference.h"
 
+constexpr int kScaleUsingGPU = 3;
+
 struct Session {
     rknn_context context_ = 0;
     std::vector<rknn_tensor_attr> input_attrs_, output_attrs_;
@@ -33,28 +35,12 @@ struct InferTask {
     Image* image_;
     std::vector<Detection> detections_;
     int infer_;
-    std::string error_;
     float scale_;
 
     std::vector<rknn_output> outputs_;
 };
 
 namespace {
-
-_Rga_SURF_FORMAT ToRgaFormat(uint32_t v4l2_format) {
-    switch (v4l2_format) {
-        case V4L2_PIX_FMT_BGR24:
-            return RK_FORMAT_BGR_888;
-        case V4L2_PIX_FMT_NV12:
-            return RK_FORMAT_YCbCr_420_SP;
-        case V4L2_PIX_FMT_NV16:
-            return RK_FORMAT_YCbCr_422_SP;
-        case V4L2_PIX_FMT_YUYV:
-            return RK_FORMAT_YUYV_422;
-        default:
-            return RK_FORMAT_UNKNOWN;
-    }
-}
 
 template <typename T>
 bool QueryRknn(rknn_context context, rknn_query_cmd cmd, T& output) {
@@ -101,20 +87,6 @@ void QueryModelInfo(Session* s) {
     qDebug("model input height=%d, width=%d", s->h_, s->w_);
 }
 
-QImage ScalePadToRGBGpu(QImage image, int w, int h, float& scale) {
-    QImage scaled =
-        image.scaled(w, h, Qt::KeepAspectRatio, Qt::FastTransformation);
-    QImage target(w, h, QImage::Format_RGB888);
-    target.fill(QColor(kBgColor, kBgColor, kBgColor));
-    QPainter painter(&target);
-    painter.drawImage(0, 0, scaled);
-    painter.end();
-    float scale_h = static_cast<float>(h) / image.height();
-    float scale_w = static_cast<float>(w) / image.width();
-    scale = std::min(scale_h, scale_w);
-    return target;
-}
-
 QImage ScalePadToRGBRga(QImage image, int w, int h, float& scale) {
     float scale_w = static_cast<float>(w) / image.width();
     float scale_h = static_cast<float>(h) / image.height();
@@ -150,32 +122,6 @@ QImage ScalePadToRGBRga(QImage image, int w, int h, float& scale) {
 
 }  // namespace
 
-Image* CreateImage(void* data, int w, int h, uint32_t format) {
-    auto result = new Image;
-    if (format == V4L2_PIX_FMT_MJPEG || format == V4L2_PIX_FMT_JPEG) {
-        result->data_ = DecodeMotionJPEG(data, w, h);
-        return result;
-    }
-    RockchipRga& rga_instance = RockchipRga::get();
-    if (rga_instance.RkRgaInit() != 0 || !rga_instance.RkRgaIsReady()) {
-        throw std::runtime_error("RGA initialization failed.");
-    }
-    auto rga_format = ToRgaFormat(format);
-    std::vector<uint8_t> rgb(h * w * 3);
-    rga_buffer_t src_buffer =
-        wrapbuffer_virtualaddr(data, w, h, rga_format);
-    rga_buffer_t dst_buffer =
-        wrapbuffer_virtualaddr(rgb.data(), w, h, RK_FORMAT_RGB_888);
-    IM_STATUS ret = imcvtcolor(
-        src_buffer, dst_buffer, rga_format, RK_FORMAT_RGB_888);
-    if (ret != IM_STATUS_SUCCESS) {
-        throw std::runtime_error("Failed to convert image using RGA");
-    }
-    result->data_ =
-        QImage(rgb.data(), w, h, QImage::Format_RGB888).copy();
-    return result;
-}
-
 Infer* CreateInfer(InferConfig* config) {
     auto infer = new Infer;
     InitNames(infer->names_, config->path_description_);
@@ -205,8 +151,8 @@ void DestroyInferTask(struct InferTask* task) { delete task; }
 void Detect0(Infer* infer, InferTask* task, int no) {
     int h = infer->sessions_[no].h_, w = infer->sessions_[no].w_;
     QImage scaled =
-        no < 3
-            ? ScalePadToRGBGpu(task->image_->data_, w, h, task->scale_)
+        no < kScaleUsingGPU
+            ? ScalePadToRGB(task->image_->data_, w, h, task->scale_)
             : ScalePadToRGBRga(task->image_->data_, w, h, task->scale_);
     const uchar* data = scaled.constBits();
     rknn_input input;
@@ -217,12 +163,10 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     input.type = RKNN_TENSOR_UINT8;
     input.fmt = RKNN_TENSOR_NHWC;
     if (rknn_inputs_set(infer->sessions_[no].context_, 1, &input) < 0) {
-        task->error_ = "Failed to set input";
-        return;
+        throw std::runtime_error("Failed to set input");
     }
     if (rknn_run(infer->sessions_[no].context_, nullptr) < 0) {
-        task->error_ = "Failed to run inference";
-        return;
+        throw std::runtime_error("Failed to run inference");
     }
     task->outputs_.resize(infer->sessions_[no].output_attrs_.size());
     for (int i = 0; i < task->outputs_.size(); i++) {
@@ -232,8 +176,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     if (rknn_outputs_get(infer->sessions_[no].context_,
                          task->outputs_.size(), task->outputs_.data(),
                          nullptr) < 0) {
-        task->error_ = "Failed to get output";
-        return;
+        throw std::runtime_error("Failed to get output");
     }
 }
 
@@ -268,8 +211,4 @@ int SizeDetections(InferTask* task) { return task->detections_.size(); }
 
 Detection* PtrDetections(InferTask* task) {
     return task->detections_.data();
-}
-
-const char* GetError(struct InferTask* task) {
-    return (char*)task->error_.c_str();
 }

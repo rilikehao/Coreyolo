@@ -17,20 +17,20 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class)
 class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit {
-    override suspend fun invoke(id: String, inputFlow: Flow<Video.Frame>) = memScoped {
+    override suspend fun invoke(id: String, inputFlow: Flow<Video.Frame>) {
         cPointer {
             avformat_alloc_output_context2(it, null, "rtsp", url).check("avformat_alloc_output_context2")
-        }.use({ avformat_free_context(it.ptr.pointed.value) }) { formatCtx ->
+        }.use({ avformat_free_context(it) }) { formatCtx ->
             val codec = avcodec_find_encoder_by_name(Device.H264_ENCODER_NAME).check("avcodec_find_encoder_by_name")
-            avcodec_alloc_context3(codec)!!.use({ avcodec_free_context(it) }) { codecCtx ->
+            avcodec_alloc_context3(codec)!!.use({ avcodec_free_context(cValuesOf(it)) }) { codecCtx ->
                 codecCtx.codec_type = AVMEDIA_TYPE_VIDEO
                 codecCtx.pix_fmt = AV_PIX_FMT_RGB24
                 codecCtx.max_b_frames = 0
                 codecCtx.gop_size = 10
                 codecCtx.time_base.num = 1
                 codecCtx.time_base.den = 90000
-                av_packet_alloc()!!.use({ av_packet_free(it) }) { packet ->
-                    av_frame_alloc()!!.use({ av_frame_free(it) }) { frame ->
+                av_packet_alloc()!!.use({ av_packet_free(cValuesOf(it)) }) { packet ->
+                    av_frame_alloc()!!.use({ av_frame_free(cValuesOf(it)) }) { frame ->
                         var videoStream: CPointer<AVStream>? = null
                         var inputFrames = 0L
                         var outputFrames = 0L

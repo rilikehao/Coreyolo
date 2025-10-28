@@ -28,7 +28,6 @@ struct InferTask {
     Image* image_;
     std::vector<Detection> detections_;
     int infer_;
-    std::string error_;
     float scale_;
 
     std::vector<std::unique_ptr<MNN::Tensor>> outputs_;
@@ -78,70 +77,9 @@ void QueryModelInfo(Infer* infer) {
     infer->interpreter_->releaseSession(session);
 }
 
-QImage ScalePadToRGB(QImage image, int w, int h, float& scale) {
-    QImage scaled =
-        image.scaled(w, h, Qt::KeepAspectRatio, Qt::FastTransformation);
-    QImage target(w, h, QImage::Format_RGB888);
-    target.fill(QColor(kBgColor, kBgColor, kBgColor));
-    QPainter painter(&target);
-    painter.drawImage(0, 0, scaled);
-    painter.end();
-    float scale_h = static_cast<float>(h) / image.height();
-    float scale_w = static_cast<float>(w) / image.width();
-    scale = std::min(scale_h, scale_w);
-    return target;
-}
-
 }  // namespace
 
 extern "C" {
-
-Image* CreateImage(void* data, int w, int h, uint32_t format) {
-    if (format == V4L2_PIX_FMT_MJPEG || format == V4L2_PIX_FMT_JPEG) {
-        auto result = new Image;
-        result->data_ = DecodeMotionJPEG(data, w, h);
-        return result;
-    }
-    auto result = CreateImageRGB24(w, h);
-    AVPixelFormat src_format = ToAVPixelFormat(format);
-    AVFrame* src_frame = av_frame_alloc();
-    switch (format) {
-        case V4L2_PIX_FMT_BGR24:
-            src_frame->data[0] = (uint8_t*)data;
-            src_frame->linesize[0] = w * 3;
-            break;
-        case V4L2_PIX_FMT_NV12: {
-            size_t y_size = w * h;
-            src_frame->data[0] = (uint8_t*)data;
-            src_frame->data[1] = (uint8_t*)data + y_size;
-            src_frame->linesize[0] = w;
-            src_frame->linesize[1] = w;
-            break;
-        }
-        case V4L2_PIX_FMT_NV16: {
-            size_t y_size = w * h;
-            src_frame->data[0] = (uint8_t*)data;
-            src_frame->data[1] = (uint8_t*)data + y_size;
-            src_frame->linesize[0] = w;
-            src_frame->linesize[1] = w;
-            break;
-        }
-        case V4L2_PIX_FMT_YUYV:
-            src_frame->data[0] = (uint8_t*)data;
-            src_frame->linesize[0] = w * 2;
-            break;
-    }
-    SwsContext* sws_ctx =
-        sws_getContext(w, h, src_format, w, h, AV_PIX_FMT_RGB24,
-                       SWS_BILINEAR, nullptr, nullptr, nullptr);
-    uint8_t* dst_data = result->data_.bits();
-    int dst_linesize = result->data_.bytesPerLine();
-    sws_scale(sws_ctx, src_frame->data, src_frame->linesize, 0, h,
-              &dst_data, &dst_linesize);
-    sws_freeContext(sws_ctx);
-    av_frame_free(&src_frame);
-    return result;
-}
 
 Infer* CreateInfer(InferConfig* config) {
     auto infer = new Infer;
@@ -193,10 +131,9 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         input[2 * h * w + i] = imageData[i * 3 + 2] / 255.0f;
     }
     input_tensor->copyFromHostTensor(&data);
-    auto result = interpreter->runSession(infer->sessions_[no]);
-    if (result != MNN::NO_ERROR) {
-        task->error_ = "Failed to run inference";
-        return;
+    if (interpreter->runSession(infer->sessions_[no]) !=
+        MNN::NO_ERROR) {
+        throw std::runtime_error("Failed to run inference");
     }
     std::vector<MNN::Tensor*> output_tensors;
     for (const auto& i : infer->output_names_) {
@@ -239,10 +176,6 @@ int SizeDetections(InferTask* task) { return task->detections_.size(); }
 
 Detection* PtrDetections(InferTask* task) {
     return task->detections_.data();
-}
-
-const char* GetError(struct InferTask* task) {
-    return (char*)task->error_.c_str();
 }
 
 }  // extern

@@ -25,13 +25,13 @@ object Utils {
         ref.value!!
     }
 
-    inline fun <reified T : CPointed> CPointer<T>.use(destroy: (CValues<CPointerVar<T>>) -> Unit, block: (T) -> Unit) {
+    inline fun <reified T : CPointed, R> CPointer<T>.use(destroy: (CPointer<T>) -> Unit, block: (T) -> R) =
         try {
             block(this.pointed)
         } finally {
-            destroy(cValuesOf(this))
+            destroy(this)
         }
-    }
+
 
     fun <T> withOptions(vararg m: Pair<String, String>, block: (CPointer<CPointerVar<AVDictionary>>) -> T) = memScoped {
         val options = alloc<CPointerVar<AVDictionary>>()

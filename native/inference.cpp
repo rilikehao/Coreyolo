@@ -42,6 +42,20 @@ float CalculateIoU(const Rect& box0, const Rect& box1) {
 
 }  // namespace
 
+QImage ScalePadToRGB(QImage image, int w, int h, float& scale) {
+    QImage scaled =
+        image.scaled(w, h, Qt::KeepAspectRatio, Qt::FastTransformation);
+    QImage target(w, h, QImage::Format_RGB888);
+    target.fill(QColor(kBgColor, kBgColor, kBgColor));
+    QPainter painter(&target);
+    painter.drawImage(0, 0, scaled);
+    painter.end();
+    float scale_h = static_cast<float>(h) / image.height();
+    float scale_w = static_cast<float>(w) / image.width();
+    scale = std::min(scale_h, scale_w);
+    return target;
+}
+
 void InitNames(std::vector<std::string>& names, const char* path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
@@ -90,36 +104,37 @@ void PostProcess(PostProcessData& data) {
 
 void NonMaximumSuppression(std::vector<Detection>& detections) {
     if (detections.size() <= 1) return;
-    std::unordered_map<std::string, std::vector<int>> class_groups;
+    std::unordered_map<const char*, std::vector<int>> class_groups;
     for (int i = 0; i < detections.size(); ++i) {
         class_groups[detections[i].name_].emplace_back(i);
     }
-    std::vector<char> suppressed(detections.size());
     for (auto& pair : class_groups) {
-        std::vector<int>& indices = pair.second;
+        auto& indices = pair.second;
         std::sort(indices.begin(), indices.end(), [&](int i0, int i1) {
             return detections[i1].score_ < detections[i0].score_;
         });
         for (int i = 0; i < indices.size(); ++i) {
             int idx_i = indices[i];
-            if (suppressed[idx_i]) continue;
+            if (!detections[idx_i].name_) continue;
             for (int j = i + 1; j < indices.size(); ++j) {
                 int idx_j = indices[j];
-                if (suppressed[idx_j]) continue;
+                if (!detections[idx_j].name_) continue;
                 float iou = CalculateIoU(
                     detections[idx_i].bound_, detections[idx_j].bound_);
-                if (iou > kNmsThreshold) suppressed[idx_j] = true;
+                if (iou > kNmsThreshold) {
+                    detections[idx_j].name_ = nullptr;
+                }
             }
         }
     }
     std::vector<int> indices;
-    std::vector<Detection> filtered;
     for (int i = 0; i < detections.size(); ++i) {
-        if (!suppressed[i]) indices.emplace_back(i);
+        if (!detections[i].name_) indices.emplace_back(i);
     }
     std::sort(indices.begin(), indices.end(), [&](int i0, int i1) {
         return detections[i1].score_ < detections[i0].score_;
     });
+    std::vector<Detection> filtered;
     for (int i : indices) {
         filtered.emplace_back(std::move(detections[i]));
     }

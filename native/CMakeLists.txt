@@ -28,19 +28,18 @@ else()
     message(FATAL_ERROR "Set PLATFORM to rk3588 or x64")
 endif()
 
-find_package(Qt6 COMPONENTS Core Gui Widgets Network REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Network REQUIRED)
 
 add_library(Native SHARED
     application.cpp
     draw.cpp
     image.cpp
     inference.cpp
-    output.cpp
     ${PLATFORM_SRC}
 )
 
 target_link_libraries(Native PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network
+    Qt6::Core Qt6::Gui Qt6::Network
     ${V4L2_LIBRARIES}
     ${PLATFORM_LIBS}
 )

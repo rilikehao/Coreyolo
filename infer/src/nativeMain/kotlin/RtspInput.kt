@@ -2,10 +2,7 @@ import Utils.cPointer
 import Utils.check
 import Utils.use
 import Utils.withOptions
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.get
-import kotlinx.cinterop.pointed
-import kotlinx.cinterop.ptr
+import kotlinx.cinterop.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
@@ -27,7 +24,7 @@ class RtspInput(val url: String) : Video {
                 withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp") {
                     avformat_open_input(ptr, url, null, it).check("avformat_open_input")
                 }
-            }.use({ avformat_close_input(it) }) { formatCtx ->
+            }.use({ avformat_close_input(cValuesOf(it)) }) { formatCtx ->
                 avformat_find_stream_info(formatCtx.ptr, null).check("avformat_find_stream_info")
                 for (i in 0..<formatCtx.nb_streams.toInt()) {
                     if (formatCtx.streams!![i]!!.pointed.codecpar!!.pointed.codec_type == AVMEDIA_TYPE_VIDEO) {
@@ -41,13 +38,13 @@ class RtspInput(val url: String) : Video {
                     AV_CODEC_ID_H264 -> avcodec_find_decoder_by_name(Device.H264_DECODER_NAME)
                     else -> avcodec_find_decoder(id)
                 }.check("avcodec_find_decoder")
-                avcodec_alloc_context3(codec)!!.use({ avcodec_free_context(it) }) { codecCtx ->
+                avcodec_alloc_context3(codec)!!.use({ avcodec_free_context(cValuesOf(it)) }) { codecCtx ->
                     avcodec_parameters_to_context(codecCtx.ptr, codecParams)
                     device.bind(codecCtx)
                     avcodec_open2(codecCtx.ptr, codec, null).check("avcodec_open2")
-                    ToRGBImage().apply { init(codecCtx) }.use { toRGBImage ->
-                        av_packet_alloc()!!.use({ av_packet_free(it) }) { packet ->
-                            av_frame_alloc()!!.use({ av_frame_free(it) }) { frame ->
+                    ToRGBImage().use { toRGBImage ->
+                        av_packet_alloc()!!.use({ av_packet_free(cValuesOf(it)) }) { packet ->
+                            av_frame_alloc()!!.use({ av_frame_free(cValuesOf(it)) }) { frame ->
                                 val timeBase = formatCtx.streams!![videoStreamIndex]!!.pointed.time_base
                                 while (true) {
                                     val ret = av_read_frame(formatCtx.ptr, packet.ptr)
