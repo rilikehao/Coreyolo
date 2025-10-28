@@ -35,21 +35,6 @@ struct InferTask {
 
 namespace {
 
-AVPixelFormat ToAVPixelFormat(uint32_t v4l2_format) {
-    switch (v4l2_format) {
-        case V4L2_PIX_FMT_BGR24:
-            return AV_PIX_FMT_BGR24;
-        case V4L2_PIX_FMT_NV12:
-            return AV_PIX_FMT_NV12;
-        case V4L2_PIX_FMT_NV16:
-            return AV_PIX_FMT_NV16;
-        case V4L2_PIX_FMT_YUYV:
-            return AV_PIX_FMT_YUYV422;
-        default:
-            return AV_PIX_FMT_NONE;
-    }
-}
-
 int Suffix(const std::string& s) {
     int k = s.size() - 1;
     while (0 <= k && isdigit(s[k])) --k;

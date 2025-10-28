@@ -9,20 +9,12 @@ set(CMAKE_AUTOMOC ON)
 add_link_options(-Wl,--no-as-needed)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(V4L2 REQUIRED libv4l2 libv4lconvert)
 
 if(PLATFORM STREQUAL "rk3588")
-    set(PLATFORM_LIBS
-        librga.so
-        librknnrt.so
-    )
+    set(PLATFORM_LIBS librga.so librknnrt.so)
     set(PLATFORM_SRC rk3588.cpp)
 elseif(PLATFORM STREQUAL "x64")
-    pkg_check_modules(FFMPEG REQUIRED libavcodec libavformat libavutil libswscale)
-    set(PLATFORM_LIBS
-        ${FFMPEG_LIBRARIES}
-        libMNN.so libMNN_Express.so libMNN_Vulkan.so vulkan
-    )
+    set(PLATFORM_LIBS libMNN.so libMNN_Express.so libMNN_Vulkan.so vulkan)
     set(PLATFORM_SRC x64.cpp)
 else()
     message(FATAL_ERROR "Set PLATFORM to rk3588 or x64")
@@ -40,7 +32,6 @@ add_library(Native SHARED
 
 target_link_libraries(Native PRIVATE
     Qt6::Core Qt6::Gui Qt6::Network
-    ${V4L2_LIBRARIES}
     ${PLATFORM_LIBS}
 )
 
