@@ -25,6 +25,8 @@ struct Image* CreateImageJPEG(void* data, int max_size) {
     }
     auto result = new Image;
     result->data_.loadFromData(data8, actual_size, "JPEG");
+    result->data_ =
+        result->data_.convertToFormat(QImage::Format_RGB888);
     return result;
 }
 

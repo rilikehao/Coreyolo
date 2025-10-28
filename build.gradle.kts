@@ -21,6 +21,6 @@ application {
 tasks.register<Exec>("image") {
     description = "Build native, install infer, and run image target"
     executable = "bash"
-    args("-c", "./gradlew run --args native && ./gradlew :infer:install -PbuildType=Debug && ./gradlew run --args image")
+    args("-c", "./gradlew run --args native && ./gradlew :infer:install -PbuildType=Release && ./gradlew run --args image")
     workingDir = projectDir
 }
