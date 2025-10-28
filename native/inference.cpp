@@ -129,7 +129,7 @@ void NonMaximumSuppression(std::vector<Detection>& detections) {
     }
     std::vector<int> indices;
     for (int i = 0; i < detections.size(); ++i) {
-        if (!detections[i].name_) indices.emplace_back(i);
+        if (detections[i].name_) indices.emplace_back(i);
     }
     std::sort(indices.begin(), indices.end(), [&](int i0, int i1) {
         return detections[i1].score_ < detections[i0].score_;

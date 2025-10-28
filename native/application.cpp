@@ -2,15 +2,15 @@ extern "C" {
 #include "native.h"
 }
 
-#include <QCoreApplication>
+#include <QGuiApplication>
 
 extern "C" {
 
 void Main(int argc, char** argv, Func exec) {
-    QCoreApplication app(argc, argv);
+    QGuiApplication app(argc, argv);
     exec();
 }
 
-void Exec() { QCoreApplication::instance()->exec(); }
+void Exec() { QGuiApplication::instance()->exec(); }
 
 }  // extern
