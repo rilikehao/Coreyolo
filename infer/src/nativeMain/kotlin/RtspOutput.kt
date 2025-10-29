@@ -13,12 +13,15 @@ import kotlinx.coroutines.flow.onCompletion
 import platform.ffmpeg.*
 import platform.native.DestroyImage
 import kotlin.math.max
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class)
 class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit {
+    @OptIn(ExperimentalTime::class)
     override suspend fun invoke(id: String, inputFlow: Flow<Video.Frame>) {
         val formatCtx = cPointer {
             avformat_alloc_output_context2(it, null, "rtsp", url).check("avformat_alloc_output_context2")
@@ -26,13 +29,13 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
-        var timestamp0 = Duration.ZERO
+        var timestamp0 = Clock.System.now()
         val frame = av_frame_alloc()!!
         val fromRGBImage = FromRGBImage()
         val frames = inputFlow.map { input ->
             try {
                 if (inputFrames++ == 0L) timestamp0 = input.timestamp
-                frame.pointed.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
+                frame.pointed.pts = input.timestamp.toEpochMilliseconds() * 90
                 fromRGBImage(frame.pointed, input.image)
                 Logger.i {
                     if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()

@@ -4,6 +4,8 @@ import kotlinx.cinterop.*
 import platform.lua.*
 import platform.native.*
 import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class)
 class DrawScript(path: String) : AutoCloseable {
@@ -18,7 +20,8 @@ class DrawScript(path: String) : AutoCloseable {
 
     override fun close() = lua_close(state)
 
-    fun execute(pts: Duration, task: CPointer<InferTask>) {
+    @OptIn(ExperimentalTime::class)
+    fun execute(pts: Instant, task: CPointer<InferTask>) {
         bindDrawFunction(GetImage(task)!!)
         bindHttpFunction()
         lua_getglobal(state, "Process")
@@ -26,7 +29,7 @@ class DrawScript(path: String) : AutoCloseable {
             lua_settop(state, -2)
             return
         }
-        lua_pushnumber(state, pts.inWholeNanoseconds.toDouble() / 1.0e9)  // Push pts as first parameter
+        lua_pushnumber(state, pts.toEpochMilliseconds().toDouble() / 1000.0)  // Push pts as first parameter
         lua_createtable(state, 0, 0)  // Create detections table as second parameter
         for (i in 0..<SizeDetections(task)) {
             lua_pushinteger(state, i.toLong() + 1)  // Key (index)

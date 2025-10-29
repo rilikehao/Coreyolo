@@ -5,9 +5,11 @@ import kotlinx.cinterop.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import platform.ffmpeg.*
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 class RtspInput(val url: String) : Video {
@@ -15,7 +17,7 @@ class RtspInput(val url: String) : Video {
 
     override fun frames(): Flow<Video.Frame> {
         val formatCtx = cPointer { ptr ->
-            withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp", "use_wallclock_as_timestamps" to "1") {
+            withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp") {
                 avformat_open_input(ptr, url, null, it).check("avformat_open_input")
             }
         }
@@ -40,7 +42,7 @@ class RtspInput(val url: String) : Video {
             emit(null)
         }
         var inputFrames = 0L
-        var timestamp0 = Duration.ZERO
+        var timestamp0 = Clock.System.now()
         val device = Device()
         val toRGBImage = ToRGBImage()
         val codec = when (val id = codecParams!!.pointed.codec_id) {
@@ -57,7 +59,8 @@ class RtspInput(val url: String) : Video {
                 avcodec_send_packet(codecCtx, packet).check("avcodec_send_packet")
                 while (avcodec_receive_frame(codecCtx, frame) == 0) {
                     val pts = frame.pointed.pts.toDouble() * timeBase.num / timeBase.den
-                    val timestamp = pts.seconds
+                    val start = Instant.fromEpochMilliseconds(formatCtx.pointed.start_time_realtime / 1000)
+                    val timestamp = start + pts.seconds
                     if (inputFrames == 0L) timestamp0 = timestamp
                     if (maxFrames(timestamp - timestamp0) < inputFrames) continue
                     ++inputFrames

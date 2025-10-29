@@ -10,6 +10,7 @@ import platform.ffmpeg.*
 import platform.native.CreateImageJPEG
 import platform.posix.*
 import platform.videodev2.*
+import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
@@ -60,7 +61,6 @@ abstract class Camera(val fd: Int) : Video {
 
     @OptIn(ExperimentalTime::class)
     override fun frames() = flow {
-        val timeBegin = TimeSource.Monotonic.markNow()
         val resolution = setResolution()
         setFrameRate(resolution)
         val buffers = mapBuffers()
@@ -77,7 +77,7 @@ abstract class Camera(val fd: Int) : Video {
                         val h = resolution.h.toInt()
                         val image = toRGBImage.fromOpaque(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
                         ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
-                        emit(Video.Frame(timeBegin.elapsedNow(), image))
+                        emit(Video.Frame(Clock.System.now(), image))
                     }
                 }
             }

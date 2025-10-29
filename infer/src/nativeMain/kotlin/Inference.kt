@@ -11,13 +11,16 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.runBlocking
 import platform.native.*
 import kotlin.math.max
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 import kotlin.time.TimeSource
 
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseable {
-    data class Task(val timestamp: Duration, val inferTask: CPointer<InferTask>, var drop: Boolean)
+    data class Task(val timestamp: Instant, val inferTask: CPointer<InferTask>, var drop: Boolean)
 
     val infer = memScoped {
         val config = alloc<InferConfig>()
@@ -39,7 +42,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
-        var timestamp0 = Duration.ZERO
+        var timestamp0 = Clock.System.now()
         var taskLast: CPointer<InferTask>? = null
         val draw = DrawScript(AppConfig.instance.paths.drawScript)
         return input.map { frame ->
