@@ -18,7 +18,7 @@ kotlin {
         }
         compilations["main"].apply {
             defaultSourceSet {
-                kotlin.srcDir("src/nativeMain/kotlin")
+                kotlin.srcDir("src/nativeMain/kotlin-$targetName")
                 kotlin.srcDir("src/nativeMain/$targetName")
                 dependencies {
                     implementation("co.touchlab:kermit:2.0.8")

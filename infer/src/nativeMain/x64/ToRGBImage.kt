@@ -22,8 +22,8 @@ class ToRGBImage : AutoCloseable {
                 )
             }
             sws_scale(
-                swsCtx, frame.data, frame.linesize, 0,
-                frame.height, cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
+                swsCtx, frame.data, frame.linesize, 0, frame.height,
+                cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
             )
         }
 }
