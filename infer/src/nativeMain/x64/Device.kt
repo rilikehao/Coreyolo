@@ -4,7 +4,7 @@ import platform.ffmpeg.AVCodecContext
 @OptIn(ExperimentalForeignApi::class)
 class Device : AutoCloseable {
     companion object {
-        const val NPU_THREADS = 1
+        const val NPU_THREADS = 2
         const val CPU_THREADS = 12
         const val H264_DECODER_NAME = "h264"
         const val H264_ENCODER_NAME = "libx264rgb"
