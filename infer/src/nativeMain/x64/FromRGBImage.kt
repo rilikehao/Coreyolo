@@ -11,7 +11,7 @@ import platform.native.GetHeight
 import platform.native.GetWidth
 
 @OptIn(ExperimentalForeignApi::class)
-object FromRGBImage : AutoCloseable {
+class FromRGBImage : AutoCloseable {
     var swsCtx: CPointer<SwsContext>? = null
 
     override fun close() = sws_freeContext(swsCtx)

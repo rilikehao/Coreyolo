@@ -11,7 +11,7 @@ import platform.native.GetHeight
 import platform.native.GetWidth
 
 @OptIn(ExperimentalForeignApi::class)
-object FromRGBImage : AutoCloseable {
+class FromRGBImage : AutoCloseable {
     override fun close() {}
 
     operator fun invoke(frame: AVFrame, image: CPointer<Image>) {

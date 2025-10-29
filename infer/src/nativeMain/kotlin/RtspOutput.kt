@@ -28,11 +28,12 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
         var frame0 = TimeSource.Monotonic.markNow()
         var timestamp0 = Duration.ZERO
         val frame = av_frame_alloc()!!
+        val fromRGBImage = FromRGBImage()
         val frames = inputFlow.map { input ->
             try {
                 if (inputFrames++ == 0L) timestamp0 = input.timestamp
                 frame.pointed.pts = input.timestamp.inWholeMicroseconds * 90 / 1000
-                FromRGBImage(frame.pointed, input.image)
+                fromRGBImage(frame.pointed, input.image)
                 Logger.i {
                     if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
                     val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
@@ -45,6 +46,7 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
                 DestroyImage(input.image)
             }
         }.onCompletion {
+            fromRGBImage.close()
             emit(null)
         }
         var videoStream: CPointer<AVStream>? = null
