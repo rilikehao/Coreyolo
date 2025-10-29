@@ -3,6 +3,7 @@ import cnames.structs.InferTask
 import kotlinx.cinterop.*
 import platform.lua.*
 import platform.native.*
+import kotlin.time.Duration
 
 @OptIn(ExperimentalForeignApi::class)
 class DrawScript(path: String) : AutoCloseable {
@@ -17,7 +18,7 @@ class DrawScript(path: String) : AutoCloseable {
 
     override fun close() = lua_close(state)
 
-    fun execute(task: CPointer<InferTask>) {
+    fun execute(pts: Duration, task: CPointer<InferTask>) {
         bindDrawFunction(GetImage(task)!!)
         bindHttpFunction()
         lua_getglobal(state, "Process")
@@ -25,10 +26,11 @@ class DrawScript(path: String) : AutoCloseable {
             lua_settop(state, -2)
             return
         }
-        lua_createtable(state, 0, 0)
+        lua_pushnumber(state, pts.inWholeNanoseconds.toDouble() / 1.0e9)  // Push pts as first parameter
+        lua_createtable(state, 0, 0)  // Create detections table as second parameter
         for (i in 0..<SizeDetections(task)) {
-            lua_pushinteger(state, i.toLong() + 1)
-            lua_createtable(state, 0, 0)
+            lua_pushinteger(state, i.toLong() + 1)  // Key (index)
+            lua_createtable(state, 0, 0)  // Create detection table
             lua_pushstring(state, "x0".cstr)
             lua_pushinteger(state, PtrDetections(task)!![i].bound_.x0_.toLong())
             lua_settable(state, -3)
@@ -48,9 +50,9 @@ class DrawScript(path: String) : AutoCloseable {
             lua_pushstring(state, PtrDetections(task)!![i].name_)
             lua_settable(state, -3)
 
-            lua_settable(state, -3)  // Add to detections table
+            lua_settable(state, -3)  // Add detection to detections table
         }
-        check(lua_pcallk(state, 1, 0, 0, 0, null))
+        check(lua_pcallk(state, 2, 0, 0, 0, null))
     }
 
     fun bindDrawFunction(image: CPointer<Image>) {

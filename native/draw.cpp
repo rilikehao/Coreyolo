@@ -2,8 +2,11 @@ extern "C" {
 #include "native.h"
 }
 
+#include <QEventLoop>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QPainter>
+#include <QThread>
 
 #include "image.h"
 
@@ -24,7 +27,29 @@ void DrawRect(Image* image, Rect* rect, int r, int g, int b,
 }
 
 void HttpGet(const char* url) {
-    QNetworkAccessManager manager;
-    QNetworkRequest request(QUrl(QString::fromUtf8(url)));
-    manager.get(request);
+    auto thread = new QThread;
+    auto worker = new QObject;
+    worker->moveToThread(thread);
+    QObject::connect(thread, &QThread::started, worker, [=] {
+        auto manager = new QNetworkAccessManager;
+        QNetworkRequest request(QUrl(QString::fromUtf8(url)));
+        auto reply = manager->get(request);
+        QObject::connect(reply, &QNetworkReply::finished, worker, [=] {
+            QString result;
+            if (reply->error() != QNetworkReply::NoError) {
+                qWarning() << "Error:" << reply->errorString();
+            } else {
+                auto attr = QNetworkRequest::HttpStatusCodeAttribute;
+                int status = reply->attribute(attr).toInt();
+                qDebug() << "HTTP Status:" << status;
+            }
+            reply->deleteLater();
+            manager->deleteLater();
+            worker->deleteLater();
+            thread->quit();
+        });
+        QObject::connect(
+            thread, &QThread::finished, thread, &QObject::deleteLater);
+    });
+    thread->start();
 }

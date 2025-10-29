@@ -48,9 +48,7 @@ end
 local last_alert_time = nil
 
 -- 检查是否可以发送报警（距离上次报警超过一小时）
-function CanSendAlert()
-    local current_time = os.time()
-
+function CanSendAlert(current_time)
     -- 如果从未报过警，或者距离上次报警超过3600秒（1小时）
     if last_alert_time == nil or (current_time - last_alert_time) >= 3600 then
         return true, current_time
@@ -64,17 +62,25 @@ function RecordAlertTime(alert_time)
     last_alert_time = alert_time
 end
 
+function Format(pts)
+    local seconds = math.floor(pts)
+    local micro = math.floor((pts - seconds) * 1000)
+    local str = os.date("%Y-%m-%d %H:%M:%S", seconds)
+    return string.format("%s.%03d", str, micro)
+end
+
 -- HTTP报警函数：基于检测条件发送报警，带一小时内不再报警限制
-function SendAlertIfNeeded(detection)
+function SendAlertIfNeeded(pts, detection)
     -- 示例：当检测到person且score>0.8时发送报警
     if detection.text == "人物" and detection.score > 0.8 then
-        local can_send, alert_time = CanSendAlert()
+        local can_send, alert_time = CanSendAlert(pts)
 
         if can_send then
             local url = string.format("http://localhost:8080/alert?object=%s&score=%.2f",
                                     detection.text, detection.score)
             HttpGet(url)
-            RecordAlertTime(alert_time)
+            RecordAlertTime(pts)
+            print("报警: " .. Format(pts))
         end
     end
 end
@@ -169,8 +175,9 @@ function Translate(text)
 end
 
 -- 全局 Process 函数：处理每一帧数据
+-- 参数：pts - 当前帧的最初产生时间 Unix 时间戳, 实数
 -- 参数：detections - 检测框数组，每个元素包含 x0, x1, y0, y1, score, text 字段
-function Process(detections)
+function Process(pts, detections)
     -- 限制最多画5个框
     local max_boxes = 5
     local count = 0
@@ -188,14 +195,14 @@ function Process(detections)
         DrawRectWithScore(detection)
 
         -- 根据条件发送HTTP报警
-        SendAlertIfNeeded(detection)
+        SendAlertIfNeeded(pts, detection)
 
         count = count + 1
     end
 end
 
 -- 使用说明：
--- 1. 本脚本必须定义全局 Process 函数，接收 detections 参数
+-- 1. 本脚本必须定义全局 Process 函数，接收 pts, detections 参数
 -- 2. detections 是数组，每个元素是包含检测框信息的表
 -- 3. 每个检测框包含：x0, x1, y0, y1, score, text 字段
 -- 4. DrawRect(x0, x1, y0, y1, r, g, b, text = "") - 绘制矩形框

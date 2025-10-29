@@ -69,7 +69,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                         GetImage(task.inferTask)
                     } else {
                         SetImage(taskLast, GetImage(task.inferTask))
-                        draw.execute(taskLast!!)
+                        draw.execute(task.timestamp, taskLast!!)
                         GetImage(taskLast)
                     }
                 } finally {
@@ -84,7 +84,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                         val detections = SizeDetections(task.inferTask)
                         "[$id] 推理 FPS: $fps, 额外延迟 / ms: $delayed, 检测数量: $detections."
                     }
-                    draw.execute(task.inferTask)
+                    draw.execute(task.timestamp, task.inferTask)
                     GetImage(task.inferTask)
                 } finally {
                     taskLast?.let { DestroyInferTask(it) }

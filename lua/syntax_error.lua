@@ -1,7 +1,7 @@
 -- syntax_error.lua
 -- 故意包含语法错误的Lua脚本，用于测试错误恢复机制
 
-function process(boxes)
+function process(pts, boxes)
     -- 故意的语法错误：缺少end关键字
     for i, box in ipairs(boxes) do
         if box.score > 0.5 then

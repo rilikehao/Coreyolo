@@ -15,7 +15,7 @@ class RtspInput(val url: String) : Video {
 
     override fun frames(): Flow<Video.Frame> {
         val formatCtx = cPointer { ptr ->
-            withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp") {
+            withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp", "use_wallclock_as_timestamps" to "1") {
                 avformat_open_input(ptr, url, null, it).check("avformat_open_input")
             }
         }
