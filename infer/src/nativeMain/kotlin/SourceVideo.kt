@@ -8,8 +8,11 @@ object SourceVideo : suspend () -> Unit {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             AppConfig.instance.streams.map { config ->
                 scope.launch {
-                    Video.open(config.source).use {
-                        RtspOutput(config.target)(config.id, Inference(config.id, it.frames()))
+                    while (true) {
+                        Video.open(config.source).use {
+                            RtspOutput(config.target)(config.id, Inference(config.id, it.frames()))
+                        }
+                        delay(5000)
                     }
                 }
             }.joinAll()

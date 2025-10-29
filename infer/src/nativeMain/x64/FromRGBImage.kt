@@ -19,8 +19,8 @@ object FromRGBImage : AutoCloseable {
     operator fun invoke(frame: AVFrame, image: CPointer<Image>) {
         if (swsCtx == null) {
             swsCtx = sws_getContext(
-                frame.width, frame.height, AV_PIX_FMT_RGB24,
-                frame.width, frame.height, AV_PIX_FMT_YUV420P,
+                GetWidth(image), GetHeight(image), AV_PIX_FMT_RGB24,
+                GetWidth(image), GetHeight(image), AV_PIX_FMT_YUV420P,
                 SWS_BILINEAR.toInt(), null, null, null,
             )
         }

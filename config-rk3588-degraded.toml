@@ -1,0 +1,32 @@
+[source]
+type = "VIDEO"
+
+[paths]
+model = "assets/yolo11s.rknn"
+description = "assets/yolo11s.txt"
+drawScript = "lua/example.lua"
+
+[[streams]]
+id = "default-00"
+source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+target = "rtsp://192.168.1.102:8554/2025/2025-00.mp4"
+
+[[streams]]
+id = "default-01"
+source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+target = "rtsp://192.168.1.102:8554/2025/2025-01.mp4"
+
+[[streams]]
+id = "default-02"
+source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+target = "rtsp://192.168.1.102:8554/2025/2025-02.mp4"
+
+[[streams]]
+id = "default-03"
+source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+target = "rtsp://192.168.1.102:8554/2025/2025-03.mp4"
+
+[processing]
+fpsDecode = 30.0
+fpsYolo = 10.0
+mute = false

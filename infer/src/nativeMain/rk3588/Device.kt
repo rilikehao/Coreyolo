@@ -13,6 +13,8 @@ class Device : AutoCloseable {
         const val CPU_THREADS = 8
         const val H264_DECODER_NAME = "h264_rkmpp"
         const val H264_ENCODER_NAME = "h264_rkmpp"
+        const val H264_ENCODER_FORMAT = AV_PIX_FMT_RGB24
+
         val encoderOptions = arrayOf("rc_mode" to "CQP", "qp_init" to "20")
     }
 
