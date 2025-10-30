@@ -55,6 +55,21 @@ object ProjectBuilder {
 
         ProcessBuilder("cp", "-r", File("rk3588/rkrga/build/libutils_obj.so").absolutePath, targetLibDir.absolutePath).runCommand()
         ProcessBuilder("cp", "-r", File("rk3588/rkrga/samples/utils/allocator/include").absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
+
+        $$"""
+            prefix=$${File("rk3588/root/usr/local").absolutePath}
+            exec_prefix=${prefix}
+            libdir=${prefix}/lib
+            includedir=${prefix}/include
+            
+            Name: librga
+            Description: Rockchip RGA
+            Requires.private:
+            Version: 0.0.0
+            Libs: -L${libdir} -lrga
+            Libs.private:
+            Cflags: -I${includedir}
+        """.trimIndent().let { File("rk3588/root/usr/local/lib/pkgconfig/librga.pc").writeText(it) }
     }
 
     fun buildMPP() {
