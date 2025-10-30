@@ -36,7 +36,6 @@ object AppConfig {
     data class StreamConfig(
         val id: String,
         val source: String,
-        val target: String,
     )
 
     @Serializable
