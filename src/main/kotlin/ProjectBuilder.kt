@@ -7,7 +7,7 @@ object ProjectBuilder {
         val rgaDir = File("rk3588/rkrga")
         cloneIfNeeded(rgaDir, "https://github.com/airockchip/librga.git")
         val targetLibDir = File("rk3588/root/usr/local/lib")
-        val targetIncludeDir = File("rk3588/root/usr/local/include")
+        val targetIncludeDir = File("rk3588/root/usr/local/include/rga")
         targetLibDir.mkdirs()
         targetIncludeDir.mkdirs()
 
@@ -60,7 +60,7 @@ object ProjectBuilder {
     fun buildMPP() {
         ToolchainManager.createCmakeToolchainFile(Config.RK3588)
         val mppDir = File("rk3588/rkmpp")
-        cloneIfNeeded(mppDir, "https://github.com/nyanmisaka/mpp.git")
+        cloneIfNeeded(mppDir, "https://github.com/rockchip-linux/mpp.git")
         val mppBuildDir = File("rk3588/rkmpp/build")
         mppBuildDir.mkdirs()
         ProcessBuilder(
@@ -155,35 +155,8 @@ object ProjectBuilder {
         val ffmpegDir = File("${archConfig.name}/ffmpeg")
         cloneIfNeeded(ffmpegDir, "https://github.com/nyanmisaka/ffmpeg-rockchip.git")
 
-        val configureArgs = when (archConfig.name) {
-            "x64" -> arrayOf(
-                "./configure",
-                "--prefix=${File(archConfig.installPrefix).absolutePath}",
-                "--arch=x86_64",
-                "--target-os=linux",
-                "--pkg-config=pkg-config",
-                "--extra-cflags=${
-                    arrayOf(
-                        "${File(archConfig.installPrefix).absolutePath}/include",
-                        "${File(archConfig.targetDir).absolutePath}/usr/include"
-                    ).joinToString(" ") { "-I$it" }
-                }",
-                "--extra-ldflags=${
-                    arrayOf(
-                        "${File(archConfig.installPrefix).absolutePath}/lib",
-                        "${File(archConfig.targetDir).absolutePath}/usr/lib"
-                    ).joinToString(" ") { "-L$it" }
-                }",
-                "--enable-gpl",
-                "--enable-version3",
-                "--enable-libdrm",
-                "--enable-shared",
-                "--disable-static",
-                "--disable-stripping",
-                "--disable-doc",
-            )
-
-            else -> arrayOf(
+        val configureArgs = when (archConfig) {
+            Config.RK3588 -> arrayOf(
                 "./configure",
                 "--prefix=${File(archConfig.installPrefix).absolutePath}",
                 "--arch=arm64",
@@ -213,6 +186,7 @@ object ProjectBuilder {
                 "--disable-stripping",
                 "--disable-doc",
             )
+            else -> throw Error("不支持的平台")
         }
 
         ProcessBuilder(*configureArgs).apply {
@@ -322,6 +296,7 @@ object ProjectBuilder {
                             #!/bin/bash
                             APP_DIR="$(dirname "$(readlink -f "$0")")"
                             LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+                            export QT_QPA_PLATFORM=offscreen
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
                             LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" exec "$APP_DIR/usr/local/bin/YoloInfer" "$@"
                         """.trimIndent()
@@ -362,6 +337,7 @@ object ProjectBuilder {
                             #!/bin/bash
                             APP_DIR="$(dirname "$(readlink -f "$0")")"
                             LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+                            export QT_QPA_PLATFORM=offscreen
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
                             exec "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"
                         """.trimIndent()
