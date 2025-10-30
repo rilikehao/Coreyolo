@@ -464,7 +464,7 @@ object ProjectBuilder {
                 [rtp]
                 audioMtuSize=600
                 h264_stap_a=1
-                lowLatency=0
+                lowLatency=1
                 rtpMaxSize=10
                 videoMtuSize=1400
                 
@@ -487,7 +487,7 @@ object ProjectBuilder {
                 directProxy=1
                 handshakeSecond=15
                 keepAliveSecond=15
-                lowLatency=0
+                lowLatency=1
                 port=50554
                 rtpTransportType=-1
                 sslport=0
