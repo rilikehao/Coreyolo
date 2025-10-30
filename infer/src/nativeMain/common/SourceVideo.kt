@@ -14,8 +14,8 @@ object SourceVideo : suspend () -> Unit {
                 val params = "&vhost=__defaultVhost__&app=original&stream=${config.id}&url=${config.source}"
                 val status = HttpGetWaitStatus("$base$params")
                 if (status != 200) throw Error("拉取流失败")
-                delay(5000)
                 scope.launch {
+                    delay(5000)
                     while (true) {
                         RtspInput("rtsp://127.0.0.1:50554/original/${config.id}").use {
                             RtspOutput("rtsp://127.0.0.1:50554/processed/${config.id}")(
