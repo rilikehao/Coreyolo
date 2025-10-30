@@ -537,6 +537,7 @@ object ProjectBuilder {
                                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                                 sleep 5
                             done
+                            kill $PID_MEDIA_SERVER
                         """.trimIndent()
                     )
                 }.let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }

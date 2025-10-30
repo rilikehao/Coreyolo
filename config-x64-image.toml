@@ -8,4 +8,3 @@ description = "assets/yolo11s.txt"
 [[streams]]
 id = "default"
 source = "assets/bus.jpg"
-target = "none"
