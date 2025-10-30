@@ -14,7 +14,7 @@ object ToolchainManager {
         val linkerFlags = arrayOf(
             "${File(archConfig.targetDir).absolutePath}/usr/lib",
             "${File(archConfig.installPrefix).absolutePath}/lib",
-        ).joinToString(" ") { "-L$it" }
+        ).joinToString(" ") { "-L$it -Wl,-rpath-link=$it" }
         val content = """
             set(CMAKE_SYSTEM_NAME Linux)
             set(CMAKE_SYSTEM_PROCESSOR ${archConfig.cpu})

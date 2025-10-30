@@ -56,6 +56,8 @@ object ProjectBuilder {
         ProcessBuilder("cp", "-r", File("rk3588/rkrga/build/libutils_obj.so").absolutePath, targetLibDir.absolutePath).runCommand()
         ProcessBuilder("cp", "-r", File("rk3588/rkrga/samples/utils/allocator/include").absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
 
+        val pc = File("rk3588/root/usr/local/lib/pkgconfig/librga.pc")
+        pc.parentFile.mkdirs()
         $$"""
             prefix=$${File("rk3588/root/usr/local").absolutePath}
             exec_prefix=${prefix}
@@ -254,7 +256,7 @@ object ProjectBuilder {
                 "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix).absolutePath}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
-                "-DENABLE_OBJCOPY=no"
+                "-DENABLE_OBJCOPY=no",
             ).directory(buildDir).runCommand()
 
             ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir).runCommand()
