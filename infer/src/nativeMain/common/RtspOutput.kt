@@ -65,6 +65,7 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
         codecCtx.pointed.time_base.num = 1
         codecCtx.pointed.time_base.den = 90000
         val packet = av_packet_alloc()!!
+        var pts0 = 0L
         try {
             frames.collect { frame ->
                 if (codecCtx.pointed.width == 0 && frame != null) {
@@ -75,11 +76,13 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
                     }
                     videoStream = avformat_new_stream(formatCtx, codec).check("avformat_new_stream")
                     avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx)
-                    formatCtx.pointed.start_time_realtime = frame.pointed.pts / 90 * 1000
+                    pts0 = frame.pointed.pts
+                    formatCtx.pointed.start_time_realtime = pts0 / 90 * 1000
                     withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
                         avformat_write_header(formatCtx, it).check("avformat_write_header")
                     }
                 }
+                frame?.pointed?.pts -= pts0
                 avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
                 if (frame != null) av_frame_unref(frame)
                 while (0 <= avcodec_receive_packet(codecCtx, packet)) {

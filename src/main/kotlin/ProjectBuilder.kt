@@ -396,12 +396,12 @@ object ProjectBuilder {
                 continue_push_ms=15000
                 enable_audio=1
                 enable_fmp4=1
-                enable_hls=1
+                enable_hls=0
                 enable_hls_fmp4=0
                 enable_mp4=0
                 enable_rtmp=1
                 enable_rtsp=1
-                enable_ts=1
+                enable_ts=0
                 fmp4_demand=0
                 hls_demand=0
                 hls_save_path=./www
@@ -423,6 +423,10 @@ object ProjectBuilder {
                 sampleMS=500
                 
                 [rtc]
+                signalingPort=53000
+                signalingSslPort=53001
+                icePort=53478
+                iceTcpPort=53478
                 bfilter=0
                 datachannel_echo=1
                 externIP=
@@ -516,7 +520,7 @@ object ProjectBuilder {
                             #!/bin/bash
                             APP_DIR="$(dirname "$(readlink -f "$0")")"
                             LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
-                            LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$APP_DIR/config.ini" &
+                            LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$APP_DIR/config.ini" --log-dir /tmp/log-MediaServer &
                             PID_MEDIA_SERVER=$!
                             export QT_QPA_PLATFORM=offscreen
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
@@ -524,7 +528,6 @@ object ProjectBuilder {
                                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                                 sleep 5
                             done
-                            kill $PID_MEDIA_SERVER
                         """.trimIndent()
                     )
                 }.let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }
@@ -563,7 +566,7 @@ object ProjectBuilder {
                             #!/bin/bash
                             APP_DIR="$(dirname "$(readlink -f "$0")")"
                             LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
-                            "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$APP_DIR/config.ini" &
+                            "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$APP_DIR/config.ini" --log-dir /tmp/log-MediaServer &
                             PID_MEDIA_SERVER=$!
                             export QT_QPA_PLATFORM=offscreen
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"

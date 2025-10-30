@@ -13,7 +13,7 @@ object SourceCamera : suspend () -> Unit {
                 scope.launch {
                     while (true) {
                         Camera.open(config.source).use {
-                            RtspOutput(config.target)(config.id, Inference(config.id, it.frames()))
+                            RtspOutput("rtsp://127.0.0.1:50554/processed/${config.id}")(config.id, Inference(config.id, it.frames()))
                         }
                         delay(5000)
                     }

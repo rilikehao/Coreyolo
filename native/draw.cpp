@@ -10,6 +10,8 @@ extern "C" {
 
 #include "image.h"
 
+extern "C" {
+
 void DrawRect(Image* image, Rect* rect, int r, int g, int b,
               const char* s) {
     QPainter painter(&image->data_);
@@ -27,12 +29,12 @@ void DrawRect(Image* image, Rect* rect, int r, int g, int b,
 }
 
 void HttpGet(const char* url) {
+    QNetworkRequest request(QUrl(QString::fromUtf8(url)));
     auto thread = new QThread;
     auto worker = new QObject;
     worker->moveToThread(thread);
     QObject::connect(thread, &QThread::started, worker, [=] {
         auto manager = new QNetworkAccessManager;
-        QNetworkRequest request(QUrl(QString::fromUtf8(url)));
         auto reply = manager->get(request);
         QObject::connect(reply, &QNetworkReply::finished, worker, [=] {
             QString result;
@@ -53,3 +55,38 @@ void HttpGet(const char* url) {
     });
     thread->start();
 }
+
+int HttpGetWaitStatus(const char* url) {
+    int status;
+    QNetworkRequest request(QUrl(QString::fromUtf8(url)));
+    auto thread = new QThread;
+    auto worker = new QObject;
+    worker->moveToThread(thread);
+    QObject::connect(thread, &QThread::started, worker, [=, &status] {
+        auto manager = new QNetworkAccessManager;
+        auto reply = manager->get(request);
+        QObject::connect(
+            reply, &QNetworkReply::finished, worker, [=, &status] {
+                QString result;
+                if (reply->error() != QNetworkReply::NoError) {
+                    qWarning() << "Error:" << reply->errorString();
+                } else {
+                    auto attr =
+                        QNetworkRequest::HttpStatusCodeAttribute;
+                    status = reply->attribute(attr).toInt();
+                    qDebug() << "HTTP Status:" << status;
+                }
+                reply->deleteLater();
+                manager->deleteLater();
+                worker->deleteLater();
+                thread->quit();
+            });
+        QObject::connect(
+            thread, &QThread::finished, thread, &QObject::deleteLater);
+    });
+    thread->start();
+    thread->wait();
+    return status;
+}
+
+}  // extern
