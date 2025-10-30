@@ -72,6 +72,7 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
                     }
                     videoStream = avformat_new_stream(formatCtx, codec).check("avformat_new_stream")
                     avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx)
+                    formatCtx.pointed.start_time_realtime = frame.pointed.pts / 90 * 1000
                     withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
                         avformat_write_header(formatCtx, it).check("avformat_write_header")
                     }
