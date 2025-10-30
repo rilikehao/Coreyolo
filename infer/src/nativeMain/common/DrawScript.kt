@@ -1,9 +1,10 @@
+package common
+
 import cnames.structs.Image
 import cnames.structs.InferTask
 import kotlinx.cinterop.*
 import platform.lua.*
 import platform.native.*
-import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 

@@ -1,3 +1,5 @@
+package common
+
 import co.touchlab.kermit.CommonWriter
 import co.touchlab.kermit.Severity
 import kotlinx.coroutines.*
@@ -29,7 +31,11 @@ object ActorLogWriter : CommonWriter(), AutoCloseable {
         message: String,
         tag: String,
         throwable: Throwable?
-    ) { if (isLoggable(tag, severity)) { logChannel.trySend(LogData(severity, message, tag, throwable)) } }
+    ) {
+        if (isLoggable(tag, severity)) {
+            logChannel.trySend(LogData(severity, message, tag, throwable))
+        }
+    }
 
     override fun isLoggable(tag: String, severity: Severity) = !AppConfig.instance.processing.mute
 

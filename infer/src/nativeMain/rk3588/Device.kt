@@ -1,5 +1,5 @@
-import Utils.cPointer
-import Utils.check
+import common.Utils.cPointer
+import common.Utils.check
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValuesOf

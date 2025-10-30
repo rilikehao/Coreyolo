@@ -1,3 +1,5 @@
+package common
+
 import kotlinx.cinterop.*
 import platform.native.*
 

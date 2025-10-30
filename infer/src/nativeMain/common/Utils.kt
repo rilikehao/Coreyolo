@@ -1,3 +1,5 @@
+package common
+
 import cnames.structs.AVDictionary
 import kotlinx.cinterop.*
 import platform.ffmpeg.AV_ERROR_MAX_STRING_SIZE

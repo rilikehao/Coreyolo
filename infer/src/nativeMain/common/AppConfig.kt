@@ -1,3 +1,5 @@
+package common
+
 import com.akuleshov7.ktoml.file.TomlFileReader
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
@@ -7,7 +9,7 @@ object AppConfig {
     
     @Serializable
     enum class SourceType {
-        IMAGE, VIDEO,
+        IMAGE, VIDEO, CAMERA,
     }
 
     @Serializable
@@ -20,7 +22,7 @@ object AppConfig {
 
     @Serializable
     data class SourceConfig(
-        val type: SourceType = SourceType.VIDEO,
+        val type: SourceType,
     )
 
     @Serializable

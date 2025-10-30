@@ -1,5 +1,8 @@
-import Utils.check
-import Utils.use
+package common
+
+import ToRGBImage
+import common.Utils.check
+import common.Utils.use
 import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -7,12 +10,12 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import platform.ffmpeg.*
+import platform.linux.ioctl
 import platform.native.CreateImageJPEG
 import platform.posix.*
 import platform.videodev2.*
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
-import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class)
 abstract class Camera(val fd: Int) : Video {
@@ -99,7 +102,7 @@ abstract class Camera(val fd: Int) : Video {
                     val fsize = alloc<v4l2_frmsizeenum>()
                     fsize.pixel_format = fmtDesc.pixelformat
                     fsize.index = 0u
-                    while (platform.linux.ioctl(fd, VIDIOC_ENUM_FRAMESIZES, fsize.ptr) == 0) {
+                    while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, fsize.ptr) == 0) {
                         val (w, h) = maxFrameSize(fsize)
                         println("  ${w}x${h}")
                         yield(Resolution(w, h, fmtDesc.pixelformat, desc))

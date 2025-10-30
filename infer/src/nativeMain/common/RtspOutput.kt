@@ -1,8 +1,12 @@
-import StringFormat.toString
-import Utils.cPointer
-import Utils.check
-import Utils.withOptions
+package common
+
+import Device
+import FromRGBImage
 import co.touchlab.kermit.Logger
+import common.StringFormat.toString
+import common.Utils.cPointer
+import common.Utils.check
+import common.Utils.withOptions
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValuesOf
@@ -14,7 +18,6 @@ import platform.ffmpeg.*
 import platform.native.DestroyImage
 import kotlin.math.max
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource

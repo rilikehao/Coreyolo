@@ -1,4 +1,4 @@
-import Utils.check
+import common.Utils.check
 import cnames.structs.Image
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi

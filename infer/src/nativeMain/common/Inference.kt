@@ -1,6 +1,9 @@
-import StringFormat.toString
+package common
+
+import Device
 import cnames.structs.InferTask
 import co.touchlab.kermit.Logger
+import common.StringFormat.toString
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -11,12 +14,8 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.runBlocking
 import platform.native.*
 import kotlin.math.max
-import kotlin.time.Clock
-import kotlin.time.Duration
+import kotlin.time.*
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
-import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseable {

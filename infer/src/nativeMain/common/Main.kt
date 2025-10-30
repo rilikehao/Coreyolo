@@ -1,3 +1,5 @@
+package common
+
 import co.touchlab.kermit.Logger
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.memScoped
@@ -21,6 +23,7 @@ fun main(args: Array<String>) {
         when (AppConfig.instance.source.type) {
             AppConfig.SourceType.IMAGE -> staticCFunction { -> SourceImage() }
             AppConfig.SourceType.VIDEO -> staticCFunction { -> runBlocking { SourceVideo() } }
+            AppConfig.SourceType.CAMERA -> staticCFunction { -> runBlocking { SourceCamera() } }
         }.let { memScoped { Main(1, arrayOf("YoloInfer").toCStringArray(this), it) } }
     }
 }

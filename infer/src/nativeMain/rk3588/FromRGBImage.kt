@@ -1,5 +1,5 @@
-import Utils.check
 import cnames.structs.Image
+import common.Utils.check
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValuesOf

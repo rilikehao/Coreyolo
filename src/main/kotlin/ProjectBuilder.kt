@@ -301,7 +301,7 @@ object ProjectBuilder {
                 apiDebug=1
                 defaultSnap=./www/logo.png
                 downloadRoot=./www
-                secret=4YipPMVIoW0blAnZiowgHJVKFYHVtJLI
+                secret=21344657
                 snapRoot=./www/snap/
                 
                 [cluster]
