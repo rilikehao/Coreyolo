@@ -246,6 +246,33 @@ object ProjectBuilder {
         }
     }
 
+    fun buildZLMediaKit() {
+        Config.archConfigs.forEach { archConfig ->
+            ToolchainManager.createCmakeToolchainFile(archConfig)
+            val zLMediaKitDir = File("${archConfig.name}/ZLMediaKit")
+            cloneIfNeeded(zLMediaKitDir, "https://github.com/ZLMediaKit/ZLMediaKit.git")
+
+            ProcessBuilder(
+                "git",  "submodule", "update", "--init",
+            ).directory(zLMediaKitDir).runCommand()
+
+            val buildDir = File("${archConfig.name}/ZLMediaKit/build")
+            buildDir.mkdirs()
+
+            ProcessBuilder(
+                "/usr/bin/cmake", zLMediaKitDir.absolutePath,
+                "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchainCmake).absolutePath}",
+                "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix).absolutePath}",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+                "-DENABLE_OBJCOPY=no"
+            ).directory(buildDir).runCommand()
+
+            ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir).runCommand()
+            ProcessBuilder("make", "install").directory(buildDir).runCommand()
+        }
+    }
+
     private fun cloneIfNeeded(dir: File, url: String) {
         if (!dir.exists()) {
             ProcessBuilder("git", "clone", "--depth=1", url, dir.absolutePath).runCommand()

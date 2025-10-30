@@ -26,7 +26,7 @@ object Config {
         toolchainTxt = "rk3588/toolchain.txt",
         toolchainCmake = "rk3588/toolchain.cmake",
         installPrefix = "rk3588/root/usr/local",
-        defaultPackages = listOf("lua", "qt6-base", "v4l-utils", "libdrm"),
+        defaultPackages = listOf("lua", "qt6-base", "v4l-utils", "openssl", "libsrtp", "libdrm"),
     )
 
     val X64 = ArchConfig(
@@ -41,7 +41,7 @@ object Config {
         toolchainTxt = "x64/toolchain.txt",
         toolchainCmake = "x64/toolchain.cmake",
         installPrefix = "x64/root/usr/local",
-        defaultPackages = listOf("lua", "qt6-base", "v4l-utils", "ffmpeg", "vulkan-icd-loader"),
+        defaultPackages = listOf("lua", "qt6-base", "v4l-utils", "openssl", "libsrtp", "ffmpeg", "vulkan-icd-loader"),
     )
 
     val archConfigs = listOf(RK3588, X64)

@@ -1,30 +1,6 @@
 import java.io.File
 
 object ToolchainManager {
-    fun createMesonCrossFile(archConfig: Config.ArchConfig) {
-        val content = """
-            [binaries]
-            c = '${archConfig.compilerPrefix}gcc'
-            cpp = '${archConfig.compilerPrefix}g++'
-            ar = '${archConfig.compilerPrefix}ar'
-            strip = '${archConfig.compilerPrefix}strip'
-            pkgconfig = 'pkg-config'
-
-            [properties]
-            sys_root = '${archConfig.sysrootDir}'
-            pkgconfig_libdir = '${getPkgConfigLibDir(archConfig)}'
-
-            [host_machine]
-            system = 'linux'
-            cpu_family = '${archConfig.cpu}'
-            cpu = '${archConfig.cpu}'
-            endian = 'little'
-        """.trimIndent()
-
-        File(archConfig.toolchainTxt).parentFile.mkdirs()
-        File(archConfig.toolchainTxt).writeText(content)
-    }
-
     fun createCmakeToolchainFile(archConfig: Config.ArchConfig) {
         val rootPath = arrayOf(
             archConfig.sysrootDir,
@@ -61,10 +37,4 @@ object ToolchainManager {
         File(archConfig.toolchainCmake).parentFile.mkdirs()
         File(archConfig.toolchainCmake).writeText(content)
     }
-
-    private fun getPkgConfigLibDir(archConfig: Config.ArchConfig) =
-        arrayOf(
-            "${File(archConfig.targetDir).absolutePath}/usr/lib/pkgconfig",
-            "${File(archConfig.installPrefix).absolutePath}/lib/pkgconfig"
-        ).joinToString(":")
 }
