@@ -2,7 +2,7 @@
 type = "VIDEO"
 
 [paths]
-model = "assets/yolo11s.rknn"
+model = "assets/yolo11s_rk3588.rknn"
 description = "assets/yolo11s.txt"
 drawScript = "lua/example.lua"
 

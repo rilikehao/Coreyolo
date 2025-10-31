@@ -102,7 +102,7 @@ object ProjectBuilder {
 
     fun buildRKNPU2() {
         val rknpu2Dir = File("rk3588/rknn-toolkit2")
-        cloneIfNeeded(rknpu2Dir, "https://github.com/rockchip-linux/rknn-toolkit2.git")
+        cloneIfNeeded(rknpu2Dir, "https://github.com/airockchip/rknn-toolkit2.git")
 
         val targetLibDir = File("rk3588/root/usr/local/lib")
         val targetIncludeDir = File("rk3588/root/usr/local/include")
