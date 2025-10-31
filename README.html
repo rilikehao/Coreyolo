@@ -102,12 +102,11 @@
     <ul>
         <li>🚀 高性能 YOLO11 目标检测推理</li>
         <li>🔄 跨平台支持：RK3588 (ARM64) 和 x64 (x86_64)</li>
-        <li>🎯 多种推理引擎：MNN、RKNN、ONNX</li>
+        <li>🎯 多种推理引擎：MNN、RKNN</li>
         <li>📡 RTSP 流输出支持，实时推流处理结果</li>
         <li>📦 一键式构建和部署</li>
         <li>🛠️ 集成训练环境，支持模型导出和量化</li>
         <li>📱 支持 AppImage 打包部署</li>
-        <li>⚡ 优化的输出结构，360p 分辨率下达到 30 FPS</li>
     </ul>
     <h2>YOLO11 优化特性</h2>
     <h3>输出结构优化</h3>
@@ -118,12 +117,15 @@
         <li><code>[1, 1, 80, 80]</code> - 所有类别的置信度总和</li>
     </ul>
     <h3>性能实测数据</h3>
-    <p>使用 YOLO11 官方 S 大小模型（参数量 9.4M）的实测性能：</p>
+    <p><strong>RK3588</strong> 的实测性能：</p>
     <ul>
-        <li><strong>AMD Ryzen 5 7640HS w/ Radeon 760M Graphics</strong>：360p 分辨率下达到 30 FPS</li>
-        <li><strong>RK3588</strong>：360p 分辨率下达到 30 FPS</li>
+        <li>使用 YOLO11 官方 S 大小模型（参数量 9.4M）</li>
+        <li>640 x 480 分辨率</li>
+        <li>同时处理 7 路视频</li>
+        <li>编解码 30 FPS</li>
+        <li>图像识别 10 FPS</li>
+        <li>测试条件：使用 INT8 量化</li>
     </ul>
-    <p>测试条件：使用 INT8 量化，标准推理配置，实际应用场景。</p>
     <h2>项目结构</h2>
     <pre><code>CoreYolo/
 ├── src/main/kotlin/          # 主构建脚本 (Kotlin)
@@ -139,7 +141,6 @@
     <h3>环境要求</h3>
     <ul>
         <li>CMake 3.20+</li>
-        <li>Meson (用于 RK3588)</li>
         <li>交叉编译工具链 (aarch64-linux-gnu)</li>
     </ul>
     <h3>构建命令</h3>
@@ -147,25 +148,21 @@
 ./gradlew run
 
 # 2. 编译推理应用
-./gradlew :infer:install
-
-# 3. 生成 AppImage 部署包
-./gradlew run --args='image'
+./gradlew image
 </code></pre>
     <h2>平台支持</h2>
+    <p>- <strong>FFmpeg</strong> - 视频解码和处理</p>
+    <p>- <strong>Qt</strong> - 图像的 GPU 缩放和绘制</p>
     <h3>RK3588 平台</h3>
     <ul>
         <li><strong>RGA (Rockchip Graphics Accelerator)</strong> - 图像处理加速</li>
         <li><strong>RKNN</strong> - 瑞芯微 NPU 推理</li>
-        <li><strong>专用优化库支持</strong></li>
         <li><strong>依赖库</strong>：librknnrt.so、librga.so</li>
     </ul>
     <h3>x64 平台</h3>
     <ul>
-        <li><strong>FFmpeg</strong> - 视频解码和处理</li>
-        <li><strong>MNN</strong> - 移动端神经网络推理框架</li>
-        <li><strong>Vulkan 加速支持</strong></li>
-        <li><strong>依赖库</strong>：libMNN.so、FFmpeg</li>
+        <li><strong>MNN</strong> - 移动端神经网络推理框架（Vulkan 加速支持）</li>
+        <li><strong>依赖库</strong>：libMNN.so</li>
     </ul>
     <h3>模型格式支持</h3>
     <table>
@@ -178,42 +175,32 @@
         </thead>
         <tbody>
             <tr>
-                <td>ONNX</td>
-                <td>通用格式</td>
-                <td>跨平台</td>
-            </tr>
-            <tr>
                 <td>MNN</td>
-                <td>移动端推理</td>
+                <td>桌面端推理</td>
                 <td>x64</td>
             </tr>
             <tr>
                 <td>RKNN</td>
                 <td>瑞芯微 NPU</td>
-                <td>RK3588</td>
+                <td>rk3588</td>
             </tr>
         </tbody>
     </table>
-    <blockquote>
-        <p><strong>注意</strong>：RK3588 平台必须使用 RKNN 模型，x64 平台必须使用 MNN 模型。</p>
-    </blockquote>
     <h3>使用示例</h3>
     <pre><code># 图像推理
-x64/YoloInfer.AppImage --source-type image --model assets/yolo11s.mnn --description assets/yolo11s.txt --source assets/bus.jpg
-
-# 流媒体推理
-x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --draw-script lua/example.lua --source rtsp://lax.kw92.cyou:8554/2025/2025.mp4
+x64/YoloInfer.AppImage config-x64-image.toml
 
 # 摄像头推理
-x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --draw-script lua/example.lua --source /dev/video0
+x64/YoloInfer.AppImage config-x64-camera.toml
 
-# 图像推理 (在 rk3588 运行)
-rk3588/YoloInfer.AppImage --source-type image --model assets/yolo11s.rknn --description assets/yolo11s.txt --source assets/bus.jpg
+# 流媒体推理
+x64/YoloInfer.AppImage config-x64.toml
 
-# RTSP 流输出
-x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --source rtsp://127.0.0.1:8554/input/stream.mp4 --target rtsp://127.0.0.1:8554/output/stream.mp4
+# 流媒体推理 (在 rk3588 运行)
+rk3588/YoloInfer.AppImage config-rk3588.toml
 
-# 其他类似
+# 流媒体推理 (在限制功率的 rk3588 运行)
+rk3588/YoloInfer.AppImage config-rk3588-degraded.toml
 </code></pre>
     <h2>YOLO 模型导出工具</h2>
     <p>将 YOLO 训练好的模型导出为可部署格式。</p>

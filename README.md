@@ -6,12 +6,11 @@
 
 - 🚀 高性能 YOLO11 目标检测推理
 - 🔄 跨平台支持：RK3588 (ARM64) 和 x64 (x86_64)
-- 🎯 多种推理引擎：MNN、RKNN、ONNX
+- 🎯 多种推理引擎：MNN、RKNN
 - 📡 RTSP 流输出支持，实时推流处理结果
 - 📦 一键式构建和部署
 - 🛠️ 集成训练环境，支持模型导出和量化
 - 📱 支持 AppImage 打包部署
-- ⚡ 优化的输出结构，360p 分辨率下达到 30 FPS
 
 ## YOLO11 优化特性
 
@@ -22,11 +21,13 @@
 - `[1, 1, 80, 80]` - 所有类别的置信度总和
 
 ### 性能实测数据
-使用 YOLO11 官方 S 大小模型（参数量 9.4M）的实测性能：
-- **AMD Ryzen 5 7640HS w/ Radeon 760M Graphics**：360p 分辨率下达到 30 FPS
-- **RK3588**：360p 分辨率下达到 30 FPS
-
-测试条件：使用 INT8 量化，标准推理配置，实际应用场景。
+**RK3588** 的实测性能：
+- 使用 YOLO11 官方 S 大小模型（参数量 9.4M）
+- 640 x 480 分辨率
+- 同时处理 7 路视频
+- 编解码 30 FPS
+- 图像识别 10 FPS
+- 测试条件：使用 INT8 量化
 
 ## 项目结构
 
@@ -47,7 +48,6 @@ CoreYolo/
 ### 环境要求
 
 - CMake 3.20+
-- Meson (用于 RK3588)
 - 交叉编译工具链 (aarch64-linux-gnu)
 
 ### 构建命令
@@ -57,54 +57,46 @@ CoreYolo/
 ./gradlew run
 
 # 2. 编译推理应用
-./gradlew :infer:install
-
-# 3. 生成 AppImage 部署包
-./gradlew run --args='image'
+./gradlew image
 ```
 
 ## 平台支持
 
+- **FFmpeg** - 视频解码和处理
+- **Qt** - 图像的 GPU 缩放和绘制
+
 ### RK3588 平台
 - **RGA (Rockchip Graphics Accelerator)** - 图像处理加速
 - **RKNN** - 瑞芯微 NPU 推理
-- **专用优化库支持**
 - **依赖库**：librknnrt.so、librga.so
 
 ### x64 平台
-- **FFmpeg** - 视频解码和处理
-- **MNN** - 移动端神经网络推理框架
-- **Vulkan 加速支持**
-- **依赖库**：libMNN.so、FFmpeg
+- **MNN** - 移动端神经网络推理框架（Vulkan 加速支持）
+- **依赖库**：libMNN.so
 
 ### 模型格式支持
-| 格式 | 用途 | 目标平台 |
-|------|------|----------|
-| ONNX | 通用格式 | 跨平台 |
-| MNN | 移动端推理 | x64 |
-| RKNN | 瑞芯微 NPU | RK3588 |
-
-> **注意**：RK3588 平台必须使用 RKNN 模型，x64 平台必须使用 MNN 模型。
+| 格式 | 用途       | 目标平台 |
+|------|------------|----------|
+| MNN  | 桌面端推理 | x64      |
+| RKNN | 瑞芯微 NPU | rk3588   |
 
 ### 使用示例
 
 ```bash
 # 图像推理
-x64/YoloInfer.AppImage --source-type image --model assets/yolo11s.mnn --description assets/yolo11s.txt --source assets/bus.jpg
-
-# 流媒体推理
-x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --draw-script lua/example.lua --source rtsp://lax.kw92.cyou:8554/2025/2025.mp4 
+x64/YoloInfer.AppImage config-x64-image.toml
 
 # 摄像头推理
-x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --draw-script lua/example.lua --source /dev/video0
+x64/YoloInfer.AppImage config-x64-camera.toml
 
-# 图像推理 (在 rk3588 运行)
-rk3588/YoloInfer.AppImage --source-type image --model assets/yolo11s.rknn --description assets/yolo11s.txt --source assets/bus.jpg
+# 流媒体推理
+x64/YoloInfer.AppImage config-x64.toml
 
-# RTSP 流输出
-x64/YoloInfer.AppImage --source-type video --model assets/yolo11s.mnn --description assets/yolo11s.txt --source rtsp://127.0.0.1:8554/input/stream.mp4 --target rtsp://127.0.0.1:8554/output/stream.mp4
+# 流媒体推理 (在 rk3588 运行)
+rk3588/YoloInfer.AppImage config-rk3588.toml
 
-# 其他类似
+# 流媒体推理 (在限制功率的 rk3588 运行)
+rk3588/YoloInfer.AppImage config-rk3588-degraded.toml
 ```
 
 ## YOLO 模型导出工具
