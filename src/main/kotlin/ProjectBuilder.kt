@@ -543,6 +543,7 @@ object ProjectBuilder {
                             PID_MEDIA_SERVER=$!
                             export QT_QPA_PLATFORM=offscreen
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
+                            export QT_QPA_FONTDIR="$APP_DIR/usr/share/fonts/noto-cjk"
                             until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
                                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                                 sleep 5
@@ -593,6 +594,7 @@ object ProjectBuilder {
                             PID_MEDIA_SERVER=$!
                             export QT_QPA_PLATFORM=offscreen
                             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
+                            export QT_QPA_FONTDIR="$APP_DIR/usr/share/fonts/noto-cjk"
                             until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
                                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                                 sleep 5

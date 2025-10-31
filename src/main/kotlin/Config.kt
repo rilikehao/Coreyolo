@@ -32,6 +32,7 @@ object Config {
             "v4l-utils",
             "openssl",
             "libsrtp",
+            "noto-fonts-cjk",
             "libdrm",
         ),
     )
@@ -54,6 +55,7 @@ object Config {
             "v4l-utils",
             "openssl",
             "libsrtp",
+            "noto-fonts-cjk",
             "ffmpeg",
             "vulkan-icd-loader",
         ),
