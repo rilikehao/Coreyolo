@@ -20,9 +20,9 @@ class Colors:
 # 默认配置
 DEFAULT_ONNX_PATH = '../best.onnx'
 DATASET_PATH = '../data/subset.txt'
-DEFAULT_RKNN_PATH = '../best.rknn'
+DEFAULT_RKNN_PATH = '../best_rk3576.rknn'
 DEFAULT_QUANT = True
-PLATFORM = "rk3588"
+PLATFORM = "rk3576"
 
 def print_info(message):
     """打印带颜色的信息"""

@@ -103,14 +103,20 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
         ).directory(File(VENV_PATH)).runCommand()
 
-        println("转换为 RKNN 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn.py"
-        ).directory(File(VENV_PATH)).runCommand()
-
         println("重命名量化模型...")
         ProcessBuilder("mv", "../best_quant.mnn", "../best.mnn").directory(File(VENV_PATH)).runCommand()
+
+        println("转换为 RKNN (RK3588) 模型...")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
+        ).directory(File(VENV_PATH)).runCommand()
+
+        println("转换为 RKNN (RK3576) 模型...")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
+        ).directory(File(VENV_PATH)).runCommand()
 
         println("模型导出完成！")
     }
@@ -121,7 +127,9 @@ object TrainEnvBuilder {
         println("======================================")
 
         val filesToDelete = listOf(
-            "best.onnx", "best.rknn", "best.mnn",
+            "best.onnx", 
+            "best_rk3588.rknn", "best_rk3576.rknn", 
+            "best.mnn",
             "best_quant.mnn.json", "quant_config.json",
         )
 
