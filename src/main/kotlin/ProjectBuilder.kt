@@ -53,8 +53,16 @@ object ProjectBuilder {
         ).directory(rgaBuildDir).runCommand()
         ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(rgaBuildDir).runCommand()
 
-        ProcessBuilder("cp", "-r", File("rk3588/rkrga/build/libutils_obj.so").absolutePath, targetLibDir.absolutePath).runCommand()
-        ProcessBuilder("cp", "-r", File("rk3588/rkrga/samples/utils/allocator/include").absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
+        ProcessBuilder(
+            "cp",  "-r",
+            File("rk3588/rkrga/build/libutils_obj.so").absolutePath,
+            targetLibDir.absolutePath
+        ).runCommand()
+        ProcessBuilder(
+            "cp",  "-r",
+            File("rk3588/rkrga/samples/utils/allocator/include").absolutePath + "/.",
+            targetIncludeDir.absolutePath
+        ).runCommand()
 
         val pc = File("rk3588/root/usr/local/lib/pkgconfig/librga.pc")
         pc.parentFile.mkdirs()
@@ -203,6 +211,7 @@ object ProjectBuilder {
                 "--disable-stripping",
                 "--disable-doc",
             )
+
             else -> throw Error("不支持的平台")
         }
 
@@ -244,7 +253,7 @@ object ProjectBuilder {
             cloneIfNeeded(zLMediaKitDir, "https://github.com/ZLMediaKit/ZLMediaKit.git")
 
             ProcessBuilder(
-                "git",  "submodule", "update", "--init",
+                "git", "submodule", "update", "--init",
             ).directory(zLMediaKitDir).runCommand()
 
             val buildDir = File("${archConfig.name}/ZLMediaKit/build")
@@ -397,11 +406,11 @@ object ProjectBuilder {
                 udpTTL=64
                 
                 [protocol]
-                add_mute_audio=1
+                add_mute_audio=0
                 auto_close=0
                 continue_push_ms=15000
                 enable_audio=1
-                enable_fmp4=1
+                enable_fmp4=0
                 enable_hls=0
                 enable_hls_fmp4=0
                 enable_mp4=0
@@ -460,6 +469,7 @@ object ProjectBuilder {
                 keepAliveSecond=15
                 port=51935
                 sslport=0
+                modifyStamp=2
                 
                 [rtp]
                 audioMtuSize=600
@@ -491,6 +501,7 @@ object ProjectBuilder {
                 port=50554
                 rtpTransportType=-1
                 sslport=0
+                modifyStamp=2
                 
                 [shell]
                 maxReqSize=1024
@@ -549,6 +560,7 @@ object ProjectBuilder {
                 ).runCommand()
                 println("AppImage created: ${archConfig.name}/YoloInfer.AppImage")
             }
+
             else -> {
                 File("${archConfig.name}/root/lib").mkdirs()
                 listOf(

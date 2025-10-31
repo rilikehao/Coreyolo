@@ -64,6 +64,8 @@ class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit 
         codecCtx.pointed.gop_size = 10
         codecCtx.pointed.time_base.num = 1
         codecCtx.pointed.time_base.den = 90000
+        codecCtx.pointed.framerate.num = 90000
+        codecCtx.pointed.framerate.den = 1
         val packet = av_packet_alloc()!!
         var pts0 = 0L
         try {
