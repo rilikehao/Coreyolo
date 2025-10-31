@@ -87,39 +87,6 @@ void QueryModelInfo(Session* s) {
     qDebug("model input height=%d, width=%d", s->h_, s->w_);
 }
 
-QImage ScalePadToRGBRga(QImage image, int w, int h, float& scale) {
-    float scale_w = static_cast<float>(w) / image.width();
-    float scale_h = static_cast<float>(h) / image.height();
-    scale = std::min(scale_w, scale_h);
-    int target_w = scale * image.width();
-    int target_h = scale * image.height();
-    QImage target(w, h, QImage::Format_RGB888);
-    for (int i = 0; i < h; ++i) {
-        memset(target.scanLine(i), kBgColor, target.bytesPerLine());
-    }
-    im_handle_param_t params;
-    params.width = target.bytesPerLine() / 3;
-    params.height = target.height();
-    params.format = RK_FORMAT_RGB_888;
-    auto dstHandle = importbuffer_virtualaddr(target.bits(), &params);
-    auto dst =  //
-        wrapbuffer_handle(dstHandle, target_w, target_h,
-                          RK_FORMAT_RGB_888,  //
-                          params.width, params.height);
-    params.width = image.bytesPerLine() / 3;
-    params.height = image.height();
-    params.format = RK_FORMAT_RGB_888;
-    auto srcHandle = importbuffer_virtualaddr(image.bits(), &params);
-    auto src =  //
-        wrapbuffer_handle(srcHandle, image.width(), image.height(),
-                          RK_FORMAT_RGB_888,  //
-                          params.width, params.height);
-    imresize(src, dst);
-    releasebuffer_handle(srcHandle);
-    releasebuffer_handle(dstHandle);
-    return target;
-}
-
 }  // namespace
 
 Infer* CreateInfer(InferConfig* config) {
@@ -151,9 +118,7 @@ void DestroyInferTask(struct InferTask* task) { delete task; }
 void Detect0(Infer* infer, InferTask* task, int no) {
     int h = infer->sessions_[no].h_, w = infer->sessions_[no].w_;
     QImage scaled =
-        no < kScaleUsingGPU
-            ? ScalePadToRGB(task->image_->data_, w, h, task->scale_)
-            : ScalePadToRGBRga(task->image_->data_, w, h, task->scale_);
+        ScalePadToRGB(task->image_->data_, w, h, task->scale_);
     const uchar* data = scaled.constBits();
     rknn_input input;
     input.index = 0;

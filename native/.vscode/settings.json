@@ -17,6 +17,7 @@
         "span": "cpp",
         "text_encoding": "cpp",
         "regex": "cpp",
-        "qnetworkaccessmanager": "cpp"
+        "qnetworkaccessmanager": "cpp",
+        "stdexcept": "cpp"
     }
 }
