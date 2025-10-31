@@ -63,7 +63,7 @@ class RtspInput(val url: String) : Video {
                 avcodec_send_packet(codecCtx, packet).check("avcodec_send_packet")
                 while (avcodec_receive_frame(codecCtx, frame) == 0) {
                     val pts = frame.pointed.pts.toDouble() * timeBase.num / timeBase.den
-                    val start = Instant.fromEpochMilliseconds(formatCtx.pointed.start_time_realtime / 1000)
+                    val start = Instant.fromEpochMilliseconds(formatCtx.pointed.start_time_realtime / 1000L)
                     val timestamp = start + pts.seconds
                     if (inputFrames == 0L) timestamp0 = timestamp
                     if (maxFrames(timestamp - timestamp0) < inputFrames) continue

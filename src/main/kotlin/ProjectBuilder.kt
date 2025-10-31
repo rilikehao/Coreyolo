@@ -353,9 +353,8 @@ object ProjectBuilder {
                 deleteDelaySec=10
                 fastRegister=0
                 fileBufSize=65536
-                segDelay=0
-                segDur=2
-                segKeep=0
+                segDur=60
+                segKeep=1
                 segNum=3
                 segRetain=5
                 
@@ -411,7 +410,7 @@ object ProjectBuilder {
                 continue_push_ms=15000
                 enable_audio=1
                 enable_fmp4=0
-                enable_hls=0
+                enable_hls=1
                 enable_hls_fmp4=0
                 enable_mp4=0
                 enable_rtmp=1
@@ -420,7 +419,7 @@ object ProjectBuilder {
                 fmp4_demand=0
                 hls_demand=0
                 hls_save_path=$PWD/www
-                modify_stamp=2
+                modify_stamp=0
                 mp4_as_player=0
                 mp4_max_second=3600
                 mp4_save_path=$PWD/www
@@ -469,7 +468,7 @@ object ProjectBuilder {
                 keepAliveSecond=15
                 port=51935
                 sslport=0
-                modifyStamp=2
+                modifyStamp=0
                 
                 [rtp]
                 audioMtuSize=600
@@ -501,7 +500,7 @@ object ProjectBuilder {
                 port=50554
                 rtpTransportType=-1
                 sslport=0
-                modifyStamp=2
+                modifyStamp=0
                 
                 [shell]
                 maxReqSize=1024

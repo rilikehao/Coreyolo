@@ -11,7 +11,7 @@ class Device : AutoCloseable {
         const val H264_ENCODER_NAME = "libx264"
         const val H264_ENCODER_FORMAT = AV_PIX_FMT_YUV420P
 
-        val encoderOptions = arrayOf("qp" to "20", "preset" to "fast")
+        val encoderOptions = arrayOf("qp" to "24", "preset" to "fast")
     }
 
     override fun close() = Unit
