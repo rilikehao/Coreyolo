@@ -31,6 +31,12 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
     val detect0Manager = Manager(Device.NPU_THREADS)
     val detect1Manager = Manager(Device.CPU_THREADS)
 
+    init {
+        val image = CreateImageRGB24(1, 1)
+        DrawRect(image, cValue<Rect>(), 0, 0, 0, "强制初始化".cstr)
+        DestroyImage(image)
+    }
+
     override fun close() = runBlocking {
         detect1Manager.close()
         detect0Manager.close()

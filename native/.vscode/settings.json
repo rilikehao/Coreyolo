@@ -18,6 +18,8 @@
         "text_encoding": "cpp",
         "regex": "cpp",
         "qnetworkaccessmanager": "cpp",
-        "stdexcept": "cpp"
+        "stdexcept": "cpp",
+        "qstatictext": "cpp",
+        "qreadlocker": "cpp"
     }
 }
