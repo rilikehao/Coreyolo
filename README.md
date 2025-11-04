@@ -77,19 +77,22 @@ CoreYolo/
 
 ```bash
 # 图像推理
-x64/YoloInfer.AppImage config-x64-image.toml
+x64/YoloInfer.AppImage configs/config-x64-image.toml
 
 # 摄像头推理
-x64/YoloInfer.AppImage config-x64-camera.toml
+x64/YoloInfer.AppImage configs/config-x64-camera.toml
 
 # 流媒体推理
-x64/YoloInfer.AppImage config-x64.toml
+x64/YoloInfer.AppImage configs/config-x64.toml
 
 # 流媒体推理 (在 rk3588 运行)
-rk3588/YoloInfer.AppImage config-rk3588.toml
+rk3588/YoloInfer.AppImage configs/config-rk3588.toml
 
 # 流媒体推理 (在限制功率的 rk3588 运行)
-rk3588/YoloInfer.AppImage config-rk3588-degraded.toml
+rk3588/YoloInfer.AppImage configs/config-rk3588-degraded.toml
+
+# 流媒体推理 (在 rk3576 运行)
+rk3588/YoloInfer.AppImage configs/config-rk3576.toml
 ```
 
 ## YOLO 模型导出工具
