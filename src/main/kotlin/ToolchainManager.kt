@@ -4,16 +4,16 @@ object ToolchainManager {
     fun createCmakeToolchainFile(archConfig: Config.ArchConfig) {
         val rootPath = arrayOf(
             archConfig.sysrootDir,
-            "${File(archConfig.targetDir).absolutePath}/usr",
-            File(archConfig.installPrefix).absolutePath,
+            "${File(archConfig.targetDir()).absolutePath}/usr",
+            File(archConfig.installPrefix()).absolutePath,
         ).joinToString(";")
         val includeFlags = arrayOf(
-            "${File(archConfig.targetDir).absolutePath}/usr/include",
-            "${File(archConfig.installPrefix).absolutePath}/include",
+            "${File(archConfig.targetDir()).absolutePath}/usr/include",
+            "${File(archConfig.installPrefix()).absolutePath}/include",
         ).joinToString(" ") { "-I$it" }
         val linkerFlags = arrayOf(
-            "${File(archConfig.targetDir).absolutePath}/usr/lib",
-            "${File(archConfig.installPrefix).absolutePath}/lib",
+            "${File(archConfig.targetDir()).absolutePath}/usr/lib",
+            "${File(archConfig.installPrefix()).absolutePath}/lib",
         ).joinToString(" ") { "-L$it -Wl,-rpath-link=$it" }
         val content = """
             set(CMAKE_SYSTEM_NAME Linux)
@@ -23,7 +23,7 @@ object ToolchainManager {
             set(CMAKE_CXX_COMPILER ${archConfig.compilerPrefix}g++)
             set(CMAKE_SYSROOT "${archConfig.sysrootDir}")
             set(CMAKE_FIND_ROOT_PATH "$rootPath")
-            set(CMAKE_PROGRAM_PATH "${File(Config.X64.targetDir).absolutePath}/usr/bin")
+            set(CMAKE_PROGRAM_PATH "${File(Config.x86_64.targetDir()).absolutePath}/usr/bin")
             set(CMAKE_CXX_FLAGS "$includeFlags")
             set(CMAKE_EXE_LINKER_FLAGS "$linkerFlags")
             set(CMAKE_SHARED_LINKER_FLAGS "$linkerFlags")
@@ -34,7 +34,7 @@ object ToolchainManager {
             set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
         """.trimIndent()
 
-        File(archConfig.toolchainCmake).parentFile.mkdirs()
-        File(archConfig.toolchainCmake).writeText(content)
+        File(archConfig.toolchain()).parentFile.mkdirs()
+        File(archConfig.toolchain()).writeText(content)
     }
 }

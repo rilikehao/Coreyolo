@@ -1,1 +1,1 @@
-.clinerules/CLAUDE.md
+README.md

@@ -6,6 +6,6 @@ sysroot/
 .gradle/
 .kotlin/
 
-/rk3588/
-/x64/
+/aarch64/
+/x86_64/
 /www/

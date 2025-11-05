@@ -1,67 +1,78 @@
 object Config {
     data class ArchConfig(
-        val name: String,
         val mirrorBase: (String) -> String,
         val packageFile: (String, String, String) -> String,
         val compilerPrefix: String,
         val cpu: String,
-        val targetArch: String,
         val sysrootDir: String,
-        val targetDir: String,
-        val toolchainTxt: String,
-        val toolchainCmake: String,
-        val installPrefix: String,
-        val defaultPackages: List<String>,
-    )
+        val packages: List<String>,
+        val script: String,
+    ) {
+        fun targetArch() = "$cpu-linux-gnu"
+        fun targetDir() = "$cpu/root"
+        fun toolchain() = "$cpu/toolchain.cmake"
+        fun installPrefix() = "$cpu/root/usr/local"
+        fun defaultPackages() = packages + listOf(
+            "lua",
+            "qt6-base",
+            "v4l-utils",
+            "openssl",
+            "libsrtp",
+        )
+    }
 
-    val RK3588 = ArchConfig(
-        name = "rk3588",
+    val aarch64 = ArchConfig(
         mirrorBase = { repo -> "http://ca.us.mirror.archlinuxarm.org/aarch64/$repo" },
         packageFile = { pkgName, version, arch -> "$pkgName-$version-$arch.pkg.tar.xz" },
         compilerPrefix = "aarch64-linux-gnu-",
         cpu = "aarch64",
-        targetArch = "aarch64-linux-gnu",
         sysrootDir = "/usr/aarch64-linux-gnu",
-        targetDir = "rk3588/root",
-        toolchainTxt = "rk3588/toolchain.txt",
-        toolchainCmake = "rk3588/toolchain.cmake",
-        installPrefix = "rk3588/root/usr/local",
-        defaultPackages = listOf(
-            "lua",
-            "qt6-base",
-            "v4l-utils",
-            "openssl",
-            "libsrtp",
-            "noto-fonts-cjk",
-            "libdrm",
-        ),
+        packages = listOf("libdrm"),
+        script = $$"""
+            #!/bin/bash
+            APP_DIR="$(dirname "$(readlink -f "$0")")"
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+            cp -r "$APP_DIR/www" "$PWD"
+            sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
+            "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
+            PID_MEDIA_SERVER=$!
+            export QT_QPA_PLATFORM=offscreen
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
+            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
+                echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
+                sleep 5
+            done
+            kill $PID_MEDIA_SERVER
+        """.trimIndent()
     )
 
-    val X64 = ArchConfig(
-        name = "x64",
+    val x86_64 = ArchConfig(
         mirrorBase = { repo -> "http://mirrors.ocf.berkeley.edu/archlinux/$repo/os/x86_64" },
         packageFile = { pkgName, version, arch -> "$pkgName-$version-$arch.pkg.tar.zst" },
         compilerPrefix = "",
         cpu = "x86_64",
-        targetArch = "x86_64-linux-gnu",
         sysrootDir = "/",
-        targetDir = "x64/root",
-        toolchainTxt = "x64/toolchain.txt",
-        toolchainCmake = "x64/toolchain.cmake",
-        installPrefix = "x64/root/usr/local",
-        defaultPackages = listOf(
-            "lua",
-            "qt6-base",
-            "v4l-utils",
-            "openssl",
-            "libsrtp",
-            "noto-fonts-cjk",
-            "ffmpeg",
-            "vulkan-icd-loader",
-        ),
+        packages = listOf("ffmpeg", "vulkan-icd-loader"),
+        script = $$"""
+            #!/bin/bash
+            PWD="$(pwd)"
+            APP_DIR="$(dirname "$(readlink -f "$0")")"
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+            cp -r "$APP_DIR/www" "$PWD"
+            sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
+            LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
+            PID_MEDIA_SERVER=$!
+            export QT_QPA_PLATFORM=offscreen
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
+            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
+                echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
+                sleep 5
+            done
+            kill $PID_MEDIA_SERVER
+        """.trimIndent()
     )
 
-    val archConfigs = listOf(RK3588, X64)
+    val archConfigs = listOf(aarch64, x86_64)
     val excludeList = setOf("glibc", "gcc-libs", "linux-api-headers")
     val repos = listOf("core", "extra")
 }

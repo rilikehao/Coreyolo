@@ -3,11 +3,11 @@ import java.io.File
 
 object ProjectBuilder {
     fun buildRGA() {
-        ToolchainManager.createCmakeToolchainFile(Config.RK3588)
-        val rgaDir = File("rk3588/rkrga")
+        ToolchainManager.createCmakeToolchainFile(Config.aarch64)
+        val rgaDir = File("aarch64/rkrga")
         cloneIfNeeded(rgaDir, "https://github.com/airockchip/librga.git")
-        val targetLibDir = File("rk3588/root/usr/local/lib")
-        val targetIncludeDir = File("rk3588/root/usr/local/include/rga")
+        val targetLibDir = File("aarch64/root/usr/local/lib")
+        val targetIncludeDir = File("aarch64/root/usr/local/include/rga")
         targetLibDir.mkdirs()
         targetIncludeDir.mkdirs()
 
@@ -17,57 +17,57 @@ object ProjectBuilder {
         ProcessBuilder("cp", "-r", sourceLibDir.absolutePath + "/.", targetLibDir.absolutePath).runCommand()
         ProcessBuilder("cp", "-r", sourceIncludeDir.absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
 
-        if (!File("rk3588/rkrga/samples/utils/CMakeLists.txt.backup").exists()) {
+        if (!File("aarch64/rkrga/samples/utils/CMakeLists.txt.backup").exists()) {
             ProcessBuilder(
                 "cp",
-                "rk3588/rkrga/samples/utils/CMakeLists.txt",
-                "rk3588/rkrga/samples/utils/CMakeLists.txt.backup",
+                "aarch64/rkrga/samples/utils/CMakeLists.txt",
+                "aarch64/rkrga/samples/utils/CMakeLists.txt.backup",
             ).runCommand()
             ProcessBuilder(
                 "sed", "-i",
                 "s/add_library(utils_obj OBJECT \"\")/add_library(utils_obj SHARED \"\")/",
-                "rk3588/rkrga/samples/utils/CMakeLists.txt",
+                "aarch64/rkrga/samples/utils/CMakeLists.txt",
             ).runCommand()
         }
-        if (!File("rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp.backup").exists()) {
+        if (!File("aarch64/rkrga/samples/utils/allocator/dma_alloc.cpp.backup").exists()) {
             ProcessBuilder(
                 "cp",
-                "rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp",
-                "rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp.backup",
+                "aarch64/rkrga/samples/utils/allocator/dma_alloc.cpp",
+                "aarch64/rkrga/samples/utils/allocator/dma_alloc.cpp.backup",
             ).runCommand()
             ProcessBuilder(
                 "sed", "-i",
                 "-e", "1i extern \"C\" {",
                 "-e", $$"$a }",
-                "rk3588/rkrga/samples/utils/allocator/dma_alloc.cpp",
+                "aarch64/rkrga/samples/utils/allocator/dma_alloc.cpp",
             ).runCommand()
         }
-        val rgaBuildDir = File("rk3588/rkrga/build")
+        val rgaBuildDir = File("aarch64/rkrga/build")
         rgaBuildDir.mkdirs()
         ProcessBuilder(
-            "/usr/bin/cmake", File("rk3588/rkrga/samples/utils").absolutePath,
-            "-DCMAKE_TOOLCHAIN_FILE=${File(Config.RK3588.toolchainCmake).absolutePath}",
-            "-DCMAKE_INSTALL_PREFIX=${File(Config.RK3588.installPrefix).absolutePath}",
+            "/usr/bin/cmake", File("aarch64/rkrga/samples/utils").absolutePath,
+            "-DCMAKE_TOOLCHAIN_FILE=${File(Config.aarch64.toolchain()).absolutePath}",
+            "-DCMAKE_INSTALL_PREFIX=${File(Config.aarch64.installPrefix()).absolutePath}",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DBUILD_SHARED_LIBS=ON",
         ).directory(rgaBuildDir).runCommand()
         ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(rgaBuildDir).runCommand()
 
         ProcessBuilder(
-            "cp",  "-r",
-            File("rk3588/rkrga/build/libutils_obj.so").absolutePath,
+            "cp", "-r",
+            File("aarch64/rkrga/build/libutils_obj.so").absolutePath,
             targetLibDir.absolutePath
         ).runCommand()
         ProcessBuilder(
-            "cp",  "-r",
-            File("rk3588/rkrga/samples/utils/allocator/include").absolutePath + "/.",
+            "cp", "-r",
+            File("aarch64/rkrga/samples/utils/allocator/include").absolutePath + "/.",
             targetIncludeDir.absolutePath
         ).runCommand()
 
-        val pc = File("rk3588/root/usr/local/lib/pkgconfig/librga.pc")
+        val pc = File("aarch64/root/usr/local/lib/pkgconfig/librga.pc")
         pc.parentFile.mkdirs()
         $$"""
-            prefix=$${File("rk3588/root/usr/local").absolutePath}
+            prefix=$${File("aarch64/root/usr/local").absolutePath}
             exec_prefix=${prefix}
             libdir=${prefix}/lib
             includedir=${prefix}/include
@@ -79,19 +79,19 @@ object ProjectBuilder {
             Libs: -L${libdir} -lrga
             Libs.private:
             Cflags: -I${includedir}
-        """.trimIndent().let { File("rk3588/root/usr/local/lib/pkgconfig/librga.pc").writeText(it) }
+        """.trimIndent().let { File("aarch64/root/usr/local/lib/pkgconfig/librga.pc").writeText(it) }
     }
 
     fun buildMPP() {
-        ToolchainManager.createCmakeToolchainFile(Config.RK3588)
-        val mppDir = File("rk3588/rkmpp")
+        ToolchainManager.createCmakeToolchainFile(Config.aarch64)
+        val mppDir = File("aarch64/rkmpp")
         cloneIfNeeded(mppDir, "https://github.com/rockchip-linux/mpp.git")
-        val mppBuildDir = File("rk3588/rkmpp/build")
+        val mppBuildDir = File("aarch64/rkmpp/build")
         mppBuildDir.mkdirs()
         ProcessBuilder(
             "/usr/bin/cmake", mppDir.absolutePath,
-            "-DCMAKE_TOOLCHAIN_FILE=${File(Config.RK3588.toolchainCmake).absolutePath}",
-            "-DCMAKE_INSTALL_PREFIX=${File(Config.RK3588.installPrefix).absolutePath}",
+            "-DCMAKE_TOOLCHAIN_FILE=${File(Config.aarch64.toolchain()).absolutePath}",
+            "-DCMAKE_INSTALL_PREFIX=${File(Config.aarch64.installPrefix()).absolutePath}",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DBUILD_SHARED_LIBS=ON",
             "-DBUILD_TEST=OFF",
@@ -101,11 +101,11 @@ object ProjectBuilder {
     }
 
     fun buildRKNPU2() {
-        val rknpu2Dir = File("rk3588/rknn-toolkit2")
+        val rknpu2Dir = File("aarch64/rknn-toolkit2")
         cloneIfNeeded(rknpu2Dir, "https://github.com/airockchip/rknn-toolkit2.git")
 
-        val targetLibDir = File("rk3588/root/usr/local/lib")
-        val targetIncludeDir = File("rk3588/root/usr/local/include")
+        val targetLibDir = File("aarch64/root/usr/local/lib")
+        val targetIncludeDir = File("aarch64/root/usr/local/include")
         targetLibDir.mkdirs()
         targetIncludeDir.mkdirs()
 
@@ -116,18 +116,16 @@ object ProjectBuilder {
         ProcessBuilder("cp", "-r", sourceIncludeDir.absolutePath + "/.", targetIncludeDir.absolutePath).runCommand()
     }
 
-    fun buildMNN() = buildMNN(Config.X64)
-
-    fun buildMNN(archConfig: Config.ArchConfig) {
-        val mnnDir = File("${archConfig.name}/MNN")
+    fun buildMNN() {
+        val mnnDir = File("x86_64/MNN")
         cloneIfNeeded(mnnDir, "https://github.com/alibaba/MNN.git")
 
-        val mnnBuildDir = File("${archConfig.name}/MNN/build")
+        val mnnBuildDir = File("x86_64/MNN/build")
         mnnBuildDir.mkdirs()
 
         ProcessBuilder(
             "/usr/bin/cmake", mnnDir.absolutePath,
-            "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix).absolutePath}",
+            "-DCMAKE_INSTALL_PREFIX=${File(Config.x86_64.installPrefix()).absolutePath}",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DBUILD_SHARED_LIBS=ON",
             "-DMNN_BUILD_TOOLS=ON",
@@ -139,11 +137,11 @@ object ProjectBuilder {
         ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(mnnBuildDir).runCommand()
         ProcessBuilder("make", "install").directory(mnnBuildDir).runCommand()
 
-        val vulkanLib = File("${archConfig.name}/MNN/build/source/backend/vulkan/libMNN_Vulkan.so")
-        val convertDepsLib = File("${archConfig.name}/MNN/build/tools/converter/libMNNConvertDeps.so")
-        val trainLib = File("${archConfig.name}/MNN/build/tools/train/libMNNTrain.so")
-        val trainUtilsLib = File("${archConfig.name}/MNN/build/tools/train/libMNNTrainUtils.so")
-        val targetLibDir = File("${archConfig.installPrefix}/lib")
+        val vulkanLib = File("x86_64/MNN/build/source/backend/vulkan/libMNN_Vulkan.so")
+        val convertDepsLib = File("x86_64/MNN/build/tools/converter/libMNNConvertDeps.so")
+        val trainLib = File("x86_64/MNN/build/tools/train/libMNNTrain.so")
+        val trainUtilsLib = File("x86_64/MNN/build/tools/train/libMNNTrainUtils.so")
+        val targetLibDir = File("x86_64/lib")
 
         if (vulkanLib.exists()) {
             ProcessBuilder("cp", vulkanLib.absolutePath, targetLibDir.absolutePath).runCommand()
@@ -162,8 +160,8 @@ object ProjectBuilder {
         }
 
         val tools = listOf("MNNConvert", "quantized.out", "GetMNNInfo")
-        val sourceBuildDir = File("${archConfig.name}/MNN/build")
-        val targetBinDir = File("${archConfig.installPrefix}/bin")
+        val sourceBuildDir = File("x86_64/MNN/build")
+        val targetBinDir = File("x86_64/bin")
         targetBinDir.mkdirs()
 
         tools.forEach { tool ->
@@ -174,51 +172,45 @@ object ProjectBuilder {
         }
     }
 
-    fun buildFFmpeg() = buildFFmpeg(Config.RK3588)
-
-    fun buildFFmpeg(archConfig: Config.ArchConfig) {
-        val ffmpegDir = File("${archConfig.name}/ffmpeg")
+    fun buildFFmpeg() {
+        val ffmpegDir = File("aarch64/ffmpeg")
         cloneIfNeeded(ffmpegDir, "https://github.com/nyanmisaka/ffmpeg-rockchip.git")
 
-        val configureArgs = when (archConfig) {
-            Config.RK3588 -> arrayOf(
-                "./configure",
-                "--prefix=${File(archConfig.installPrefix).absolutePath}",
-                "--arch=arm64",
-                "--target-os=linux",
-                "--cross-prefix=${archConfig.targetArch}-",
-                "--sysroot=${archConfig.sysrootDir}",
-                "--pkg-config=pkg-config",
-                "--extra-cflags=${
-                    arrayOf(
-                        "${File(archConfig.installPrefix).absolutePath}/include",
-                        "${File(archConfig.targetDir).absolutePath}/usr/include"
-                    ).joinToString(" ") { "-I$it" }
-                }",
-                "--extra-ldflags=${
-                    arrayOf(
-                        "${File(archConfig.installPrefix).absolutePath}/lib",
-                        "${File(archConfig.targetDir).absolutePath}/usr/lib"
-                    ).joinToString(" ") { "-L$it" }
-                }",
-                "--enable-gpl",
-                "--enable-version3",
-                "--enable-libdrm",
-                "--enable-rkmpp",
-                "--enable-rkrga",
-                "--enable-shared",
-                "--disable-static",
-                "--disable-stripping",
-                "--disable-doc",
-            )
-
-            else -> throw Error("不支持的平台")
-        }
+        val configureArgs = arrayOf(
+            "./configure",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}",
+            "--arch=arm64",
+            "--target-os=linux",
+            "--cross-prefix=${Config.aarch64.compilerPrefix}",
+            "--sysroot=${Config.aarch64.sysrootDir}",
+            "--pkg-config=pkg-config",
+            "--extra-cflags=${
+                arrayOf(
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/include",
+                    "${File(Config.aarch64.targetDir()).absolutePath}/usr/include"
+                ).joinToString(" ") { "-I$it" }
+            }",
+            "--extra-ldflags=${
+                arrayOf(
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/lib",
+                    "${File(Config.aarch64.targetDir()).absolutePath}/usr/lib"
+                ).joinToString(" ") { "-L$it" }
+            }",
+            "--enable-gpl",
+            "--enable-version3",
+            "--enable-libdrm",
+            "--enable-rkmpp",
+            "--enable-rkrga",
+            "--enable-shared",
+            "--disable-static",
+            "--disable-stripping",
+            "--disable-doc",
+        )
 
         ProcessBuilder(*configureArgs).apply {
             environment()["PKG_CONFIG_LIBDIR"] = arrayOf(
-                "${File(archConfig.targetDir).absolutePath}/usr/lib/pkgconfig",
-                "${File(archConfig.installPrefix).absolutePath}/lib/pkgconfig",
+                "${File(Config.aarch64.installPrefix()).absolutePath}/lib/pkgconfig",
+                "${File(Config.aarch64.targetDir()).absolutePath}/usr/lib/pkgconfig",
             ).joinToString(":")
         }.directory(ffmpegDir).runCommand()
         ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(ffmpegDir).runCommand()
@@ -229,16 +221,16 @@ object ProjectBuilder {
         Config.archConfigs.forEach { archConfig ->
             ToolchainManager.createCmakeToolchainFile(archConfig)
             val nativeDir = File("native")
-            val buildDir = File("${archConfig.name}/native/build")
+            val buildDir = File("${archConfig.cpu}/native/build")
             buildDir.mkdirs()
 
             ProcessBuilder(
                 "/usr/bin/cmake", nativeDir.absolutePath,
-                "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchainCmake).absolutePath}",
-                "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix).absolutePath}",
+                "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchain()).absolutePath}",
+                "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix()).absolutePath}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DBUILD_SHARED_LIBS=ON",
-                "-DPLATFORM=${archConfig.name}",
+                "-DPLATFORM=${archConfig.cpu}",
             ).directory(buildDir).runCommand()
 
             ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir).runCommand()
@@ -249,20 +241,20 @@ object ProjectBuilder {
     fun buildZLMediaKit() {
         Config.archConfigs.forEach { archConfig ->
             ToolchainManager.createCmakeToolchainFile(archConfig)
-            val zLMediaKitDir = File("${archConfig.name}/ZLMediaKit")
+            val zLMediaKitDir = File("${archConfig.cpu}/ZLMediaKit")
             cloneIfNeeded(zLMediaKitDir, "https://github.com/ZLMediaKit/ZLMediaKit.git")
 
             ProcessBuilder(
                 "git", "submodule", "update", "--init",
             ).directory(zLMediaKitDir).runCommand()
 
-            val buildDir = File("${archConfig.name}/ZLMediaKit/build")
+            val buildDir = File("${archConfig.cpu}/ZLMediaKit/build")
             buildDir.mkdirs()
 
             ProcessBuilder(
                 "/usr/bin/cmake", zLMediaKitDir.absolutePath,
-                "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchainCmake).absolutePath}",
-                "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix).absolutePath}",
+                "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchain()).absolutePath}",
+                "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix()).absolutePath}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
                 "-DENABLE_OBJCOPY=no",
@@ -273,8 +265,8 @@ object ProjectBuilder {
 
             ProcessBuilder(
                 "cp", "-r",
-                File("${archConfig.name}/ZLMediaKit/release/linux/Release/www").absolutePath,
-                File("${archConfig.name}/root").absolutePath,
+                File("${archConfig.cpu}/ZLMediaKit/release/linux/Release/www").absolutePath,
+                File("${archConfig.cpu}/root").absolutePath,
             ).runCommand()
         }
     }
@@ -308,7 +300,7 @@ object ProjectBuilder {
     }
 
     fun buildAppImage(archConfig: Config.ArchConfig) {
-        File("${archConfig.name}/root/www/config.ini").writeText(
+        File("${archConfig.cpu}/root/www/config.ini").writeText(
             $$"""
                 ; auto-generated by mINI class {
                 
@@ -516,7 +508,7 @@ object ProjectBuilder {
                 ; } ---
             """.trimIndent()
         )
-        File("${archConfig.name}/root/YoloInfer.desktop").writeText(
+        File("${archConfig.cpu}/root/YoloInfer.desktop").writeText(
             """
                 [Desktop Entry]
                 Type=Application
@@ -527,97 +519,42 @@ object ProjectBuilder {
                 Terminal=true
             """.trimIndent()
         )
-        File("${archConfig.name}/root/YoloInfer.png").writeText("")
-        when (archConfig) {
-            Config.X64 -> {
-                File("${archConfig.name}/root/AppRun").apply {
-                    writeText(
-                        $$"""
-                            #!/bin/bash
-                            PWD="$(pwd)"
-                            APP_DIR="$(dirname "$(readlink -f "$0")")"
-                            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
-                            cp -r "$APP_DIR/www" "$PWD"
-                            sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
-                            LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
-                            PID_MEDIA_SERVER=$!
-                            export QT_QPA_PLATFORM=offscreen
-                            export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-                            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
-                                echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
-                                sleep 5
-                            done
-                            kill $PID_MEDIA_SERVER
-                        """.trimIndent()
-                    )
-                }.let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }
+        File("${archConfig.cpu}/root/YoloInfer.png").writeText("")
+        if (archConfig == Config.aarch64) {
+            File("aarch64/root/lib").mkdirs()
+            listOf(
+                "ld-linux-aarch64.so.1",
+                "libc.so.6",
+                "libm.so.6",
+                "libpthread.so.0",
+                "libdl.so.2",
+                "librt.so.1",
+                "libresolv.so.2",
+                "libutil.so.1",
+                "libmvec.so.1",
+                "libstdc++.so.6",
+                "libgcc_s.so.1",
+            ).forEach { lib ->
                 ProcessBuilder(
-                    File(APP_IMAGE_TOOL).absolutePath,
-                    "--runtime-file", File("$APP_IMAGE_RUNTIME-x86_64").absolutePath,
-                    File("${archConfig.name}/root").absolutePath,
-                    File("${archConfig.name}/YoloInfer.AppImage").absolutePath,
+                    "cp", "-L",
+                    "/usr/aarch64-linux-gnu/lib/$lib",
+                    File("aarch64/root/lib/$lib").absolutePath,
                 ).runCommand()
-                println("AppImage created: ${archConfig.name}/YoloInfer.AppImage")
-            }
-
-            else -> {
-                File("${archConfig.name}/root/lib").mkdirs()
-                listOf(
-                    "ld-linux-aarch64.so.1",
-                    "libc.so.6",
-                    "libm.so.6",
-                    "libpthread.so.0",
-                    "libdl.so.2",
-                    "librt.so.1",
-                    "libresolv.so.2",
-                    "libutil.so.1",
-                    "libmvec.so.1",
-                    "libstdc++.so.6",
-                    "libgcc_s.so.1",
-                ).forEach { lib ->
-                    ProcessBuilder(
-                        "cp", "-L",
-                        "/usr/aarch64-linux-gnu/lib/$lib",
-                        File("${archConfig.name}/root/lib/$lib").absolutePath,
-                    ).runCommand()
-                }
-                File("${archConfig.name}/root/AppRun").apply {
-                    writeText(
-                        $$"""
-                            #!/bin/bash
-                            APP_DIR="$(dirname "$(readlink -f "$0")")"
-                            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
-                            cp -r "$APP_DIR/www" "$PWD"
-                            sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
-                            "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
-                            PID_MEDIA_SERVER=$!
-                            export QT_QPA_PLATFORM=offscreen
-                            export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-                            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
-                                echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
-                                sleep 5
-                            done
-                            kill $PID_MEDIA_SERVER
-                        """.trimIndent()
-                    )
-                }.let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }
-                ProcessBuilder(
-                    File(APP_IMAGE_TOOL).absolutePath,
-                    "--runtime-file", File("$APP_IMAGE_RUNTIME-aarch64").absolutePath,
-                    File("${archConfig.name}/root").absolutePath,
-                    File("${archConfig.name}/YoloInfer.AppImage").absolutePath,
-                ).apply {
-                    environment()["ARCH"] = "aarch64"
-                }.runCommand()
-                println("AppImage created: ${archConfig.name}/YoloInfer.AppImage")
             }
         }
+        File("${archConfig.cpu}/root/AppRun").apply { writeText(archConfig.script) }
+            .let { ProcessBuilder("chmod", "+x", it.absolutePath).runCommand() }
+        ProcessBuilder(
+            File(APP_IMAGE_TOOL).absolutePath,
+            "--runtime-file", File("$APP_IMAGE_RUNTIME-${archConfig.cpu}").absolutePath,
+            File("${archConfig.cpu}/root").absolutePath,
+            File("${archConfig.cpu}/YoloInfer.AppImage").absolutePath,
+        ).apply { environment()["ARCH"] = archConfig.cpu }.runCommand()
+        println("AppImage created: ${archConfig.cpu}/YoloInfer.AppImage")
     }
 
     fun clean() {
-        Config.archConfigs.forEach { archConfig ->
-            File(archConfig.name).deleteRecursively()
-        }
+        Config.archConfigs.forEach { archConfig -> File(archConfig.cpu).deleteRecursively() }
         println("Clean completed!")
     }
 }

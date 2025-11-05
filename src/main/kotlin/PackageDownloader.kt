@@ -8,13 +8,13 @@ import java.nio.file.LinkOption
 import java.nio.file.Paths
 
 class PackageDownloader {
-    private val allVisited = mutableMapOf<String, MutableSet<String>>()
+    private val allVisited = mutableMapOf<Config.ArchConfig, MutableSet<String>>()
 
     fun act(archConfig: Config.ArchConfig, originName: String) {
-        val providesMap = PackageDatabase.getProvidesMap(archConfig.name)
+        val providesMap = PackageDatabase.getProvidesMap(archConfig)
         val pkgName = providesMap[originName] ?: return
 
-        val archVisited = allVisited.getOrPut(archConfig.name) { mutableSetOf() }
+        val archVisited = allVisited.getOrPut(archConfig) { mutableSetOf() }
         if (pkgName in archVisited || pkgName in Config.excludeList) return
 
         archVisited.add(pkgName)
@@ -27,12 +27,12 @@ class PackageDownloader {
         deps.forEach { act(archConfig, it) }
     }
 
-    private fun downloadAndExtract(archConfig: Config.ArchConfig, pkgName: String, pkgInfo: PackageInfo): List<String> {
+    private fun downloadAndExtract(archConfig: Config.ArchConfig, pkgName: String, pkgInfo: PackageDatabase.PackageInfo): List<String> {
         val fileName = archConfig.packageFile(pkgName, pkgInfo.version, pkgInfo.arch)
         val url = "${archConfig.mirrorBase(pkgInfo.repo)}/$fileName"
         val deps = mutableListOf<String>()
 
-        println("Download [${archConfig.name}]: $pkgName-${pkgInfo.version}")
+        println("Download [${archConfig.cpu}]: $pkgName-${pkgInfo.version}")
         try {
             java.net.URI(url).toURL().openStream().use { input ->
                 BufferedInputStream(input).use { bis ->
@@ -43,7 +43,7 @@ class PackageDownloader {
                     }
                     decompressor.use { decomp ->
                         TarArchiveInputStream(decomp).use { tis ->
-                            println("Extract [${archConfig.name}]: $pkgName")
+                            println("Extract [${archConfig.cpu}]: $pkgName")
                             while (true) {
                                 val entry = tis.nextEntry ?: break
                                 if (entry.name == ".PKGINFO") {
@@ -81,7 +81,7 @@ class PackageDownloader {
         entry: org.apache.commons.compress.archivers.tar.TarArchiveEntry,
         tis: TarArchiveInputStream
     ) {
-        val outFile = File(archConfig.targetDir, entry.name)
+        val outFile = File(archConfig.targetDir(), entry.name)
         when {
             entry.isSymbolicLink -> {
                 outFile.parentFile.mkdirs()
@@ -103,14 +103,14 @@ class PackageDownloader {
 
     fun downloadAll() {
         Config.archConfigs.forEach { archConfig ->
-            println("Starting download for ${archConfig.name}...")
-            val root = File(archConfig.targetDir)
+            println("Starting download for ${archConfig.cpu}...")
+            val root = File(archConfig.targetDir())
             root.mkdirs()
 
-            archConfig.defaultPackages.forEach { pkg -> act(archConfig, pkg) }
+            archConfig.defaultPackages().forEach { pkg -> act(archConfig, pkg) }
 
-            val visitedCount = allVisited[archConfig.name]?.size ?: 0
-            println("${archConfig.name} download completed: $visitedCount packages")
+            val visitedCount = allVisited[archConfig]?.size ?: 0
+            println("${archConfig.cpu} download completed: $visitedCount packages")
         }
     }
 }

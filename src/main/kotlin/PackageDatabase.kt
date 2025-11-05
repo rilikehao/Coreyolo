@@ -4,29 +4,26 @@ import java.io.BufferedInputStream
 import java.io.File
 
 object PackageDatabase {
-    private val providesMaps = mutableMapOf<String, Map<String, String>>()
+    private val providesMaps = mutableMapOf<Config.ArchConfig, Map<String, String>>()
 
-    fun getProvidesMap(archName: String): Map<String, String> {
-        return providesMaps.getOrPut(archName) {
-            buildProvidesMap(archName)
-        }
+    fun getProvidesMap(arch: Config.ArchConfig): Map<String, String> {
+        return providesMaps.getOrPut(arch) { buildProvidesMap(arch) }
     }
 
-    private fun buildProvidesMap(archName: String): Map<String, String> {
-        val archConfig = Config.archConfigs.find { it.name == archName } ?: return emptyMap()
+    private fun buildProvidesMap(arch: Config.ArchConfig): Map<String, String> {
         val map = mutableMapOf<String, String>()
 
         Config.repos.forEach { repo ->
-            parseDbFile(archConfig, repo, "desc") { _, realPkgName ->
+            parseDbFile(arch, repo, "desc") { _, realPkgName ->
                 map[realPkgName] = realPkgName
             }
         }
 
         Config.repos.forEach { repo ->
-            val dbFile = getRepoDatabase(archConfig, repo)
+            val dbFile = getRepoDatabase(arch, repo)
             println("  Parsing $repo.db (${dbFile.length() / 1024}KB)...")
             var count = 0
-            parseDbFile(archConfig, repo, "depends") { tis, realPkgName ->
+            parseDbFile(arch, repo, "depends") { tis, realPkgName ->
                 val content = tis.readBytes().toString(Charsets.UTF_8)
                 val lines = content.lines()
                 var i = 0
@@ -53,7 +50,7 @@ object PackageDatabase {
     }
 
     fun getRepoDatabase(archConfig: Config.ArchConfig, repo: String): File {
-        val dbDir = File(archConfig.name)
+        val dbDir = File(archConfig.cpu)
         dbDir.mkdirs()
         val dbFile = File(dbDir, "$repo.db")
         if (!dbFile.exists()) {
@@ -116,4 +113,6 @@ object PackageDatabase {
     }
 
     private class BreakException(val result: PackageInfo) : Exception()
+
+    data class PackageInfo(val repo: String, val version: String, val arch: String)
 }
