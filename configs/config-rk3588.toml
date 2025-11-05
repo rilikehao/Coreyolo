@@ -2,8 +2,8 @@
 type = "VIDEO"
 
 [paths]
-model = "assets/yolo11s_rk3588.rknn"
-description = "assets/yolo11s.txt"
+model = "assets/best.rk3588"
+description = "assets/coco.txt"
 drawScript = "lua/example.lua"
 
 [[streams]]

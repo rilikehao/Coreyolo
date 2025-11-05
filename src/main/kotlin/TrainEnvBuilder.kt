@@ -104,7 +104,7 @@ object TrainEnvBuilder {
         ).directory(File(VENV_PATH)).runCommand()
 
         println("重命名量化模型...")
-        ProcessBuilder("mv", "../best_quant.mnn", "../best.mnn").directory(File(VENV_PATH)).runCommand()
+        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
 
         println("转换为 RKNN (RK3588) 模型...")
         ProcessBuilder(
@@ -127,9 +127,8 @@ object TrainEnvBuilder {
         println("======================================")
 
         val filesToDelete = listOf(
-            "best.onnx", 
-            "best_rk3588.rknn", "best_rk3576.rknn", 
-            "best.mnn",
+            "best.onnx", "best.mnn",
+            "best.rk3588", "best.rk3576", "best.x86_64",
             "best_quant.mnn.json", "quant_config.json",
         )
 

@@ -133,8 +133,9 @@ aarch64/YoloInfer.AppImage configs/config-rk3576.toml
 
 该命令会自动导出以下模型格式：
 - `best.onnx`
-- `best.mnn`
-- `best.rknn`
+- `best.x86_64`
+- `best.rk3588`
+- `best.rk3576`
 
 ```bash
 ./gradlew run --args="train-clean"

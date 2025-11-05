@@ -20,7 +20,7 @@ class Colors:
 # 默认配置
 DEFAULT_ONNX_PATH = '../best.onnx'
 DATASET_PATH = '../data/subset.txt'
-DEFAULT_RKNN_PATH = '../best_rk3576.rknn'
+DEFAULT_RKNN_PATH = '../best.rk3576'
 DEFAULT_QUANT = True
 PLATFORM = "rk3576"
 
