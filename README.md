@@ -20,10 +20,10 @@
 - `[1, 1, 80, 80]` - 所有类别的置信度总和
 
 ### 性能实测数据
-**RK3588/RK3576** 的实测性能：
+**aarch64/RK3576** 的实测性能：
 - 使用 YOLO11 官方 S 大小模型（参数量 9.4M）
 - 640 x 480 分辨率
-- 同时处理 RK3588: 7 路视频, RK3576: 5 路视频
+- 同时处理 aarch64: 7 路视频, RK3576: 5 路视频
 - 编解码 30 FPS
 - 图像识别 10 FPS
 - 测试条件：使用 INT8 量化
@@ -77,22 +77,22 @@ CoreYolo/
 
 ```bash
 # 图像推理
-x64/YoloInfer.AppImage configs/config-x64-image.toml
+x86_64/YoloInfer.AppImage configs/config-x86_64-sw-image.toml
 
 # 摄像头推理
-x64/YoloInfer.AppImage configs/config-x64-camera.toml
+x86_64/YoloInfer.AppImage configs/config-x86_64-sw-camera.toml
 
 # 流媒体推理
-x64/YoloInfer.AppImage configs/config-x64.toml
+x86_64/YoloInfer.AppImage configs/config-x86_64-sw.toml
 
 # 流媒体推理 (在 rk3588 运行)
-rk3588/YoloInfer.AppImage configs/config-rk3588.toml
+aarch64/YoloInfer.AppImage configs/config-rk3588.toml
 
 # 流媒体推理 (在限制功率的 rk3588 运行)
-rk3588/YoloInfer.AppImage configs/config-rk3588-degraded.toml
+aarch64/YoloInfer.AppImage configs/config-rk3588-degraded.toml
 
 # 流媒体推理 (在 rk3576 运行)
-rk3588/YoloInfer.AppImage configs/config-rk3576.toml
+aarch64/YoloInfer.AppImage configs/config-rk3576.toml
 ```
 
 ## YOLO 模型导出工具
@@ -142,7 +142,7 @@ rk3588/YoloInfer.AppImage configs/config-rk3576.toml
 
 ## TODO
 
-1. 整理成 x86_64 和 aarch64 两种编译配置。
+1. [已完成] 整理成 x86_64 和 aarch64 两种编译配置。
 2. 输入端直连，输出端输出绘制和不绘制的两个流。
 3. 改成 AV1 编码输出。
 4. 支持 AMD，英伟达，华为，寒武纪。
