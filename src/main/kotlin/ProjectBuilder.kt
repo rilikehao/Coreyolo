@@ -119,6 +119,8 @@ object ProjectBuilder {
     fun buildMNN() {
         val mnnDir = File("x86_64/MNN")
         cloneIfNeeded(mnnDir, "https://github.com/alibaba/MNN.git")
+        ProcessBuilder("git", "fetch", "--tags").directory(mnnDir).runCommand()
+        ProcessBuilder("git", "checkout", "3.2.5").directory(mnnDir).runCommand()
 
         val mnnBuildDir = File("x86_64/MNN/build")
         mnnBuildDir.mkdirs()
@@ -161,7 +163,7 @@ object ProjectBuilder {
 
         val tools = listOf("MNNConvert", "quantized.out", "GetMNNInfo")
         val sourceBuildDir = File("x86_64/MNN/build")
-        val targetBinDir = File("x86_64/bin")
+        val targetBinDir = File("x86_64/root/usr/local/bin")
         targetBinDir.mkdirs()
 
         tools.forEach { tool ->

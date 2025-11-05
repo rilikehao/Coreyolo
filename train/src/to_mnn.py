@@ -57,10 +57,10 @@ class MNNConverter:
         self.script_dir = Path(__file__).parent.resolve()
         
         # 路径配置
-        self.mnnconvert_path = self.script_dir / "../../x64/root/usr/local/bin/MNNConvert"
-        self.quantized_path = self.script_dir / "../../x64/root/usr/local/bin/quantized.out"
-        self.getmnninfo_path = self.script_dir / "../../x64/root/usr/local/bin/GetMNNInfo"
-        self.ld_library_path = self.script_dir / "../../x64/root/usr/local/lib:../../x64/root/usr/lib"
+        self.mnnconvert_path = self.script_dir / "../../x86_64/root/usr/local/bin/MNNConvert"
+        self.quantized_path = self.script_dir / "../../x86_64/root/usr/local/bin/quantized.out"
+        self.getmnninfo_path = self.script_dir / "../../x86_64/root/usr/local/bin/GetMNNInfo"
+        self.ld_library_path = self.script_dir / "../../x86_64/root/usr/local/lib:../../x86_64/root/usr/lib"
         self.onnx_model_path = self.script_dir / "../best.onnx"
         self.output_dir = self.script_dir / ".."
         self.config_dir = self.script_dir / ".."
