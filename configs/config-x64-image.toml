@@ -8,3 +8,7 @@ description = "assets/yolo11s.txt"
 [[streams]]
 id = "default"
 source = "assets/bus.jpg"
+
+[processing]
+npuThreads = 1
+cpuThreads = 1

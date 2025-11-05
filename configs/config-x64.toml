@@ -15,6 +15,8 @@ id = "default-01"
 source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
 
 [processing]
+npuThreads = 2
+cpuThreads = 6
 fpsDecode = 3.0
 fpsYolo = 3.0
 mute = false

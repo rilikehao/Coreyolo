@@ -27,6 +27,8 @@ source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
 target = "rtsp://192.168.1.102:8554/2025/2025-03.mp4"
 
 [processing]
+npuThreads = 4
+cpuThreads = 8
 fpsDecode = 30.0
 fpsYolo = 10.0
 mute = false
