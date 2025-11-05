@@ -17,6 +17,7 @@ class Device : AutoCloseable {
         const val ENCODER_FORMAT = AV_PIX_FMT_RGB24
 
         fun encoderOptions() = arrayOf(
+            "profile" to "baseline",
             "rc_mode" to "CQP",
             "qp_init" to AppConfig.instance.processing.q.toString(1),
         )

@@ -13,6 +13,7 @@ class Device : AutoCloseable {
         const val ENCODER_FORMAT = AV_PIX_FMT_YUV420P
 
         fun encoderOptions() = arrayOf(
+            "profile" to "baseline",
             "preset" to "fast",
             "qp" to AppConfig.instance.processing.q.toString(1),
         )

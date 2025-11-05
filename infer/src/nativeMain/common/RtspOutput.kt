@@ -69,8 +69,6 @@ object RtspOutput : suspend (String, String, String, Flow<Video.Frame>) -> Unit 
         val codecCtx = avcodec_alloc_context3(codec)!!.apply {
             pointed.codec_type = AVMEDIA_TYPE_VIDEO
             pointed.pix_fmt = Device.ENCODER_FORMAT
-            pointed.max_b_frames = 0
-            pointed.gop_size = 10
             pointed.time_base.num = 1
             pointed.time_base.den = 90000
         }

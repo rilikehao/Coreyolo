@@ -42,7 +42,7 @@ object AppConfig {
     data class ProcessingConfig(
         val npuThreads: Int,
         val cpuThreads: Int,
-        val q: Double = 24.0,
+        val q: Double = 26.0,
         val fpsYolo: Double = 90000.0,
         val fpsDecode: Double = 90000.0,
         val mute: Boolean = false,

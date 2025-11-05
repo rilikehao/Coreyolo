@@ -22,10 +22,6 @@ source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
 id = "default-03"
 source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
 
-[[streams]]
-id = "default-04"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
-
 [processing]
 npuThreads = 3
 cpuThreads = 8
