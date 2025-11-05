@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(PLATFORM "" CACHE STRING "Target platform: rk3588 or x64")
+set(PLATFORM "" CACHE STRING "Target platform: aarch64 or x86_64")
 
 project(Native CXX)
 set(CMAKE_CXX_STANDARD 20)
@@ -10,14 +10,14 @@ add_link_options(-Wl,--no-as-needed)
 
 find_package(PkgConfig REQUIRED)
 
-if(PLATFORM STREQUAL "rk3588")
+if(PLATFORM STREQUAL "aarch64")
     set(PLATFORM_LIBS librga.so librknnrt.so)
-    set(PLATFORM_SRC rk3588.cpp)
-elseif(PLATFORM STREQUAL "x64")
+    set(PLATFORM_SRC aarch64.cpp)
+elseif(PLATFORM STREQUAL "x86_64")
     set(PLATFORM_LIBS libMNN.so libMNN_Express.so libMNN_Vulkan.so vulkan)
-    set(PLATFORM_SRC x64.cpp)
+    set(PLATFORM_SRC x86_64.cpp)
 else()
-    message(FATAL_ERROR "Set PLATFORM to rk3588 or x64")
+    message(FATAL_ERROR "Set PLATFORM to aarch64 or x86_64")
 endif()
 
 find_package(Qt6 COMPONENTS Core Gui Network REQUIRED)
