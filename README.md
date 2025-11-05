@@ -148,5 +148,5 @@ aarch64/YoloInfer.AppImage configs/config-rk3576.toml
 
 1. [已完成] 整理成 x86_64 和 aarch64 两种编译配置。
 2. [已完成] 输入端直连，输出端输出绘制和不绘制的两个流。
-3. 支持 Lua 截图。
+3. [已完成] 支持 Lua 截图。
 4. 支持 AMD，英伟达，华为，寒武纪。
