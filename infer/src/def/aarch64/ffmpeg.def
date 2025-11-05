@@ -1,4 +1,4 @@
 package = platform.ffmpeg
 headers = libavformat/avformat.h libavcodec/avcodec.h libavutil/avutil.h libswscale/swscale.h libavutil/imgutils.h rga/im2d_version.h rga/im2d_buffer.h rga/im2d_single.h rga/dma_alloc.h
-compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../rk3588/root/usr/include -I../rk3588/root/usr/local/include
-linkerOpts = -Lrk3588/root/usr/lib -Lrk3588/root/usr/local/lib -lavformat -lavcodec -lavutil -lswscale -lavfilter -lrga -lutils_obj
+compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../aarch64/root/usr/include -I../aarch64/root/usr/local/include
+linkerOpts = -Laarch64/root/usr/lib -Laarch64/root/usr/local/lib -lavformat -lavcodec -lavutil -lswscale -lavfilter -lrga -lutils_obj

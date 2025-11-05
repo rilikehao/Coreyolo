@@ -141,7 +141,7 @@ object ProjectBuilder {
         val convertDepsLib = File("x86_64/MNN/build/tools/converter/libMNNConvertDeps.so")
         val trainLib = File("x86_64/MNN/build/tools/train/libMNNTrain.so")
         val trainUtilsLib = File("x86_64/MNN/build/tools/train/libMNNTrainUtils.so")
-        val targetLibDir = File("x86_64/lib")
+        val targetLibDir = File("x86_64/root/usr/local/lib")
 
         if (vulkanLib.exists()) {
             ProcessBuilder("cp", vulkanLib.absolutePath, targetLibDir.absolutePath).runCommand()
