@@ -175,7 +175,7 @@ object ProjectBuilder {
     }
 
     fun buildFFmpeg() {
-        val ffmpegDir = File("aarch64/ffmpeg")
+        val ffmpegDir = File("aarch64/ffmpeg-rockchip")
         cloneIfNeeded(ffmpegDir, "https://github.com/nyanmisaka/ffmpeg-rockchip.git")
 
         val configureArgs = arrayOf(

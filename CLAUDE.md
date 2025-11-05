@@ -1,1 +1,1 @@
-README.md
+.roo/rules/CLAUDE.md
