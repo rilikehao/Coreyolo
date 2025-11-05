@@ -8,7 +8,6 @@ object Config {
         val packages: List<String>,
         val script: String,
     ) {
-        fun targetArch() = "$cpu-linux-gnu"
         fun targetDir() = "$cpu/root"
         fun toolchain() = "$cpu/toolchain.cmake"
         fun installPrefix() = "$cpu/root/usr/local"
@@ -38,7 +37,7 @@ object Config {
             PID_MEDIA_SERVER=$!
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
+            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-rockchip" "$@"; do
                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                 sleep 5
             done
@@ -64,7 +63,7 @@ object Config {
             PID_MEDIA_SERVER=$!
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer" "$@"; do
+            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-x86_64" "$@"; do
                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                 sleep 5
             done

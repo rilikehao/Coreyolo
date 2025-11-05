@@ -180,7 +180,7 @@ object ProjectBuilder {
 
         val configureArgs = arrayOf(
             "./configure",
-            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/ffmpeg-rockchip",
             "--arch=arm64",
             "--target-os=linux",
             "--cross-prefix=${Config.aarch64.compilerPrefix}",

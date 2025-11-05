@@ -65,6 +65,8 @@ void DrawRect(                               //
     int r, int g, int b, const char* s);
 
 void HttpGet(const char* url);
+void HttpPost(const char* url, struct Image* image);
+
 int HttpGetWaitStatus(const char* url);
 
 #endif  // NATIVE_H
