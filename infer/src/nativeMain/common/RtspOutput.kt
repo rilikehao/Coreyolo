@@ -22,12 +22,11 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
-@OptIn(ExperimentalForeignApi::class)
-class RtspOutput(val url: String) : suspend (String, Flow<Video.Frame>) -> Unit {
-    @OptIn(ExperimentalTime::class)
-    override suspend fun invoke(id: String, inputFlow: Flow<Video.Frame>) {
+@OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
+object RtspOutput : suspend (String, String, String, Flow<Video.Frame>) -> Unit {
+    override suspend fun invoke(original: String, processed: String, id: String, inputFlow: Flow<Video.Frame>) {
         val formatCtx = cPointer {
-            avformat_alloc_output_context2(it, null, "rtsp", url).check("avformat_alloc_output_context2")
+            avformat_alloc_output_context2(it, null, "rtsp", processed).check("avformat_alloc_output_context2")
         }
         var inputFrames = 0L
         var outputFrames = 0L

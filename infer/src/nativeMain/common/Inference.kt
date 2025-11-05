@@ -1,6 +1,5 @@
 package common
 
-import Device
 import cnames.structs.InferTask
 import co.touchlab.kermit.Logger
 import common.StringFormat.toString
@@ -25,11 +24,11 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
         val config = alloc<InferConfig>()
         config.path_model_ = AppConfig.instance.paths.model.cstr.ptr
         config.path_description_ = AppConfig.instance.paths.description.cstr.ptr
-        config.threads_ = Device.NPU_THREADS
+        config.threads_ = AppConfig.instance.processing.npuThreads
         CreateInfer(config.ptr)!!
     }
-    val detect0Manager = Manager(Device.NPU_THREADS)
-    val detect1Manager = Manager(Device.CPU_THREADS)
+    val detect0Manager = Manager(AppConfig.instance.processing.npuThreads)
+    val detect1Manager = Manager(AppConfig.instance.processing.cpuThreads)
 
     init {
         val image = CreateImageRGB24(1, 1)

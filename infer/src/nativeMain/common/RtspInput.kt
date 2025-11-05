@@ -1,7 +1,7 @@
 package common
 
-import ToRGBImage
 import Device
+import ToRGBImage
 import common.Utils.cPointer
 import common.Utils.check
 import common.Utils.withOptions

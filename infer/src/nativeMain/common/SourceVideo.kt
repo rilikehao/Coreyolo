@@ -2,7 +2,6 @@ package common
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.*
-import platform.native.HttpGetWaitStatus
 
 @OptIn(ExperimentalForeignApi::class)
 object SourceVideo : suspend () -> Unit {
@@ -10,15 +9,12 @@ object SourceVideo : suspend () -> Unit {
         Inference.use {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             AppConfig.instance.streams.map { config ->
-                val base = "http://127.0.0.1:50080/index/api/addStreamProxy?secret=21344657"
-                val params = "&vhost=__defaultVhost__&app=original&stream=${config.id}&url=${config.source}"
-                val status = HttpGetWaitStatus("$base$params")
-                if (status != 200) throw Error("拉取流失败")
                 scope.launch {
-                    delay(5000)
                     while (true) {
-                        RtspInput("rtsp://127.0.0.1:50554/original/${config.id}").use {
-                            RtspOutput("rtsp://127.0.0.1:50554/processed/${config.id}")(
+                        RtspInput(config.source).use {
+                            RtspOutput(
+                                "rtsp://127.0.0.1:50554/original/${config.id}",
+                                "rtsp://127.0.0.1:50554/processed/${config.id}",
                                 config.id,
                                 Inference(config.id, it.frames())
                             )

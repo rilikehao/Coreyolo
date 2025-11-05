@@ -277,8 +277,8 @@ object ProjectBuilder {
         }
     }
 
-    const val APP_IMAGE_TOOL = "x64/appimagetool"
-    const val APP_IMAGE_RUNTIME = "x64/runtime"
+    const val APP_IMAGE_TOOL = "x86_64/appimagetool"
+    const val APP_IMAGE_RUNTIME = "x86_64/runtime"
 
     fun buildAppImage() {
         if (!File(APP_IMAGE_TOOL).exists()) {

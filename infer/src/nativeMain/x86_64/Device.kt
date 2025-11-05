@@ -1,3 +1,5 @@
+import common.AppConfig
+import common.StringFormat.toString
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ffmpeg.AVCodecContext
 import platform.ffmpeg.AV_PIX_FMT_YUV420P
@@ -5,14 +7,15 @@ import platform.ffmpeg.AV_PIX_FMT_YUV420P
 @OptIn(ExperimentalForeignApi::class)
 class Device : AutoCloseable {
     companion object {
-        const val NPU_THREADS = 2
-        const val CPU_THREADS = 12
         const val H264_DECODER_NAME = "h264"
         const val H264_ENCODER_NAME = "libx264"
         const val H264_ENCODER_FORMAT = AV_PIX_FMT_YUV420P
-
-        val encoderOptions = arrayOf("qp" to "24", "preset" to "fast")
     }
+
+    fun encoderOptions() = arrayOf(
+        "preset" to "fast",
+        "qp" to AppConfig.instance.processing.q.toString(1),
+    )
 
     override fun close() = Unit
 
