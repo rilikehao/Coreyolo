@@ -23,8 +23,9 @@ class DrawScript(path: String) : AutoCloseable {
 
     @OptIn(ExperimentalTime::class)
     fun execute(pts: Instant, task: CPointer<InferTask>) {
-        bindDrawFunction(GetImage(task)!!)
-        bindHttpFunction()
+        val image = GetImage(task)!!
+        bindDrawFunction(image)
+        bindHttpFunction(image)
         lua_getglobal(state, "Process")
         if (lua_type(state, -1) != LUA_TFUNCTION) {
             lua_settop(state, -2)
@@ -84,11 +85,19 @@ class DrawScript(path: String) : AutoCloseable {
         lua_settop(state, -1)
     }
 
-    fun bindHttpFunction() {
+    fun bindHttpFunction(image: CPointer<Image>) {
         lua_pushcclosure(state, staticCFunction { state ->
             HttpGet(luaL_checklstring(state, 1, null)); 0
         }, 0)
         lua_setglobal(state, "HttpGet")
+
+        lua_pushlightuserdata(state, image)
+        lua_pushcclosure(state, staticCFunction { state ->
+            val url = luaL_checklstring(state, 1, null)
+            val frame = lua_touserdata(state, LUA_REGISTRYINDEX - 1)!!.reinterpret<Image>()
+            HttpPost(url, frame); 0
+        }, 1)
+        lua_setglobal(state, "HttpPost")
         lua_settop(state, -1)
     }
 

@@ -78,7 +78,7 @@ function SendAlertIfNeeded(pts, detection)
         if can_send then
             local url = string.format("http://localhost:8080/alert?object=%s&score=%.2f",
                                     detection.text, detection.score)
-            HttpGet(url)
+            HttpPost(url)  -- 如果不需要截图 HttpGet
             RecordAlertTime(pts)
             print("报警: " .. Format(pts))
         end
@@ -208,8 +208,7 @@ end
 -- 4. DrawRect(x0, x1, y0, y1, r, g, b, text = "") - 绘制矩形框
 --    - r, g, b: 颜色值(0-255)
 --    - text: 可选标签
--- 5. HttpGet(url) - 发送 HTTP GET 请求
--- 6. CalculateColor(score) - 基于置信度计算颜色渐变
+-- 5. CalculateColor(score) - 基于置信度计算颜色渐变
 --    - score=1.0: 红色(255, 0, 0)
 --    - score=0.0: 黑色(0,0,0)
 --    - 中间值线性插值
