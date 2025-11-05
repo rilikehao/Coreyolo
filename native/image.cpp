@@ -36,6 +36,12 @@ struct Image* CreateImagePath(const char* path) {
     return image;
 }
 
+struct Image* CreateImageCopy(struct Image* origin) {
+    auto image = new Image;
+    image->data_ = origin->data_.copy();
+    return image;
+}
+
 void DestroyImage(Image* image) { delete image; }
 
 int BytesPerLine(struct Image* image) {

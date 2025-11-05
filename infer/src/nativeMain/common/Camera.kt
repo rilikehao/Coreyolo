@@ -80,7 +80,7 @@ abstract class Camera(val fd: Int) : Video {
                         val h = resolution.h.toInt()
                         val image = toRGBImage.fromOpaque(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
                         ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
-                        emit(Video.Frame(Clock.System.now(), image))
+                        emit(Video.Frame(Clock.System.now(), image, null))
                     }
                 }
             }

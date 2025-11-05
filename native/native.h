@@ -14,6 +14,8 @@ struct Image;
 struct Image* CreateImageRGB24(int w, int h);
 struct Image* CreateImageJPEG(void* data, int max_size);
 struct Image* CreateImagePath(const char* path);
+struct Image* CreateImageCopy(struct Image* origin);
+
 void DestroyImage(struct Image* image);
 int BytesPerLine(struct Image* image);
 uint8_t* Bits(struct Image* image);

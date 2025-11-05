@@ -9,6 +9,6 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 interface Video : AutoCloseable {
-    data class Frame(val timestamp: Instant, val image: CPointer<Image>)
+    data class Frame(val timestamp: Instant, val original: CPointer<Image>, val processed: CPointer<Image>?)
     fun frames(): Flow<Frame>
 }

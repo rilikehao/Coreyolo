@@ -51,7 +51,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
         val draw = DrawScript(AppConfig.instance.paths.drawScript)
         return input.map { frame ->
             val task = Task(frame.timestamp, CreateInferTask()!!, false)
-            SetImage(task.inferTask, frame.image)
+            SetImage(task.inferTask, frame.original)
             if (inputFrames == 0L) timestamp0 = frame.timestamp
             if (maxFrames(frame.timestamp - timestamp0) < inputFrames) {
                 task.drop = true
@@ -70,6 +70,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                 detect1Manager.use { task.also { Detect1(infer, it.inferTask) } }
             }
         }.buffer(Channel.UNLIMITED).map { deferred -> deferred.await() }.map { task ->
+            val origin = CreateImageCopy(GetImage(task.inferTask))
             if (task.drop) {
                 try {
                     if (taskLast == null) {
@@ -97,7 +98,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                     taskLast?.let { DestroyInferTask(it) }
                     taskLast = task.inferTask
                 }
-            }.let { Video.Frame(task.timestamp, it!!) }
+            }.let { Video.Frame(task.timestamp, origin!!, it!!) }
         }.onCompletion {
             draw.close()
             taskLast?.let { DestroyInferTask(it) }

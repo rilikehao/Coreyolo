@@ -68,7 +68,7 @@ class RtspInput(val url: String) : Video {
                     if (inputFrames == 0L) timestamp0 = timestamp
                     if (maxFrames(timestamp - timestamp0) < inputFrames) continue
                     ++inputFrames
-                    emit(Video.Frame(timestamp, toRGBImage(frame.pointed)))
+                    emit(Video.Frame(timestamp, toRGBImage(frame.pointed), null))
                 }
             } finally {
                 if (packet != null) av_packet_unref(packet)
