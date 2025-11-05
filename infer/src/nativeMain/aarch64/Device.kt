@@ -14,12 +14,12 @@ class Device : AutoCloseable {
         const val H264_DECODER_NAME = "h264_rkmpp"
         const val H264_ENCODER_NAME = "h264_rkmpp"
         const val H264_ENCODER_FORMAT = AV_PIX_FMT_RGB24
-    }
 
-    fun encoderOptions() = arrayOf(
-        "rc_mode" to "CQP",
-        "qp_init" to AppConfig.instance.processing.q.toString(1),
-    )
+        fun encoderOptions() = arrayOf(
+            "rc_mode" to "CQP",
+            "qp_init" to AppConfig.instance.processing.q.toString(1),
+        )
+    }
 
     val ref: CPointer<AVBufferRef> = cPointer {
         av_hwdevice_ctx_create(it, AVHWDeviceType.AV_HWDEVICE_TYPE_RKMPP, null, null, 0)

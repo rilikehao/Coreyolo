@@ -69,7 +69,7 @@ object RtspOutput : suspend (String, String, String, Flow<Video.Frame>) -> Unit 
                 if (codecCtx.pointed.width == 0 && frame != null) {
                     codecCtx.pointed.width = frame.pointed.width
                     codecCtx.pointed.height = frame.pointed.height
-                    withOptions(*Device.encoderOptions) {
+                    withOptions(*Device.encoderOptions()) {
                         avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
                     }
                     videoStream = avformat_new_stream(formatCtx, codec).check("avformat_new_stream")

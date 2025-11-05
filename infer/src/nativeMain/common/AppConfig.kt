@@ -16,7 +16,7 @@ object AppConfig {
     data class Configuration(
         val source: SourceConfig,
         val paths: PathsConfig,
-        val processing: ProcessingConfig = ProcessingConfig(),
+        val processing: ProcessingConfig,
         val streams: List<StreamConfig> = emptyList(),
     )
 
