@@ -12,8 +12,9 @@ import platform.ffmpeg.*
 class Device : AutoCloseable {
     companion object {
         const val H264_DECODER_NAME = "h264_rkmpp"
-        const val H264_ENCODER_NAME = "h264_rkmpp"
-        const val H264_ENCODER_FORMAT = AV_PIX_FMT_RGB24
+
+        const val ENCODER_NAME = "hevc_rkmpp"
+        const val ENCODER_FORMAT = AV_PIX_FMT_RGB24
 
         fun encoderOptions() = arrayOf(
             "rc_mode" to "CQP",

@@ -64,11 +64,11 @@ object RtspOutput : suspend (String, String, String, Flow<Video.Frame>) -> Unit 
             avformat_alloc_output_context2(it, null, "rtsp", url).check("avformat_alloc_output_context2")
         }
 
-        val codec = avcodec_find_encoder_by_name(Device.H264_ENCODER_NAME).check("avcodec_find_encoder_by_name")
+        val codec = avcodec_find_encoder_by_name(Device.ENCODER_NAME).check("avcodec_find_encoder_by_name")
 
         val codecCtx = avcodec_alloc_context3(codec)!!.apply {
             pointed.codec_type = AVMEDIA_TYPE_VIDEO
-            pointed.pix_fmt = Device.H264_ENCODER_FORMAT
+            pointed.pix_fmt = Device.ENCODER_FORMAT
             pointed.max_b_frames = 0
             pointed.gop_size = 10
             pointed.time_base.num = 1
