@@ -1,5 +1,4 @@
-best.mnn
-best.onnx
-best.rknn
-best_quant.mnn.json
+deps/
+data/huawei/
 quant_config.json
+best*
