@@ -37,7 +37,7 @@ object TrainEnvBuilder {
 
         println("创建虚拟环境...")
         ProcessBuilder("uv", "venv", File(VENV_PATH).absolutePath, "--python", "3.12").runCommand()
-        ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI).absolutePath, "--python", "3.11").runCommand()
+        ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI).absolutePath, "--python", "3.9").runCommand()
         println("虚拟环境创建完成")
     }
 
@@ -74,10 +74,10 @@ object TrainEnvBuilder {
         File("train/deps").mkdirs()
 
         listOf(
-            "amct_onnx_op.tar.gz",
-            "amct_onnx-0.23.2-py3-none-linux_x86_64.whl",
             "execstack",
-            "Ascend-cann-toolkit_8.3.RC1.alpha003_linux-x86_64.run",
+            "Ascend-cann-amct_6.0.1_linux-x86_64.tar.gz",
+            "Ascend-cann-nnrt_6.0.1_linux-x86_64.run",
+            "Ascend-cann-toolkit_6.0.1_linux-x86_64.run",
         ).forEach {
             if (!File("train/deps/$it").exists()) {
                 ProcessBuilder(
@@ -89,9 +89,13 @@ object TrainEnvBuilder {
 
         println("安装华为虚拟环境相关依赖...")
         ProcessBuilder(
+            "tar", "-xf", "Ascend-cann-amct_6.0.1_linux-x86_64.tar.gz"
+        ).directory(File("train/deps")).runCommand()
+
+        ProcessBuilder(
             "uv", "pip", "install",
-            "onnx==1.16.0", "onnxruntime==1.16.0", "setuptools", "numpy<2", "opencv-python", "pip",
-            "../deps/amct_onnx-0.23.2-py3-none-linux_x86_64.whl",
+            "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python", "pip", "decorator", "sympy",
+            "../deps/amct/amct_onnx/amct_onnx-0.7.4-py3-none-linux_x86_64.whl",
             "--directory", File(VENV_PATH_HUAWEI).absolutePath,
         ).runCommand()
 
@@ -101,23 +105,25 @@ object TrainEnvBuilder {
 
         ProcessBuilder(
             "./execstack", "-c",
-            "../env-huawei/lib/python3.11/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-311-x86_64-linux-gnu.so",
+            "../env-huawei/lib/python3.9/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-39-x86_64-linux-gnu.so",
         ).directory(File("train/deps")).runCommand()
 
         ProcessBuilder(
             "tar", "-xf",
             "amct_onnx_op.tar.gz",
-        ).directory(File("train/deps")).runCommand()
+        ).directory(File("train/deps/amct/amct_onnx")).runCommand()
 
         ProcessBuilder(
-            "bin/python", "../deps/amct_onnx_op/setup.py", "install",
-        ).directory(File(VENV_PATH_HUAWEI)).runCommand()
+            "bin/python", "../deps/amct/amct_onnx/amct_onnx_op/setup.py", "install",
+        ).directory(File(VENV_PATH_HUAWEI)).apply {
+            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+        }.runCommand()
 
         ProcessBuilder(
-            "chmod", "+x", "Ascend-cann-toolkit_8.3.RC1.alpha003_linux-x86_64.run",
+            "chmod", "+x", "Ascend-cann-toolkit_6.0.1_linux-x86_64.run",
         ).directory(File("train/deps")).runCommand()
 
-        val run = "../deps/Ascend-cann-toolkit_8.3.RC1.alpha003_linux-x86_64.run"
+        val run = "../deps/Ascend-cann-toolkit_6.0.1_linux-x86_64.run"
         val path = File("train/deps").absolutePath
         ProcessBuilder(
             "bash", "-c",
@@ -186,7 +192,13 @@ object TrainEnvBuilder {
         ProcessBuilder(
             "bash", "-c",
             "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend.py"
-        ).directory(File(VENV_PATH_HUAWEI)).runCommand()
+        ).apply {
+            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
+
+        println("重命名量化模型...")
+        ProcessBuilder("mv", "../best.om", "../best.ascend310").directory(File(VENV_PATH)).runCommand()
+
         println("模型导出完成！")
     }
 
@@ -198,7 +210,7 @@ object TrainEnvBuilder {
         val filesToDelete = listOf(
             "best.onnx", "best.mnn",
             "best.rk3588", "best.rk3576", "best.x86_64",
-            "best_quant.mnn.json", "quant_config.json",
+            "best_quant.json", "best_quant.mnn.json", "quant_config.json", "fusion_result.json",
         )
 
         filesToDelete.forEach { file -> File("train/$file").delete() }
