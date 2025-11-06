@@ -30,7 +30,7 @@ object Config {
         script = $$"""
             #!/bin/bash
             APP_DIR="$(dirname "$(readlink -f "$0")")"
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/ffmpeg-rockchip/lib"
             cp -r "$APP_DIR/www" "$PWD"
             sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
             "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
@@ -56,7 +56,7 @@ object Config {
             #!/bin/bash
             PWD="$(pwd)"
             APP_DIR="$(dirname "$(readlink -f "$0")")"
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/ffmpeg-rockchip/lib"
             cp -r "$APP_DIR/www" "$PWD"
             sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
             LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
