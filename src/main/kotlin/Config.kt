@@ -34,14 +34,16 @@ object Config {
         script = $$"""
             #!/bin/bash
             APP_DIR="$(dirname "$(readlink -f "$0")")"
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/ffmpeg-rockchip/lib"
+            PLATFORM="$1"
+            shift
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/ffmpeg-$PLATFORM/lib"
             cp -r "$APP_DIR/www" "$PWD"
             sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
             "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
             PID_MEDIA_SERVER=$!
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-rockchip" "$@"; do
+            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-$PLATFORM" "$@"; do
                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                 sleep 5
             done
@@ -61,14 +63,16 @@ object Config {
             #!/bin/bash
             PWD="$(pwd)"
             APP_DIR="$(dirname "$(readlink -f "$0")")"
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/ffmpeg-rockchip/lib"
+            PLATFORM="$1"
+            shift
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
             cp -r "$APP_DIR/www" "$PWD"
             sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
             LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &
             PID_MEDIA_SERVER=$!
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-x86_64" "$@"; do
+            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-x86_64-$PLATFORM" "$@"; do
                 echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
                 sleep 5
             done
