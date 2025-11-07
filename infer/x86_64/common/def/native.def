@@ -1,0 +1,5 @@
+package = platform.native
+headers = native.h
+compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../../../x86_64/root/usr/include -I../../../x86_64/root/usr/local/include -I../../../x86_64/root/usr/local/x86_64/include
+linkerOpts = -Lx86_64/root/usr/lib -Lx86_64/root/usr/local/lib -Lx86_64/root/usr/local/x86_64/lib -lNative
+noStringConversion = HttpGet HttpPost DrawRect

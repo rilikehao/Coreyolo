@@ -1,0 +1,18 @@
+[source]
+type = "CAMERA"
+
+[paths]
+model = "assets/best.x86_64"
+description = "assets/coco.txt"
+drawScript = "lua/example.lua"
+
+[[streams]]
+id = "default-00"
+source = "/dev/video0"
+
+[processing]
+npuThreads = 2
+cpuThreads = 6
+fpsDecode = 30.0
+fpsYolo = 20.0
+mute = false
