@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(PLATFORM "" CACHE STRING "Target platform: aarch64 or x86_64")
+set(PLATFORM "" CACHE STRING "Target platform: rockchip or x86_64")
 
 project(Native CXX)
 set(CMAKE_CXX_STANDARD 20)
@@ -10,14 +10,14 @@ add_link_options(-Wl,--no-as-needed)
 
 find_package(PkgConfig REQUIRED)
 
-if(PLATFORM STREQUAL "aarch64")
+if(PLATFORM STREQUAL "rockchip")
     set(PLATFORM_LIBS librga.so librknnrt.so)
-    set(PLATFORM_SRC aarch64.cpp)
+    set(PLATFORM_SRC rockchip.cpp)
 elseif(PLATFORM STREQUAL "x86_64")
     set(PLATFORM_LIBS libMNN.so libMNN_Express.so libMNN_Vulkan.so vulkan)
     set(PLATFORM_SRC x86_64.cpp)
 else()
-    message(FATAL_ERROR "Set PLATFORM to aarch64 or x86_64")
+    message(FATAL_ERROR "Set PLATFORM to rockchip or x86_64")
 endif()
 
 find_package(Qt6 COMPONENTS Core Gui Network REQUIRED)

@@ -1,3 +1,5 @@
+import com.jogamp.common.os.Platform
+
 object Config {
     data class ArchConfig(
         val mirrorBase: (String) -> String,
@@ -7,6 +9,7 @@ object Config {
         val sysrootDir: String,
         val packages: List<String>,
         val script: String,
+        val platform: List<String>,
     ) {
         fun targetDir() = "$cpu/root"
         fun toolchain() = "$cpu/toolchain.cmake"
@@ -27,6 +30,7 @@ object Config {
         cpu = "aarch64",
         sysrootDir = "/usr/aarch64-linux-gnu",
         packages = listOf("libdrm"),
+        platform = listOf("rockchip"),
         script = $$"""
             #!/bin/bash
             APP_DIR="$(dirname "$(readlink -f "$0")")"
@@ -52,6 +56,7 @@ object Config {
         cpu = "x86_64",
         sysrootDir = "/",
         packages = listOf("ffmpeg", "vulkan-icd-loader"),
+        platform = listOf("x86_64"),
         script = $$"""
             #!/bin/bash
             PWD="$(pwd)"

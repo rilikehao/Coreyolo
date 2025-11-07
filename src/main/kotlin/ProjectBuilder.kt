@@ -221,22 +221,24 @@ object ProjectBuilder {
 
     fun buildNative() {
         Config.archConfigs.forEach { archConfig ->
-            ToolchainManager.createCmakeToolchainFile(archConfig)
-            val nativeDir = File("native")
-            val buildDir = File("${archConfig.cpu}/native/build")
-            buildDir.mkdirs()
+            archConfig.platform.forEach { platform ->
+                ToolchainManager.createCmakeToolchainFile(archConfig)
+                val nativeDir = File("native")
+                val buildDir = File("${archConfig.cpu}/native/build-$platform")
+                buildDir.mkdirs()
 
-            ProcessBuilder(
-                "/usr/bin/cmake", nativeDir.absolutePath,
-                "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchain()).absolutePath}",
-                "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix()).absolutePath}",
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_SHARED_LIBS=ON",
-                "-DPLATFORM=${archConfig.cpu}",
-            ).directory(buildDir).runCommand()
+                ProcessBuilder(
+                    "/usr/bin/cmake", nativeDir.absolutePath,
+                    "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchain()).absolutePath}",
+                    "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix()).absolutePath}/$platform",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-DBUILD_SHARED_LIBS=ON",
+                    "-DPLATFORM=$platform",
+                ).directory(buildDir).runCommand()
 
-            ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir).runCommand()
-            ProcessBuilder("make", "install").directory(buildDir).runCommand()
+                ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir).runCommand()
+                ProcessBuilder("make", "install").directory(buildDir).runCommand()
+            }
         }
     }
 

@@ -11,7 +11,7 @@ kotlin {
     linuxX64("x86_64") {
         compilations["main"].apply {
             cinterops {
-                listOf("ffmpeg").forEach { cinteropName ->
+                listOf("ffmpeg", "native").forEach { cinteropName ->
                     create(cinteropName) {
                         defFile(project.file("src/def/x86_64/$cinteropName.def"))
                     }
@@ -23,7 +23,7 @@ kotlin {
     linuxArm64("aarch64-rockchip") {
         compilations["main"].apply {
             cinterops {
-                listOf("ffmpeg-rockchip").forEach { cinteropName ->
+                listOf("ffmpeg-rockchip", "native-rockchip").forEach { cinteropName ->
                     create(cinteropName) {
                         defFile(project.file("src/def/aarch64/$cinteropName.def"))
                     }
@@ -50,7 +50,7 @@ kotlin {
                 }
             }
             cinterops {
-                listOf("native", "videodev2", "lua").forEach { cinteropName ->
+                listOf("videodev2", "lua").forEach { cinteropName ->
                     create(cinteropName) {
                         defFile(project.file("src/def/$cpuName/$cinteropName.def"))
                     }
