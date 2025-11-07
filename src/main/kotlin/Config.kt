@@ -56,14 +56,14 @@ object Config {
         cpu = "x86_64",
         sysrootDir = "/",
         packages = listOf("ffmpeg", "vulkan-icd-loader"),
-        platform = listOf("x86_64"),
+        platform = listOf("software"),
         script = $$"""
             #!/bin/bash
             PWD="$(pwd)"
             APP_DIR="$(dirname "$(readlink -f "$0")")"
             PLATFORM="$1"
             shift
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy"
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib"
             cp -r "$APP_DIR/www" "$PWD"
             sed -i 's+$PWD+'$PWD'+g' "$PWD/www/config.ini"
             LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/MediaServer" --config "$PWD/www/config.ini" --log-dir /tmp/log-MediaServer &

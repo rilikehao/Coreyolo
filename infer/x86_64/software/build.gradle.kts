@@ -26,9 +26,16 @@ kotlin {
                 }
             }
             cinterops {
-                listOf("ffmpeg", "native", "videodev2", "lua").forEach { cinteropName ->
+                listOf("ffmpeg", "videodev2", "lua").forEach { cinteropName ->
                     create(cinteropName) {
                         defFile(project.file("def/x86_64/$cinteropName.def"))
+                    }
+                }
+            }
+            cinterops {
+                listOf("native").forEach { cinteropName ->
+                    create(cinteropName) {
+                        defFile(project.file("def/$cinteropName.def"))
                     }
                 }
             }
