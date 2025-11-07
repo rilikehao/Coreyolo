@@ -18,8 +18,6 @@ extern "C" {
 #include "image.h"
 #include "inference.h"
 
-constexpr int kScaleUsingGPU = 3;
-
 struct Session {
     rknn_context context_ = 0;
     std::vector<rknn_tensor_attr> input_attrs_, output_attrs_;
