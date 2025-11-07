@@ -198,7 +198,7 @@ object ProjectBuilder {
 
         val configureArgs = arrayOf(
             "./configure",
-            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/ffmpeg-rockchip",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/rockchip",
             "--arch=arm64",
             "--target-os=linux",
             "--cross-prefix=${Config.aarch64.compilerPrefix}",
@@ -268,7 +268,7 @@ object ProjectBuilder {
         }
         val configureArgs = arrayOf(
             "./configure",
-            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/ffmpeg-ascend",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/ascend",
             "--arch=arm64",
             "--target-os=linux",
             "--cross-prefix=${Config.aarch64.compilerPrefix}",

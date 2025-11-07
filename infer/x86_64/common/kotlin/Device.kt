@@ -1,8 +1,12 @@
 import common.AppConfig
 import common.StringFormat.toString
+import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ffmpeg.AVCodecContext
+import platform.ffmpeg.AVFrame
 import platform.ffmpeg.AV_PIX_FMT_YUV420P
+import platform.ffmpeg.av_frame_alloc
+import platform.ffmpeg.av_frame_ref
 
 @OptIn(ExperimentalForeignApi::class)
 class Device : AutoCloseable {
@@ -17,6 +21,12 @@ class Device : AutoCloseable {
             "preset" to "fast",
             "qp" to AppConfig.instance.processing.q.toString(1),
         )
+
+        fun transferFrame(frame: CPointer<AVFrame>): CPointer<AVFrame> {
+            val swFrame = av_frame_alloc()!!
+            av_frame_ref(swFrame, frame)
+            return swFrame
+        }
     }
 
     override fun close() = Unit
