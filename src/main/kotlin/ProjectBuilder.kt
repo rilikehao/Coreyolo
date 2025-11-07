@@ -176,18 +176,18 @@ object ProjectBuilder {
 
     fun buildACL() {
         listOf(
-            "aarch64/Ascend-cann-nnrt_6.0.1_linux-aarch64.run",
+            "Ascend-cann-nnrt_6.0.1_linux-aarch64.run",
         ).forEach {
-            if (!File(it).exists()) {
+            if (!File("aarch64/$it").exists()) {
                 ProcessBuilder(
-                    "curl", "-o", File(it).absolutePath,
+                    "curl", "-o", File("aarch64/$it").absolutePath,
                     "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
                 ).runCommand()
             }
-            ProcessBuilder("chmod", "+x", it).runCommand()
+            ProcessBuilder("chmod", "+x", File("aarch64/$it").absolutePath).runCommand()
             ProcessBuilder(
                 "bash", "-c",
-                "$it --install --install-path=${File("aarch64/root/usr/local").absolutePath} <<< Y",
+                "${File("aarch64/$it").absolutePath} --install --install-path=${File("aarch64/root/usr/local").absolutePath} <<< Y",
             ).runCommand()
         }
     }
