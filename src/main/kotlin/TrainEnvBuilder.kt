@@ -199,6 +199,11 @@ object TrainEnvBuilder {
         println("重命名量化模型...")
         ProcessBuilder("mv", "../best.om", "../best.ascend310").directory(File(VENV_PATH)).runCommand()
 
+        listOf(
+            "best.onnx", "best_deploy_model.onnx", "best_fake_quant_model.onnx", "best.mnn",
+            "best_quant.json", "best_quant.mnn.json", "quant_config.json", "fusion_result.json",
+        ).forEach { file -> File("train/$file").delete() }
+
         println("模型导出完成！")
     }
 
@@ -207,13 +212,9 @@ object TrainEnvBuilder {
         println("清理训练环境")
         println("======================================")
 
-        val filesToDelete = listOf(
-            "best.onnx", "best.mnn",
-            "best.rk3588", "best.rk3576", "best.x86_64",
-            "best_quant.json", "best_quant.mnn.json", "quant_config.json", "fusion_result.json",
-        )
-
-        filesToDelete.forEach { file -> File("train/$file").delete() }
+        listOf(
+            "best.rk3588", "best.rk3576", "best.x86_64", "best.ascend310",
+        ).forEach { file -> File("train/$file").delete() }
 
         File(VENV_PATH).deleteRecursively()
 
