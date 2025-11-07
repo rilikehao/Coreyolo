@@ -1,5 +1,4 @@
 import SystemUtils.runCommand
-import TrainEnvBuilder.VENV_PATH_HUAWEI
 import java.io.File
 
 object ProjectBuilder {
@@ -193,7 +192,7 @@ object ProjectBuilder {
         }
     }
 
-    fun buildFFmpeg() {
+    fun buildFFmpegRockchip() {
         val ffmpegDir = File("aarch64/ffmpeg-rockchip")
         cloneIfNeeded(ffmpegDir, "https://github.com/nyanmisaka/ffmpeg-rockchip.git")
 
@@ -238,6 +237,83 @@ object ProjectBuilder {
         ProcessBuilder("make", "install").directory(ffmpegDir).runCommand()
     }
 
+
+    fun buildFFmpegAscend() {
+        val extractDir = File("aarch64/ffmpeg-ascend")
+        extractDir.mkdirs()
+        "ffmpeg-4.4.4.tar.xz".let {
+            if (!File("aarch64/$it").exists()) {
+                ProcessBuilder(
+                    "curl", "-o", File("aarch64/$it").absolutePath,
+                    "https://www.ffmpeg.org/releases/$it",
+                ).runCommand()
+            }
+            ProcessBuilder(
+                "tar", "-xf",
+                File("aarch64/$it").absolutePath,
+            ).directory(extractDir).runCommand()
+        }
+        val ffmpegDir = File("aarch64/ffmpeg-ascend/ffmpeg-4.4.4")
+        "ascend_ffmpeg.patch".let {
+            if (!File("aarch64/$it").exists()) {
+                ProcessBuilder(
+                    "curl", "-o", File("aarch64/$it").absolutePath,
+                    "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
+                ).runCommand()
+            }
+            ProcessBuilder(
+                "bash", "-c",
+                "patch -p1 -f < ${File("aarch64/$it").absolutePath} || true",
+            ).directory(ffmpegDir).runCommand()
+        }
+        val configureArgs = arrayOf(
+            "./configure",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/ffmpeg-ascend",
+            "--arch=arm64",
+            "--target-os=linux",
+            "--cross-prefix=${Config.aarch64.compilerPrefix}",
+            "--sysroot=${Config.aarch64.sysrootDir}",
+            "--pkg-config=pkg-config",
+            "--extra-cflags=-fpermissive ${
+                arrayOf(
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/include",
+                    "${File(Config.aarch64.targetDir()).absolutePath}/usr/include",
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/include",
+                ).joinToString(" ") { "-I$it" }
+            }",
+            "--extra-ldflags=-Wl,--allow-shlib-undefined ${
+                arrayOf(
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/lib",
+                    "${File(Config.aarch64.targetDir()).absolutePath}/usr/lib",
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/lib64",
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/devlib",
+                ).joinToString(" ") { "-L$it -Wl,-rpath-link=$it" }
+            }",
+            "--extra-libs=-lacl_dvpp_mpi -lascendcl",
+            "--enable-ascend",
+            "--enable-gpl",
+            "--enable-version3",
+            "--enable-shared",
+            "--disable-static",
+            "--disable-stripping",
+            "--disable-doc",
+        )
+
+        ProcessBuilder(*configureArgs).apply {
+            environment()["PKG_CONFIG_LIBDIR"] = arrayOf(
+                "${File(Config.aarch64.installPrefix()).absolutePath}/lib/pkgconfig",
+                "${File(Config.aarch64.targetDir()).absolutePath}/usr/lib/pkgconfig",
+            ).joinToString(":")
+        }.directory(ffmpegDir).runCommand()
+        ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(ffmpegDir).runCommand()
+        ProcessBuilder("make", "install").directory(ffmpegDir).runCommand()
+    }
+
+    fun buildFFmpeg() {
+        buildFFmpegRockchip()
+        buildFFmpegAscend()
+    }
+
     fun buildNative() {
         Config.archConfigs.forEach { archConfig ->
             archConfig.platform.forEach { platform ->
@@ -255,7 +331,8 @@ object ProjectBuilder {
                     "-DPLATFORM=$platform",
                 ).directory(buildDir).runCommand()
 
-                ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir).runCommand()
+                ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir)
+                    .runCommand()
                 ProcessBuilder("make", "install").directory(buildDir).runCommand()
             }
         }
