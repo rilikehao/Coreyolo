@@ -1,4 +1,0 @@
-package = platform.ffmpeg
-headers = libavformat/avformat.h libavcodec/avcodec.h libavutil/avutil.h libswscale/swscale.h libavutil/imgutils.h
-compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../x86_64/root/usr/include -I../x86_64/root/usr/local/include
-linkerOpts = -Lx86_64/root/usr/lib -Lx86_64/root/usr/local/lib -lavformat -lavcodec -lavutil -lswscale

@@ -1,2 +1,6 @@
-include(":infer")
-project(":infer").projectDir = file("infer")
+include(":infer:aarch64:ascend")
+project(":infer:aarch64:ascend").projectDir = file("infer/aarch64/ascend")
+include(":infer:aarch64:rockchip")
+project(":infer:aarch64:rockchip").projectDir = file("infer/aarch64/rockchip")
+include(":infer:x86_64:software")
+project(":infer:x86_64:software").projectDir = file("infer/x86_64/software")
