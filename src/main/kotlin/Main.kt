@@ -10,6 +10,7 @@ fun main(args: Array<String>) {
             "rknpu2" -> ProjectBuilder.buildRKNPU2()
             "ffmpeg" -> ProjectBuilder.buildFFmpeg()
             "mnn" -> ProjectBuilder.buildMNN()
+            "acl" -> ProjectBuilder.buildACL()
             "native" -> ProjectBuilder.buildNative()
             "zLMediaKit" -> ProjectBuilder.buildZLMediaKit()
             "clean" -> ProjectBuilder.clean()

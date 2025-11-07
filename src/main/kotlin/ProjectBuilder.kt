@@ -1,4 +1,5 @@
 import SystemUtils.runCommand
+import TrainEnvBuilder.VENV_PATH_HUAWEI
 import java.io.File
 
 object ProjectBuilder {
@@ -171,6 +172,24 @@ object ProjectBuilder {
             if (toolFile.exists()) {
                 ProcessBuilder("cp", toolFile.absolutePath, targetBinDir.absolutePath).runCommand()
             }
+        }
+    }
+
+    fun buildACL() {
+        listOf(
+            "aarch64/Ascend-cann-nnrt_6.0.1_linux-aarch64.run",
+        ).forEach {
+            if (!File(it).exists()) {
+                ProcessBuilder(
+                    "curl", "-o", File(it).absolutePath,
+                    "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
+                ).runCommand()
+            }
+            ProcessBuilder("chmod", "+x", it).runCommand()
+            ProcessBuilder(
+                "bash", "-c",
+                "$it --install --install-path=${File("aarch64/root/usr/local").absolutePath} <<< Y",
+            ).runCommand()
         }
     }
 

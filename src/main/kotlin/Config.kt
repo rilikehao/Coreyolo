@@ -30,7 +30,7 @@ object Config {
         cpu = "aarch64",
         sysrootDir = "/usr/aarch64-linux-gnu",
         packages = listOf("libdrm"),
-        platform = listOf("rockchip"),
+        platform = listOf("rockchip", "ascend"),
         script = $$"""
             #!/bin/bash
             APP_DIR="$(dirname "$(readlink -f "$0")")"

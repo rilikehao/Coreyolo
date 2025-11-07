@@ -10,10 +10,12 @@ object ToolchainManager {
         val includeFlags = arrayOf(
             "${File(archConfig.targetDir()).absolutePath}/usr/include",
             "${File(archConfig.installPrefix()).absolutePath}/include",
+            "${File(archConfig.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/include",
         ).joinToString(" ") { "-I$it" }
         val linkerFlags = arrayOf(
             "${File(archConfig.targetDir()).absolutePath}/usr/lib",
             "${File(archConfig.installPrefix()).absolutePath}/lib",
+            "${File(archConfig.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/lib64",
         ).joinToString(" ") { "-L$it -Wl,-rpath-link=$it" }
         val content = """
             set(CMAKE_SYSTEM_NAME Linux)

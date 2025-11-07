@@ -425,7 +425,7 @@ void Detect1(Infer* infer, InferTask* task) {
         }
 
         void* box_ptr = aclGetDataBufferAddr(box_buffer);
-        size_t box_size = aclGetDataBufferSize(box_buffer);
+        size_t box_size = aclGetDataBufferSizeV2(box_buffer);
 
         // 获取 score 输出
         float* score_ptr = nullptr;
