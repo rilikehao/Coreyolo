@@ -40,7 +40,7 @@ kotlin {
         }
         compilations["main"].apply {
             defaultSourceSet {
-                kotlin.srcDir("src/nativeMain/$cpuName")
+                kotlin.srcDir("src/nativeMain/$targetName")
                 dependencies {
                     implementation("co.touchlab:kermit:2.0.8")
                     implementation("com.akuleshov7:ktoml-core:0.7.1")
