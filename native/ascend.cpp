@@ -563,56 +563,53 @@ void Detect1(Infer* infer, InferTask* task) {
     auto& session = infer->sessions_[0];
     size_t num_outputs = aclmdlGetNumOutputs(session.model_desc_);
 
+    // 获取第一个（也是唯一的）输出数据集，其中包含所有9个缓冲区
+    if (task->output_datasets_.size() < 1 ||
+        !task->output_datasets_[0]) {
+        qDebug("Error: No output dataset available");
+        return;
+    }
+
+    aclmdlDataset* output_dataset = task->output_datasets_[0];
+    size_t num_buffers = aclmdlGetDatasetNumBuffers(output_dataset);
+    qDebug("Processing %zu output buffers from single dataset",
+           num_buffers);
+
     for (size_t b = 0; b < num_outputs && b + 2 < 9; b += 3) {
-        // 验证输出数据集的数量和有效性
-        if (b >= task->output_datasets_.size() ||
-            !task->output_datasets_[b]) {
+        // 验证缓冲区索引
+        if (b + 2 >= num_buffers) {
             qDebug(
-                "Warning: Missing output dataset at index %zu "
-                "(available: %zu)",
-                b, task->output_datasets_.size());
-            continue;
-        }
-
-        // 验证是否有足够的连续输出数据集
-        if (task->output_datasets_.size() < b + 3) {
-            qDebug(
-                "Warning: Not enough output datasets. Need 3 starting "
+                "Warning: Not enough output buffers. Need 3 starting "
                 "from %zu, but only have %zu",
-                b, task->output_datasets_.size());
+                b, num_buffers);
             continue;
         }
 
-        // 获取输出数据
-        aclmdlDataset* output_dataset = task->output_datasets_[b];
+        // 获取 box 输出 (缓冲区 b)
         aclDataBuffer* box_buffer =
-            aclmdlGetDatasetBuffer(output_dataset, 0);
+            aclmdlGetDatasetBuffer(output_dataset, b);
         if (!box_buffer) {
             qDebug("Failed to get box buffer for output %zu", b);
             continue;
         }
-
         void* box_ptr = aclGetDataBufferAddr(box_buffer);
-        size_t box_size = aclGetDataBufferSizeV2(box_buffer);
 
-        // 获取 score 输出
+        // 获取 score 输出 (缓冲区 b+1)
         float* score_ptr = nullptr;
-        if (b + 1 < task->output_datasets_.size() &&
-            task->output_datasets_[b + 1]) {
-            aclDataBuffer* score_buffer = aclmdlGetDatasetBuffer(
-                task->output_datasets_[b + 1], 0);
+        if (b + 1 < num_buffers) {
+            aclDataBuffer* score_buffer =
+                aclmdlGetDatasetBuffer(output_dataset, b + 1);
             if (score_buffer) {
                 score_ptr = static_cast<float*>(
                     aclGetDataBufferAddr(score_buffer));
             }
         }
 
-        // 获取 score_sum 输出
+        // 获取 score_sum 输出 (缓冲区 b+2)
         float* score_sum_ptr = nullptr;
-        if (b + 2 < task->output_datasets_.size() &&
-            task->output_datasets_[b + 2]) {
-            aclDataBuffer* score_sum_buffer = aclmdlGetDatasetBuffer(
-                task->output_datasets_[b + 2], 0);
+        if (b + 2 < num_buffers) {
+            aclDataBuffer* score_sum_buffer =
+                aclmdlGetDatasetBuffer(output_dataset, b + 2);
             if (score_sum_buffer) {
                 score_sum_ptr = static_cast<float*>(
                     aclGetDataBufferAddr(score_sum_buffer));
