@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        ".fantomasignore": "ignore",
         "qimage": "cpp",
         "array": "cpp",
         "chrono": "cpp",
@@ -20,6 +21,7 @@
         "qnetworkaccessmanager": "cpp",
         "stdexcept": "cpp",
         "qstatictext": "cpp",
-        "qreadlocker": "cpp"
+        "qreadlocker": "cpp",
+        "functional": "cpp"
     }
 }

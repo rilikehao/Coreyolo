@@ -23,16 +23,16 @@ struct Image* CreateImageJPEG(void* data, int max_size) {
             break;
         }
     }
-    auto result = new Image;
-    result->data_.loadFromData(data8, actual_size, "JPEG");
-    result->data_ =
-        result->data_.convertToFormat(QImage::Format_RGB888);
-    return result;
+    auto image = new Image;
+    image->data_.loadFromData(data8, actual_size, "JPEG");
+    image->data_ = image->data_.convertToFormat(QImage::Format_RGB888);
+    return image;
 }
 
 struct Image* CreateImagePath(const char* path) {
     auto image = new Image;
     image->data_ = QImage(QString::fromUtf8(path));
+    image->data_ = image->data_.convertToFormat(QImage::Format_RGB888);
     return image;
 }
 

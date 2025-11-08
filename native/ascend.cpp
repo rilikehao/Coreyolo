@@ -207,14 +207,61 @@ void DestroyInferTask(struct InferTask* task) {
 }
 
 void Detect0(Infer* infer, InferTask* task, int no) {
-    if (!infer || !task ||
-        no >= static_cast<int>(infer->sessions_.size())) {
-        throw std::runtime_error("Invalid parameters for Detect0");
+    // 严格的参数校验
+    if (!infer) {
+        qDebug("ERROR: Infer context is null");
+        throw std::runtime_error("Infer context is null");
+    }
+
+    if (!task) {
+        qDebug("ERROR: Task is null");
+        throw std::runtime_error("Task is null");
+    }
+
+    if (!task->image_) {
+        qDebug("ERROR: Task image is null");
+        throw std::runtime_error("Task image is null");
+    }
+
+    if (no < 0 || no >= static_cast<int>(infer->sessions_.size())) {
+        qDebug("ERROR: Session index %d out of range [0, %zu)", no,
+               infer->sessions_.size());
+        throw std::runtime_error("Invalid session index");
+    }
+
+    if (task->image_->data_.isNull()) {
+        qDebug("ERROR: Image data is null/empty");
+        throw std::runtime_error("Image data is null");
+    }
+
+    if (task->image_->data_.format() != QImage::Format_RGB888) {
+        qDebug("ERROR: Image format is %d, expected RGB888 (%d)",
+               task->image_->data_.format(), QImage::Format_RGB888);
+        throw std::runtime_error("Invalid image format");
     }
 
     auto& session = infer->sessions_[no];
     int h = session.h_;
     int w = session.w_;
+
+    // 验证模型维度
+    if (h <= 0 || w <= 0) {
+        qDebug("ERROR: Invalid model input dimensions: %dx%d", h, w);
+        throw std::runtime_error("Invalid model input dimensions");
+    }
+
+    // 验证图像尺寸
+    if (task->image_->data_.width() <= 0 ||
+        task->image_->data_.height() <= 0) {
+        qDebug("ERROR: Invalid image dimensions: %dx%d",
+               task->image_->data_.width(),
+               task->image_->data_.height());
+        throw std::runtime_error("Invalid image dimensions");
+    }
+
+    qDebug("Processing image %dx%d with model input %dx%d",
+           task->image_->data_.width(), task->image_->data_.height(), h,
+           w);
 
     // 缩放图像到模型输入尺寸
     QImage scaled =
@@ -227,8 +274,16 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         throw std::runtime_error("Failed to create input dataset");
     }
 
-    // 计算输入数据大小 (NCHW 格式: N=1, C=3, H=h, W=w)
-    size_t input_size = static_cast<size_t>(h) * w * 3;
+    // 验证输入数据
+    if (!data) {
+        qDebug("Input data is null");
+        aclmdlDestroyDataset(input_dataset);
+        throw std::runtime_error("Input data is null");
+    }
+
+    // 计算输入数据大小 (NCHW 格式: N=1, C=3, H=h, W=w) -
+    // 使用float类型存储归一化数据
+    size_t input_size = static_cast<size_t>(h) * w * 3 * sizeof(float);
     void* input_buffer = nullptr;
     aclError ret = aclrtMalloc(
         &input_buffer, input_size, ACL_MEM_MALLOC_NORMAL_ONLY);
@@ -238,24 +293,43 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         throw std::runtime_error("Failed to allocate input buffer");
     }
 
-    // 将 HWC 格式转换为 NCHW 格式
+    // 验证缩放后的图像尺寸
+    qDebug("Scaled image: %dx%d, Original: %dx%d", w, h, scaled.width(),
+           scaled.height());
+
+    // 将 HWC 格式转换为 NCHW 格式，并进行数据标准化
     // HWC: [H][W][3] -> NCHW: [1][3][H][W]
-    auto* nchw_buffer = static_cast<uint8_t*>(input_buffer);
+    auto* nchw_buffer = static_cast<float*>(input_buffer);
     size_t pixel_count = static_cast<size_t>(h) * w;
 
-    // 分离 RGB 通道并按 NCHW 格式重新组织
+    // 分离 RGB 通道并按 NCHW 格式重新组织，同时进行0-1归一化
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             size_t hwc_idx = (y * w + x) * 3;
+
+            // 验证数据索引
+            if (hwc_idx + 2 >=
+                static_cast<size_t>(scaled.sizeInBytes())) {
+                qDebug("Data index out of bounds: %zu", hwc_idx + 2);
+                aclrtFree(input_buffer);
+                aclmdlDestroyDataset(input_dataset);
+                throw std::runtime_error("Data index out of bounds");
+            }
+
+            // NCHW 索引计算
             size_t r_idx = y * w + x;  // R 通道: 位置 (y*w + x)
             size_t g_idx = pixel_count + y * w +
                            x;  // G 通道: 位置 (pixel_count + y*w + x)
             size_t b_idx = 2 * pixel_count + y * w +
                            x;  // B 通道: 位置 (2*pixel_count + y*w + x)
 
-            nchw_buffer[r_idx] = data[hwc_idx];      // R 分量
-            nchw_buffer[g_idx] = data[hwc_idx + 1];  // G 分量
-            nchw_buffer[b_idx] = data[hwc_idx + 2];  // B 分量
+            // 将数据标准化到0-1范围并按NCHW格式存储
+            nchw_buffer[r_idx] = static_cast<float>(data[hwc_idx]) /
+                                 255.0f;  // R 分量归一化
+            nchw_buffer[g_idx] = static_cast<float>(data[hwc_idx + 1]) /
+                                 255.0f;  // G 分量归一化
+            nchw_buffer[b_idx] = static_cast<float>(data[hwc_idx + 2]) /
+                                 255.0f;  // B 分量归一化
         }
     }
 
@@ -378,10 +452,46 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         }
     }
 
+    // 执行推理前的验证和调试信息
+    qDebug(
+        "About to execute model with input dataset (buffers: %zu) and "
+        "output dataset (buffers: %zu)",
+        aclmdlGetDatasetNumBuffers(input_dataset),
+        aclmdlGetDatasetNumBuffers(output_dataset));
+
+    // 显示输入数据的前几个像素作为验证
+    float* input_data = static_cast<float*>(input_buffer);
+    qDebug(
+        "Input data sample - R:%.3f, G:%.3f, B:%.3f (first pixel "
+        "normalized)",
+        input_data[0], input_data[1], input_data[2]);
+
+    // 验证模型ID
+    qDebug(
+        "Model ID: %u, Input dataset pointer: %p, Output dataset "
+        "pointer: %p",
+        session.model_id_, static_cast<void*>(input_dataset),
+        static_cast<void*>(output_dataset));
+
     // 执行推理
     ret =
         aclmdlExecute(session.model_id_, input_dataset, output_dataset);
     if (!QueryAcl(ret, "aclmdlExecute")) {
+        qDebug("aclmdlExecute failed with error code: %d", ret);
+        qDebug(
+            "This usually indicates invalid input parameters or data "
+            "format issues");
+
+        // 显示更多调试信息
+        qDebug("Model input info - Height: %d, Width: %d", h, w);
+        qDebug("Input data size: %zu bytes, Expected: %zu bytes",
+               input_size,
+               static_cast<size_t>(h) * w * 3 * sizeof(float));
+        qDebug("Input dataset buffers: %zu",
+               aclmdlGetDatasetNumBuffers(input_dataset));
+        qDebug("Output dataset buffers: %zu",
+               aclmdlGetDatasetNumBuffers(output_dataset));
+
         // 清理所有资源
         size_t num_buffers = aclmdlGetDatasetNumBuffers(output_dataset);
         for (size_t i = 0; i < num_buffers; ++i) {
@@ -398,6 +508,33 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         aclrtFree(input_buffer);
         aclmdlDestroyDataset(input_dataset);
         throw std::runtime_error("Failed to execute model");
+    }
+
+    qDebug("Model execution successful! Verifying outputs...");
+
+    // 验证输出数据
+    size_t num_output_buffers =
+        aclmdlGetDatasetNumBuffers(output_dataset);
+    qDebug("Number of output buffers: %zu", num_output_buffers);
+
+    for (size_t i = 0; i < num_output_buffers; ++i) {
+        aclDataBuffer* buffer =
+            aclmdlGetDatasetBuffer(output_dataset, i);
+        if (buffer) {
+            void* data = aclGetDataBufferAddr(buffer);
+            size_t size = aclGetDataBufferSizeV2(buffer);
+            qDebug("Output buffer %zu: %zu bytes", i, size);
+
+            // 显示前几个浮点数值作为验证
+            if (size >= sizeof(float) && data) {
+                float* float_data = static_cast<float*>(data);
+                qDebug(
+                    "Output %zu sample values: [%.6f, %.6f, %.6f, "
+                    "%.6f]",
+                    i, float_data[0], float_data[1], float_data[2],
+                    float_data[3]);
+            }
+        }
     }
 
     // 清理输入
@@ -427,9 +564,22 @@ void Detect1(Infer* infer, InferTask* task) {
     size_t num_outputs = aclmdlGetNumOutputs(session.model_desc_);
 
     for (size_t b = 0; b < num_outputs && b + 2 < 9; b += 3) {
+        // 验证输出数据集的数量和有效性
         if (b >= task->output_datasets_.size() ||
             !task->output_datasets_[b]) {
-            qDebug("Warning: Missing output dataset at index %zu", b);
+            qDebug(
+                "Warning: Missing output dataset at index %zu "
+                "(available: %zu)",
+                b, task->output_datasets_.size());
+            continue;
+        }
+
+        // 验证是否有足够的连续输出数据集
+        if (task->output_datasets_.size() < b + 3) {
+            qDebug(
+                "Warning: Not enough output datasets. Need 3 starting "
+                "from %zu, but only have %zu",
+                b, task->output_datasets_.size());
             continue;
         }
 
