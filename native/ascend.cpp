@@ -53,9 +53,9 @@ bool QueryModelInfo(Session* s) {
         return false;
     }
 
-    // NHWC 格式: dims[0]=N, dims[1]=H, dims[2]=W, dims[3]=C
-    s->h_ = static_cast<int>(input_dims.dims[1]);
-    s->w_ = static_cast<int>(input_dims.dims[2]);
+    // NCHW 格式: dims[0]=N, dims[1]=C, dims[2]=H, dims[3]=W
+    s->h_ = static_cast<int>(input_dims.dims[2]);
+    s->w_ = static_cast<int>(input_dims.dims[3]);
     qDebug("model input height=%d, width=%d", s->h_, s->w_);
     return true;
 }
@@ -227,7 +227,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         throw std::runtime_error("Failed to create input dataset");
     }
 
-    // 计算输入数据大小
+    // 计算输入数据大小 (NCHW 格式: N=1, C=3, H=h, W=w)
     size_t input_size = static_cast<size_t>(h) * w * 3;
     void* input_buffer = nullptr;
     aclError ret = aclrtMalloc(
@@ -238,8 +238,26 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         throw std::runtime_error("Failed to allocate input buffer");
     }
 
-    // 复制数据到设备内存
-    memcpy(input_buffer, data, input_size);
+    // 将 HWC 格式转换为 NCHW 格式
+    // HWC: [H][W][3] -> NCHW: [1][3][H][W]
+    auto* nchw_buffer = static_cast<uint8_t*>(input_buffer);
+    size_t pixel_count = static_cast<size_t>(h) * w;
+
+    // 分离 RGB 通道并按 NCHW 格式重新组织
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            size_t hwc_idx = (y * w + x) * 3;
+            size_t r_idx = y * w + x;  // R 通道: 位置 (y*w + x)
+            size_t g_idx = pixel_count + y * w +
+                           x;  // G 通道: 位置 (pixel_count + y*w + x)
+            size_t b_idx = 2 * pixel_count + y * w +
+                           x;  // B 通道: 位置 (2*pixel_count + y*w + x)
+
+            nchw_buffer[r_idx] = data[hwc_idx];      // R 分量
+            nchw_buffer[g_idx] = data[hwc_idx + 1];  // G 分量
+            nchw_buffer[b_idx] = data[hwc_idx + 2];  // B 分量
+        }
+    }
 
     // 创建输入数据缓冲
     aclDataBuffer* input_buffer_desc =
