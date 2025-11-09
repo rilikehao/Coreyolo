@@ -76,7 +76,6 @@ object TrainEnvBuilder {
         listOf(
             "execstack",
             "Ascend-cann-amct_6.0.1_linux-x86_64.tar.gz",
-            "Ascend-cann-nnrt_6.0.1_linux-x86_64.run",
             "Ascend-cann-toolkit_6.0.1_linux-x86_64.run",
         ).forEach {
             if (!File("train/deps/$it").exists()) {
