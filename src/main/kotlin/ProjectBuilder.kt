@@ -181,7 +181,7 @@ object ProjectBuilder {
             if (!File("aarch64/$it").exists()) {
                 ProcessBuilder(
                     "curl", "-o", File("aarch64/$it").absolutePath,
-                    "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
+                    "https://xwrt.kw92.cyou/JYSZ/$it",
                 ).runCommand()
             }
             ProcessBuilder("chmod", "+x", File("aarch64/$it").absolutePath).runCommand()

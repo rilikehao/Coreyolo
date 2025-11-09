@@ -81,7 +81,7 @@ object TrainEnvBuilder {
             if (!File("train/deps/$it").exists()) {
                 ProcessBuilder(
                     "curl", "-o", File("train/deps/$it").absolutePath,
-                    "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
+                    "https://xwrt.kw92.cyou/JYSZ/$it",
                 ).runCommand()
             }
         }
