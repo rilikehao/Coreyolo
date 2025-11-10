@@ -218,6 +218,7 @@ object TrainEnvBuilder {
         ).forEach { file -> File("train/$file").delete() }
 
         File(VENV_PATH).deleteRecursively()
+        File(VENV_PATH_HUAWEI).deleteRecursively()
 
         println("清理完成")
     }
