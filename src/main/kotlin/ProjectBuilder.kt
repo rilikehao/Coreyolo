@@ -242,6 +242,7 @@ object ProjectBuilder {
     fun buildFFmpegAscend() {
         val extractDir = File("aarch64/ffmpeg-ascend")
         extractDir.mkdirs()
+        val ffmpegDir = File("aarch64/ffmpeg-ascend/ffmpeg-4.4.4")
         "ffmpeg-4.4.4.tar.xz".let {
             if (!File("aarch64/$it").exists()) {
                 ProcessBuilder(
@@ -254,18 +255,19 @@ object ProjectBuilder {
                 File("aarch64/$it").absolutePath,
             ).directory(extractDir).runCommand()
         }
-        val ffmpegDir = File("aarch64/ffmpeg-ascend/ffmpeg-4.4.4")
-        "ascend_ffmpeg.patch".let {
-            if (!File("aarch64/$it").exists()) {
+        if (!File("aarch64/ffmpeg-ascend/ffmpeg-4.4.4/libavcodec/ascend_dec.c").exists()) {
+            "ascend_ffmpeg.patch".let {
+                if (!File("aarch64/$it").exists()) {
+                    ProcessBuilder(
+                        "curl", "-o", File("aarch64/$it").absolutePath,
+                        "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
+                    ).runCommand()
+                }
                 ProcessBuilder(
-                    "curl", "-o", File("aarch64/$it").absolutePath,
-                    "https://f000.backblazeb2.com/file/kunweiz92-YoloInfer/$it",
-                ).runCommand()
+                    "bash", "-c",
+                    "patch -p1 -f < ${File("aarch64/$it").absolutePath} || true",
+                ).directory(ffmpegDir).runCommand()
             }
-            ProcessBuilder(
-                "bash", "-c",
-                "patch -p1 -f < ${File("aarch64/$it").absolutePath} || true",
-            ).directory(ffmpegDir).runCommand()
         }
         val configureArgs = arrayOf(
             "./configure",
