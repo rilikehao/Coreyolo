@@ -6,8 +6,10 @@ import common.Utils.use
 import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.withContext
 import platform.ffmpeg.*
 import platform.linux.ioctl
@@ -17,8 +19,8 @@ import platform.videodev2.*
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-@OptIn(ExperimentalForeignApi::class)
-abstract class Camera(val fd: Int) : Video {
+@OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
+abstract class Camera(val fd: Int) : () -> Flow<Frame> {
     companion object {
         const val BUFFER_COUNT = 4
 
@@ -58,12 +60,7 @@ abstract class Camera(val fd: Int) : Video {
     abstract fun queryBuf(buf: v4l2_buffer): Pair<UInt, UInt>
     abstract fun dequeueBuf(buf: v4l2_buffer)
 
-    override fun close() {
-        close(fd)
-    }
-
-    @OptIn(ExperimentalTime::class)
-    override fun frames() = flow {
+    override fun invoke() = flow {
         val resolution = setResolution()
         setFrameRate(resolution)
         val buffers = mapBuffers()
@@ -80,7 +77,7 @@ abstract class Camera(val fd: Int) : Video {
                         val h = resolution.h.toInt()
                         val image = toRGBImage.fromOpaque(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
                         ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
-                        emit(Video.Frame(Clock.System.now(), image, null))
+                        emit(Frame(Clock.System.now(), image, null))
                     }
                 }
             }
@@ -88,6 +85,8 @@ abstract class Camera(val fd: Int) : Video {
             setStreamOff()
             unmapBuffers(buffers)
         }
+    }.onCompletion {
+        close(fd)
     }.buffer(1)
 
     fun setResolution() = memScoped {

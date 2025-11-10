@@ -17,7 +17,7 @@ import kotlin.time.*
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseable {
+object Inference : (String, Flow<Frame>) -> Flow<Frame>, AutoCloseable {
     data class Task(val timestamp: Instant, val inferTask: CPointer<InferTask>, var drop: Boolean)
 
     val infer = memScoped {
@@ -42,7 +42,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
         DestroyInfer(infer)
     }
 
-    override fun invoke(id: String, input: Flow<Video.Frame>): Flow<Video.Frame> {
+    override fun invoke(id: String, input: Flow<Frame>): Flow<Frame> {
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
@@ -98,7 +98,7 @@ object Inference : (String, Flow<Video.Frame>) -> Flow<Video.Frame>, AutoCloseab
                     taskLast?.let { DestroyInferTask(it) }
                     taskLast = task.inferTask
                 }
-            }.let { Video.Frame(task.timestamp, origin!!, it!!) }
+            }.let { Frame(task.timestamp, origin!!, it!!) }
         }.onCompletion {
             draw.close()
             taskLast?.let { DestroyInferTask(it) }

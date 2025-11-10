@@ -11,14 +11,13 @@ object SourceCamera : suspend () -> Unit {
             AppConfig.instance.streams.map { config ->
                 scope.launch {
                     while (true) {
-                        Camera.open(config.source).use {
-                            RtspOutput(
-                                "rtsp://127.0.0.1:50554/original/${config.id}",
-                                "rtsp://127.0.0.1:50554/processed/${config.id}",
-                                config.id,
-                                Inference(config.id, it.frames()),
-                            )
-                        }
+                        val decoded = Camera.open(config.source)()
+                        val inferenced = Inference(config.id, decoded)
+                        OutputRtsp(
+                            "rtsp://127.0.0.1:50554/original/${config.id}",
+                            "rtsp://127.0.0.1:50554/processed/${config.id}",
+                            config.id, inferenced,
+                        )
                         delay(5000)
                     }
                 }
