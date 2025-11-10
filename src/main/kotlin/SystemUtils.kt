@@ -1,6 +1,6 @@
 object SystemUtils {
     fun checkHostTools() {
-        val requiredTools = listOf("git", "cmake", "make", "pkg-config", "aarch64-linux-gnu-g++")
+        val requiredTools = listOf("git", "cmake", "make", "pkg-config", "aarch64-linux-gnu-g++", "arch")
         val missingTools = requiredTools.filter { tool ->
             Runtime.getRuntime().exec(arrayOf("which", tool)).waitFor() != 0
         }
