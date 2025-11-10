@@ -129,6 +129,8 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && $run --install --install-path=$path <<< Y",
         ).directory(File(VENV_PATH_HUAWEI)).runCommand()
 
+        ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
+
         println("所有依赖安装完成")
     }
 

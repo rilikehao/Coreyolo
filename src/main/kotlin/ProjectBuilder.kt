@@ -190,6 +190,7 @@ object ProjectBuilder {
                 "${File("aarch64/$it").absolutePath} --install --install-path=${File("aarch64/root/usr/local").absolutePath} <<< Y",
             ).runCommand()
         }
+        ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
     }
 
     fun buildFFmpegRockchip() {
