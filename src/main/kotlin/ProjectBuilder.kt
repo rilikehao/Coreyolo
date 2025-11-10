@@ -243,19 +243,19 @@ object ProjectBuilder {
         val extractDir = File("aarch64/ffmpeg-ascend")
         extractDir.mkdirs()
         val ffmpegDir = File("aarch64/ffmpeg-ascend/ffmpeg-4.4.4")
-        "ffmpeg-4.4.4.tar.xz".let {
-            if (!File("aarch64/$it").exists()) {
-                ProcessBuilder(
-                    "curl", "-o", File("aarch64/$it").absolutePath,
-                    "https://www.ffmpeg.org/releases/$it",
-                ).runCommand()
-            }
-            ProcessBuilder(
-                "tar", "-xf",
-                File("aarch64/$it").absolutePath,
-            ).directory(extractDir).runCommand()
-        }
         if (!File("aarch64/ffmpeg-ascend/ffmpeg-4.4.4/libavcodec/ascend_dec.c").exists()) {
+            "ffmpeg-4.4.4.tar.xz".let {
+                if (!File("aarch64/$it").exists()) {
+                    ProcessBuilder(
+                        "curl", "-o", File("aarch64/$it").absolutePath,
+                        "https://www.ffmpeg.org/releases/$it",
+                    ).runCommand()
+                }
+                ProcessBuilder(
+                    "tar", "-xf",
+                    File("aarch64/$it").absolutePath,
+                ).directory(extractDir).runCommand()
+            }
             "ascend_ffmpeg.patch".let {
                 if (!File("aarch64/$it").exists()) {
                     ProcessBuilder(
