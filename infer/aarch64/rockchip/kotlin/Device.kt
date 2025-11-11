@@ -32,6 +32,6 @@ class Device : AutoCloseable {
 
     fun bind(codecCtx: AVCodecContext) {
         codecCtx.hw_device_ctx = av_buffer_ref(ref)
-        codecCtx.get_format = staticCFunction { _: CPointer<*>?, _: CPointer<*>? -> AV_PIX_FMT_NV12 }
+        codecCtx.get_format = staticCFunction { _, _ -> AV_PIX_FMT_NV12 }
     }
 }

@@ -1,2 +1,2 @@
-typealias DecodeH264 = common.DecodeH264FFmpeg
+typealias DecodeH264 = DecodeH264ACL
 typealias EncodeH264 = common.EncodeH264FFmpeg
