@@ -187,10 +187,11 @@ object ProjectBuilder {
             }
             ProcessBuilder("chmod", "+x", File("aarch64/$it").absolutePath).runCommand()
             ProcessBuilder(
-                "bash", "-c",
-                "${File("aarch64/$it").absolutePath} --install --install-path=${File("aarch64/root/usr/local").absolutePath} <<< Y",
+                "${File("aarch64/$it").absolutePath}",
+                "--quiet", "--nox11", "--install", "--install-path=${File("aarch64/root/usr/local").absolutePath}",
             ).runCommand()
         }
+        ProcessBuilder("chmod", "-R", "+w", File("aarch64/root/usr/local").absolutePath).runCommand()
         ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
         ProcessBuilder(
             "curl", "-o", File("aarch64/root/usr/local/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
