@@ -10,7 +10,9 @@ extern "C" {
 struct Session {
     uint32_t model_id_ = 0;
     aclmdlDesc* model_desc_ = nullptr;
-    int h_, w_;
+    aclrtContext context_ = nullptr;
+    int h_ = 0;
+    int w_ = 0;
 };
 
 struct Infer {
@@ -27,6 +29,7 @@ struct InferTask {
     float scale_;
 
     std::vector<aclmdlDataset*> output_datasets_;
+    std::vector<aclrtContext> output_contexts_;
 };
 
 namespace {
@@ -74,83 +77,87 @@ Infer* CreateInfer(InferConfig* config) {
         return nullptr;
     }
 
-    // 创建设备上下文
-    aclrtContext context;
-    ret = aclrtCreateContext(&context, infer->device_id_);
-    if (!QueryAcl(ret, "aclrtCreateContext")) {
-        aclFinalize();
-        delete infer;
-        return nullptr;
-    }
-
-    // 设置运行模式
-    aclrtRunMode runMode;
-    ret = aclrtGetRunMode(&runMode);
-    if (!QueryAcl(ret, "aclrtGetRunMode")) {
-        aclrtDestroyContext(context);
-        aclFinalize();
-        delete infer;
-        return nullptr;
-    }
-
-    // 创建会话
     infer->sessions_.resize(config->threads_);
 
+    auto CleanupSessions = [&]() {
+        for (auto& s : infer->sessions_) {
+            if (s.model_desc_) {
+                aclmdlDestroyDesc(s.model_desc_);
+                s.model_desc_ = nullptr;
+            }
+            if (s.model_id_ != 0) {
+                aclmdlUnload(s.model_id_);
+                s.model_id_ = 0;
+            }
+            if (s.context_) {
+                aclrtDestroyContext(s.context_);
+                s.context_ = nullptr;
+            }
+        }
+    };
+
+    bool run_mode_checked = false;
+
     for (auto& session : infer->sessions_) {
-        // 加载模型
+        ret = aclrtCreateContext(&session.context_, infer->device_id_);
+        if (!QueryAcl(ret, "aclrtCreateContext")) {
+            CleanupSessions();
+            aclFinalize();
+            delete infer;
+            return nullptr;
+        }
+
+        ret = aclrtSetCurrentContext(session.context_);
+        if (!QueryAcl(ret, "aclrtSetCurrentContext")) {
+            CleanupSessions();
+            aclFinalize();
+            delete infer;
+            return nullptr;
+        }
+
+        if (!run_mode_checked) {
+            aclrtRunMode runMode;
+            ret = aclrtGetRunMode(&runMode);
+            if (!QueryAcl(ret, "aclrtGetRunMode")) {
+                CleanupSessions();
+                aclFinalize();
+                delete infer;
+                return nullptr;
+            }
+            run_mode_checked = true;
+        }
+
         ret =
             aclmdlLoadFromFile(config->path_model_, &session.model_id_);
         if (!QueryAcl(ret, "aclmdlLoadFromFile")) {
-            // 清理已加载的模型
-            for (auto& s : infer->sessions_) {
-                if (s.model_id_ != 0) {
-                    aclmdlUnload(s.model_id_);
-                }
-            }
-            aclrtDestroyContext(context);
+            CleanupSessions();
             aclFinalize();
             delete infer;
             return nullptr;
         }
 
-        // 创建模型描述
         session.model_desc_ = aclmdlCreateDesc();
         if (!session.model_desc_) {
             qDebug("Failed to create model description");
-            aclmdlUnload(session.model_id_);
-            for (auto& s : infer->sessions_) {
-                if (s.model_id_ != 0) {
-                    aclmdlUnload(s.model_id_);
-                }
-            }
-            aclrtDestroyContext(context);
+            CleanupSessions();
             aclFinalize();
             delete infer;
             return nullptr;
         }
 
-        // 获取模型描述
         ret = aclmdlGetDesc(session.model_desc_, session.model_id_);
         if (!QueryAcl(ret, "aclmdlGetDesc")) {
-            aclmdlDestroyDesc(session.model_desc_);
-            aclmdlUnload(session.model_id_);
-            for (auto& s : infer->sessions_) {
-                if (s.model_id_ != 0) {
-                    aclmdlUnload(s.model_id_);
-                }
-            }
-            aclrtDestroyContext(context);
+            CleanupSessions();
             aclFinalize();
             delete infer;
             return nullptr;
         }
 
-        // 获取模型信息
         QueryModelInfo(&session);
     }
 
     infer->initialized_ = true;
-    qDebug("ACL context initialized successfully");
+    qDebug("ACL contexts initialized successfully");
     return infer;
 }
 
@@ -165,6 +172,10 @@ void DestroyInfer(Infer* infer) {
         if (session.model_id_ != 0) {
             aclmdlUnload(session.model_id_);
             session.model_id_ = 0;
+        }
+        if (session.context_) {
+            aclrtDestroyContext(session.context_);
+            session.context_ = nullptr;
         }
     }
 
@@ -182,9 +193,16 @@ struct InferTask* CreateInferTask() { return new InferTask; }
 void DestroyInferTask(struct InferTask* task) {
     if (task) {
         // 清理输出数据集
-        for (auto dataset : task->output_datasets_) {
+        for (size_t idx = 0; idx < task->output_datasets_.size();
+             ++idx) {
+            aclmdlDataset* dataset = task->output_datasets_[idx];
             if (dataset) {
-                // 释放数据集中的每个缓冲区
+                if (idx < task->output_contexts_.size() &&
+                    task->output_contexts_[idx]) {
+                    QueryAcl(aclrtSetCurrentContext(
+                                 task->output_contexts_[idx]),
+                             "aclrtSetCurrentContext");
+                }
                 size_t num_buffers =
                     aclmdlGetDatasetNumBuffers(dataset);
                 for (size_t i = 0; i < num_buffers; ++i) {
@@ -202,6 +220,7 @@ void DestroyInferTask(struct InferTask* task) {
             }
         }
         task->output_datasets_.clear();
+        task->output_contexts_.clear();
         delete task;
     }
 }
@@ -241,6 +260,11 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     }
 
     auto& session = infer->sessions_[no];
+    aclError set_ret = aclrtSetCurrentContext(session.context_);
+    if (!QueryAcl(set_ret, "aclrtSetCurrentContext")) {
+        throw std::runtime_error("Failed to set ACL context");
+    }
+    task->infer_ = no;
     int h = session.h_;
     int w = session.w_;
 
@@ -292,10 +316,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         aclmdlDestroyDataset(input_dataset);
         throw std::runtime_error("Failed to allocate input buffer");
     }
-
-    // 验证缩放后的图像尺寸
-    qDebug("Scaled image: %dx%d, Original: %dx%d", w, h, scaled.width(),
-           scaled.height());
 
     // 将 HWC 格式转换为 NCHW 格式，并进行数据标准化
     // HWC: [H][W][3] -> NCHW: [1][3][H][W]
@@ -544,6 +564,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
 
     // 保存输出数据集供后续处理使用
     task->output_datasets_.push_back(output_dataset);
+    task->output_contexts_.push_back(session.context_);
 
     qDebug("ACL inference completed successfully");
 }
@@ -558,9 +579,21 @@ void Detect1(Infer* infer, InferTask* task) {
     data.detections_ = &task->detections_;
     data.scale_ = task->scale_;
 
+    int session_index = task->infer_;
+    if (session_index < 0 ||
+        session_index >= static_cast<int>(infer->sessions_.size())) {
+        qDebug("Error: Invalid session index %d", session_index);
+        return;
+    }
+
+    auto& session = infer->sessions_[session_index];
+    aclError set_ret = aclrtSetCurrentContext(session.context_);
+    if (!QueryAcl(set_ret, "aclrtSetCurrentContext")) {
+        throw std::runtime_error("Failed to set ACL context");
+    }
+
     // YOLO11 处理 9 个输出张量（3个尺度的box, score, score_sum）
     // 从 Ascend 模型获取输出信息
-    auto& session = infer->sessions_[0];
     size_t num_outputs = aclmdlGetNumOutputs(session.model_desc_);
 
     // 获取第一个（也是唯一的）输出数据集，其中包含所有9个缓冲区
@@ -644,10 +677,18 @@ void Detect1(Infer* infer, InferTask* task) {
     }
 
     // 清理输出数据集
-    for (auto dataset : task->output_datasets_) {
+    for (size_t idx = 0; idx < task->output_datasets_.size(); ++idx) {
+        aclmdlDataset* dataset = task->output_datasets_[idx];
         if (dataset) {
-            size_t num_buffers = aclmdlGetDatasetNumBuffers(dataset);
-            for (size_t i = 0; i < num_buffers; ++i) {
+            if (idx < task->output_contexts_.size() &&
+                task->output_contexts_[idx]) {
+                QueryAcl(
+                    aclrtSetCurrentContext(task->output_contexts_[idx]),
+                    "aclrtSetCurrentContext");
+            }
+            size_t num_dataset_buffers =
+                aclmdlGetDatasetNumBuffers(dataset);
+            for (size_t i = 0; i < num_dataset_buffers; ++i) {
                 aclDataBuffer* buffer =
                     aclmdlGetDatasetBuffer(dataset, i);
                 if (buffer) {
@@ -662,6 +703,7 @@ void Detect1(Infer* infer, InferTask* task) {
         }
     }
     task->output_datasets_.clear();
+    task->output_contexts_.clear();
 
     // 非极大值抑制
     NonMaximumSuppression(task->detections_);

@@ -18,7 +18,7 @@ class ToRGBImage : AutoCloseable {
                 swsCtx = sws_getContext(
                     frame.width, frame.height, frame.format,
                     frame.width, frame.height, AV_PIX_FMT_RGB24,
-                    SWS_BILINEAR, null, null, null,
+                    SWS_BILINEAR.toInt(), null, null, null,
                 )
             }
             sws_scale(
