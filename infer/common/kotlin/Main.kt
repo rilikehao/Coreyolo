@@ -15,15 +15,17 @@ fun main(args: Array<String>) {
         println("Usage: YoloInfer <config-file.toml>")
         return exit(1)
     }
-    
+
     ActorLogWriter.use { logWriter ->
         Logger.setLogWriters(logWriter)
         AppConfig.loadFromFile(args[0])
-        
+
         when (AppConfig.instance.source.type) {
-            AppConfig.SourceType.IMAGE -> staticCFunction { -> SourceImage() }
-            AppConfig.SourceType.VIDEO -> staticCFunction { -> runBlocking { SourceVideo() } }
-            AppConfig.SourceType.CAMERA -> staticCFunction { -> runBlocking { SourceCamera() } }
+            AppConfig.SourceType.IMAGE,
+                -> staticCFunction { -> SourceImage() }
+
+            AppConfig.SourceType.VIDEO, AppConfig.SourceType.CAMERA,
+                -> staticCFunction { -> runBlocking { SourceVideo() } }
         }.let { memScoped { Main(1, arrayOf("YoloInfer").toCStringArray(this), it) } }
     }
 }

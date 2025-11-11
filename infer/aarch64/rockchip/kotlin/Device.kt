@@ -21,12 +21,6 @@ class Device : AutoCloseable {
             "rc_mode" to "CQP",
             "qp_init" to AppConfig.instance.processing.q.toString(1),
         )
-
-        fun transferFrame(frame: CPointer<AVFrame>): CPointer<AVFrame> {
-            val swFrame = av_frame_alloc()!!
-            av_frame_ref(swFrame, frame)
-            return swFrame
-        }
     }
 
     val ref: CPointer<AVBufferRef> = cPointer {

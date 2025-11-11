@@ -19,7 +19,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-object DecodeH264 : (InputRtsp.Output) -> Flow<Frame> {
+object DecodeH264FFmpeg : (InputRtsp.Output) -> Flow<Frame> {
     override fun invoke(input: InputRtsp.Output): Flow<Frame> {
         val codecParams = input.stream.codecpar
         val timeBase = input.stream.time_base
@@ -44,9 +44,7 @@ object DecodeH264 : (InputRtsp.Output) -> Flow<Frame> {
                     if (inputFrames == 0L) timestamp0 = timestamp
                     if (maxFrames(timestamp - timestamp0) < inputFrames) continue
                     ++inputFrames
-                    val swFrame = Device.transferFrame(frame)
-                    emit(Frame(timestamp, toRGBImage(swFrame.pointed), null))
-                    av_frame_free(cValuesOf(swFrame))
+                    emit(Frame(timestamp, toRGBImage(frame.pointed), null))
                 }
             } finally {
                 if (packet != null) av_packet_unref(packet)
