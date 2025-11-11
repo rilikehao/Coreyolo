@@ -1,8 +1,8 @@
 import common.AppConfig
 import common.StringFormat.toString
-import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.ffmpeg.*
+import platform.ffmpeg.AVCodecContext
+import platform.ffmpeg.AV_PIX_FMT_YUV420P
 
 @OptIn(ExperimentalForeignApi::class)
 class Device : AutoCloseable {
