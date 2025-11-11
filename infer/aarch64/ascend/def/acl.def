@@ -1,0 +1,4 @@
+package = platform.acl
+headers = acl/acl.h
+compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../../../aarch64/root/usr/include -I../../../aarch64/root/usr/local/include -I../../../aarch64/root/usr/local/nnrt/latest/include
+linkerOpts = -Laarch64/root/usr/lib -Laarch64/root/usr/local/lib -Laarch64/root/usr/local/nnrt/latest/aarch64-linux/lib64 -Laarch64/root/usr/local/nnrt/latest/aarch64-linux/devlib -lascendcl
