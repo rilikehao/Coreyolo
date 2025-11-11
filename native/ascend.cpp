@@ -283,10 +283,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         throw std::runtime_error("Invalid image dimensions");
     }
 
-    qDebug("Processing image %dx%d with model input %dx%d",
-           task->image_->data_.width(), task->image_->data_.height(), h,
-           w);
-
     // 缩放图像到模型输入尺寸
     QImage scaled =
         ScalePadToRGB(task->image_->data_, w, h, task->scale_);
@@ -386,8 +382,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
 
     // 获取模型输出数量
     size_t num_outputs = aclmdlGetNumOutputs(session.model_desc_);
-    qDebug("Model has %zu outputs", num_outputs);
-
     // 为每个输出创建缓冲区
     for (size_t i = 0; i < num_outputs; ++i) {
         size_t output_size =
@@ -473,26 +467,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     }
 
     // 执行推理前的验证和调试信息
-    qDebug(
-        "About to execute model with input dataset (buffers: %zu) and "
-        "output dataset (buffers: %zu)",
-        aclmdlGetDatasetNumBuffers(input_dataset),
-        aclmdlGetDatasetNumBuffers(output_dataset));
-
-    // 显示输入数据的前几个像素作为验证
-    float* input_data = static_cast<float*>(input_buffer);
-    qDebug(
-        "Input data sample - R:%.3f, G:%.3f, B:%.3f (first pixel "
-        "normalized)",
-        input_data[0], input_data[1], input_data[2]);
-
-    // 验证模型ID
-    qDebug(
-        "Model ID: %u, Input dataset pointer: %p, Output dataset "
-        "pointer: %p",
-        session.model_id_, static_cast<void*>(input_dataset),
-        static_cast<void*>(output_dataset));
-
     // 执行推理
     ret =
         aclmdlExecute(session.model_id_, input_dataset, output_dataset);
@@ -530,12 +504,9 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         throw std::runtime_error("Failed to execute model");
     }
 
-    qDebug("Model execution successful! Verifying outputs...");
-
     // 验证输出数据
     size_t num_output_buffers =
         aclmdlGetDatasetNumBuffers(output_dataset);
-    qDebug("Number of output buffers: %zu", num_output_buffers);
 
     for (size_t i = 0; i < num_output_buffers; ++i) {
         aclDataBuffer* buffer =
@@ -543,17 +514,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         if (buffer) {
             void* data = aclGetDataBufferAddr(buffer);
             size_t size = aclGetDataBufferSizeV2(buffer);
-            qDebug("Output buffer %zu: %zu bytes", i, size);
-
-            // 显示前几个浮点数值作为验证
-            if (size >= sizeof(float) && data) {
-                float* float_data = static_cast<float*>(data);
-                qDebug(
-                    "Output %zu sample values: [%.6f, %.6f, %.6f, "
-                    "%.6f]",
-                    i, float_data[0], float_data[1], float_data[2],
-                    float_data[3]);
-            }
         }
     }
 
@@ -566,7 +526,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     task->output_datasets_.push_back(output_dataset);
     task->output_contexts_.push_back(session.context_);
 
-    qDebug("ACL inference completed successfully");
 }
 
 void Detect1(Infer* infer, InferTask* task) {
@@ -605,9 +564,6 @@ void Detect1(Infer* infer, InferTask* task) {
 
     aclmdlDataset* output_dataset = task->output_datasets_[0];
     size_t num_buffers = aclmdlGetDatasetNumBuffers(output_dataset);
-    qDebug("Processing %zu output buffers from single dataset",
-           num_buffers);
-
     for (size_t b = 0; b < num_outputs && b + 2 < 9; b += 3) {
         // 验证缓冲区索引
         if (b + 2 >= num_buffers) {
@@ -659,9 +615,6 @@ void Detect1(Infer* infer, InferTask* task) {
         aclError ret =
             aclmdlGetOutputDims(session.model_desc_, b, &output_dims);
         if (QueryAcl(ret, "aclmdlGetOutputDims")) {
-            qDebug("输出维度: %dx%dx%dx%d",  //
-                   output_dims.dims[0], output_dims.dims[1],
-                   output_dims.dims[2], output_dims.dims[3]);
             data.h_grid_ =
                 static_cast<int>(output_dims.dims[2]);  // H 维度
             data.w_grid_ =
