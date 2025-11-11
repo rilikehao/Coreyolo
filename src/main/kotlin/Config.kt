@@ -18,6 +18,7 @@ object Config {
             "v4l-utils",
             "openssl",
             "libsrtp",
+            "ffmpeg",
         )
     }
 
@@ -55,7 +56,7 @@ object Config {
         compilerPrefix = "",
         cpu = "x86_64",
         sysrootDir = "/",
-        packages = listOf("ffmpeg", "vulkan-icd-loader"),
+        packages = listOf("vulkan-icd-loader"),
         platform = listOf("software"),
         script = $$"""
             #!/bin/bash
