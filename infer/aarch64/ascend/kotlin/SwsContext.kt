@@ -1,2 +1,2 @@
 @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
-typealias SwsContext = cnames.structs.SwsContext
+typealias SwsContext = platform.ffmpeg.SwsContext
