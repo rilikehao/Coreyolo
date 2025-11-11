@@ -24,9 +24,10 @@ import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-object EncodeH264FFmpeg : AutoCloseable,
-        (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Frame>) -> Flow<OutputRtsp.Input> {
+object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Frame>) -> Flow<OutputRtsp.Input> {
     class Context(val ctx: OutputRtsp.Context) : AutoCloseable {
+        val fromRGBImage = FromRGBImage()
+
         val codec = avcodec_find_encoder_by_name(Device.ENCODER_NAME).check("avcodec_find_encoder_by_name")
 
         val codecCtx = avcodec_alloc_context3(codec)!!.apply {
@@ -41,17 +42,8 @@ object EncodeH264FFmpeg : AutoCloseable,
         override fun close() {
             av_frame_free(cValuesOf(frame))
             avcodec_free_context(cValuesOf(codecCtx))
+            fromRGBImage.close()
         }
-    }
-
-    val fromRGBImage = FromRGBImage()
-
-    override fun close() = fromRGBImage.close()
-
-    fun createFrame(frame: CPointer<AVFrame>, timestamp: Instant, image: CPointer<Image>) {
-        frame.pointed.pts = timestamp.toEpochMilliseconds() * 90
-        fromRGBImage(frame.pointed, image)
-        DestroyImage(image)
     }
 
     override fun invoke(
@@ -75,8 +67,13 @@ object EncodeH264FFmpeg : AutoCloseable,
                 val delayMs = max(0L, delayed.inWholeMilliseconds)
                 "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
             }
-            createFrame(originalCtx.frame, frame.timestamp, frame.original)
-            createFrame(processedCtx.frame, frame.timestamp, frame.processed!!)
+            fun Context.createFrame(timestamp: Instant, image: CPointer<Image>) {
+                this.frame.pointed.pts = timestamp.toEpochMilliseconds() * 90
+                fromRGBImage(this.frame.pointed, image)
+                DestroyImage(image)
+            }
+            originalCtx.createFrame(frame.timestamp, frame.original)
+            processedCtx.createFrame(frame.timestamp, frame.processed!!)
             emit(Pair(originalCtx.frame as CPointer<AVFrame>?, processedCtx.frame as CPointer<AVFrame>?))
         }.onCompletion {
             emit(Pair(null, null))
