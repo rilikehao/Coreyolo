@@ -192,6 +192,10 @@ object ProjectBuilder {
             ).runCommand()
         }
         ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
+        ProcessBuilder(
+            "curl", "-o", File("aarch64/root/usr/local/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
+            "https://xwrt.kw92.cyou/JYSZ/acl_dvpp.h",
+        ).runCommand()
     }
 
     fun buildFFmpegRockchip() {
