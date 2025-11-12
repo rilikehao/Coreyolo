@@ -25,6 +25,13 @@ tasks.register<Exec>("image") {
     workingDir = projectDir
 }
 
+tasks.register<Exec>("image-debug") {
+    description = "Build native, install infer, and run image target"
+    executable = "bash"
+    args("-c", "./gradlew run --args native && ./gradlew infer -PbuildType=Debug && ./gradlew run --args image")
+    workingDir = projectDir
+}
+
 tasks.register("infer") {
     dependsOn(
         ":infer:x86_64:software:install",

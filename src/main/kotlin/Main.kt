@@ -15,7 +15,6 @@ fun main(args: Array<String>) {
             "zLMediaKit" -> ProjectBuilder.buildZLMediaKit()
             "clean" -> ProjectBuilder.clean()
             "image" -> ProjectBuilder.buildAppImage()
-            "image-debug" -> ProjectBuilder.buildAppImage()
             "train" -> TrainEnvBuilder.buildTrainEnv()
             "train-cuda" -> TrainEnvBuilder.buildTrainEnv("cuda")
             "train-export" -> TrainEnvBuilder.exportModels()

@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.transform
 import platform.acl.*
 import platform.ffmpeg.*
+import platform.native.Bits
+import platform.native.BytesPerLine
+import platform.native.CreateImageRGB24
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -37,27 +40,23 @@ object DecodeH264ACL : (InputRtsp.Output) -> Flow<Frame> {
         }
         val channel = aclvdecCreateChannelDesc()
         aclvdecSetChannelDescChannelId(channel, 0U)
-        aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, data ->
-
-        })
-        // 0：H265 main level
-        // 1：H264 baseline level
-        // 2：H264 main level
-        // 3：H264 high level
-        aclvdecSetChannelDescEnType(channel, 3U)
-        // 1：YUV420 semi-planner（nv12）; 2：YVU420 semi-planner（nv21）
-        val kPixel = 1U
-        aclvdecSetChannelDescOutPicFormat(channel, kPixel)
+        aclvdecSetChannelDescCallback(channel, null)
+        aclvdecSetChannelDescEnType(channel, H264_HIGH_LEVEL)
+        aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_RGB_888)
         aclvdecCreateChannel(channel)
         return input.packets.transform { packet ->
             try {
                 val size = packet!!.pointed.size.toULong()
                 val dev = cPointer<CPointed> { acldvppMalloc(it.reinterpret(), size).check("acldvppMalloc") }
-                val mode = when (runMode) {
+                val uploadMode = when (runMode) {
                     aclrtRunMode.ACL_HOST -> aclrtMemcpyKind.ACL_MEMCPY_HOST_TO_DEVICE
                     else -> aclrtMemcpyKind.ACL_MEMCPY_DEVICE_TO_DEVICE
                 }
-                aclrtMemcpy(dev, size, packet.pointed.data, size, mode).check("aclrtMemcpy")
+                val downloadMode = when (runMode) {
+                    aclrtRunMode.ACL_HOST -> aclrtMemcpyKind.ACL_MEMCPY_DEVICE_TO_HOST
+                    else -> aclrtMemcpyKind.ACL_MEMCPY_DEVICE_TO_DEVICE
+                }
+                aclrtMemcpy(dev, size, packet.pointed.data, size, uploadMode).check("aclrtMemcpy")
                 val streamDesc = acldvppCreateStreamDesc()
                 acldvppSetStreamDescData(streamDesc, dev)
                 acldvppSetStreamDescSize(streamDesc, size.toUInt())
@@ -66,11 +65,22 @@ object DecodeH264ACL : (InputRtsp.Output) -> Flow<Frame> {
                 val picDesc = acldvppCreatePicDesc()
                 acldvppSetPicDescData(picDesc, frameDev)
                 acldvppSetPicDescSize(picDesc, frameSize.toUInt())
-                acldvppSetPicDescFormat(picDesc, kPixel)
+                acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_RGB_888)
                 aclvdecSendFrame(channel, streamDesc, picDesc, null, null)
                 aclrtProcessReport(-1)
-                acldvppDestroyStreamDesc(streamDesc)
+                val image = CreateImageRGB24(codecParams.pointed.width, codecParams.pointed.height)
+                repeat(codecParams.pointed.height) {
+                    val dst = Bits(image) + BytesPerLine(image) * it
+                    val src = frameDev.reinterpret<UByteVar>() + codecParams.pointed.width * 3
+                    aclrtMemcpy(
+                        dst, BytesPerLine(image).toULong(),
+                        src, (codecParams.pointed.width * 3).toULong(),
+                        downloadMode,
+                    ).check("aclrtMemcpy")
+                }
+                acldvppDestroyPicDesc(picDesc)
                 acldvppFree(frameDev)
+                acldvppDestroyStreamDesc(streamDesc)
                 acldvppFree(dev)
                 val pts = packet.pointed.pts.toDouble() * timeBase.num / timeBase.den
                 val start = Instant.fromEpochMilliseconds(input.formatCtx.start_time_realtime / 1000L)
@@ -78,7 +88,7 @@ object DecodeH264ACL : (InputRtsp.Output) -> Flow<Frame> {
                 if (inputFrames == 0L) timestamp0 = timestamp
                 if (maxFrames(timestamp - timestamp0) < inputFrames) return@transform
                 ++inputFrames
-                emit(Frame(timestamp, toRGBImage, null))
+                emit(Frame(timestamp, image!!, null))
             } finally {
                 if (packet != null) av_packet_unref(packet)
             }
