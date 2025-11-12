@@ -106,8 +106,7 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                     acldvppDestroyStreamDesc(streamDesc)
                     acldvppFree(dev)
                     acldvppDestroyPicDesc(picDesc)
-                    ctx.packet.pointed.pts = timestamp.toEpochMilliseconds() * 90
-                    ctx.packet.pointed.dts = ctx.packet.pointed.pts
+                    val pts = timestamp.toEpochMilliseconds() * 90
                     if (ctx.videoStream == null) {
                         ctx.videoStream = avformat_new_stream(ctx.formatCtx, codec).check("avformat_new_stream")
                         val bsf = av_bsf_get_by_name("extract_extradata") ?: throw Error("av_bsf_get_by_name")
@@ -123,15 +122,17 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                         }
                         av_bsf_init(bsfContext).check("av_bsf_init")
                         av_bsf_send_packet(bsfContext, ctx.packet).check("av_bsf_send_packet")
-                        av_bsf_receive_packet(bsfContext, null).check("av_bsf_receive_packet")
+                        av_bsf_receive_packet(bsfContext, ctx.packet).check("av_bsf_receive_packet")
                         avcodec_parameters_copy(ctx.videoStream!!.pointed.codecpar, bsfContext.pointed.par_out)
                         avcodec_parameters_free(cValuesOf(bsfContext.pointed.par_in))
                         av_bsf_free(cValuesOf(bsfContext))
-                        ctx.formatCtx.pointed.start_time_realtime = ctx.packet.pointed.pts / 90L * 1000L
+                        ctx.formatCtx.pointed.start_time_realtime = pts / 90L * 1000L
                         withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
                             avformat_write_header(ctx.formatCtx, it).check("avformat_write_header")
                         }
                     }
+                    ctx.packet.pointed.pts = pts
+                    ctx.packet.pointed.dts = pts
                     emit(OutputRtsp.Input(ctx, ctx.packet))
                 } finally {
                     DestroyImage(image)
