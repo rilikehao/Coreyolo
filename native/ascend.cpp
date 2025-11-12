@@ -93,7 +93,8 @@ Infer* CreateInfer(InferConfig* config) {
     bool run_mode_checked = false;
 
     for (auto& session : infer->sessions_) {
-        ret = aclrtCreateContext(&session.context_, infer->device_id_);
+        int ret =
+            aclrtCreateContext(&session.context_, infer->device_id_);
         if (!QueryAcl(ret, "aclrtCreateContext")) {
             CleanupSessions();
             delete infer;
@@ -187,7 +188,6 @@ void DestroyInferTask(struct InferTask* task) {
             if (dataset) {
                 if (idx < task->output_contexts_.size() &&
                     task->output_contexts_[idx]) {
-                    aclrtSetDevice(infer->device_id_);
                     QueryAcl(aclrtSetCurrentContext(
                                  task->output_contexts_[idx]),
                              "aclrtSetCurrentContext");
