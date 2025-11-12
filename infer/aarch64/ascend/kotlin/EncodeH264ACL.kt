@@ -1,6 +1,6 @@
-import cnames.structs.*
+import cnames.structs.Image
+import cnames.structs.aclvencChannelDesc
 import co.touchlab.kermit.Logger
-import common.EncodeH264FFmpeg
 import common.Frame
 import common.OutputRtsp
 import common.StringFormat.toString
@@ -14,10 +14,6 @@ import kotlinx.coroutines.flow.transform
 import platform.acl.*
 import platform.ffmpeg.*
 import platform.native.*
-import platform.posix.EAGAIN
-import platform.posix.memcpy
-import platform.posix.memset
-import platform.posix.uint8_tVar
 import kotlin.math.max
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -77,7 +73,13 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                         val src = Bits(image) + srcLine * it
                         val dstLine = width * 3
                         val dst = dev.reinterpret<UByteVar>() + dstLine * it
-                        aclrtMemcpy(dst, dstLine.toULong(), src, srcLine.toULong(), acl.uploadMode()).check("aclrtMemcpy")
+                        aclrtMemcpy(
+                            dst,
+                            dstLine.toULong(),
+                            src,
+                            srcLine.toULong(),
+                            acl.uploadMode()
+                        ).check("aclrtMemcpy")
                     }
                     aclvencSendFrame(channel, picDesc, streamDesc, null, null).check("aclvencSendFrame")
                     acl.process(-1)

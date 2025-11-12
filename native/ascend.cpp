@@ -71,12 +71,6 @@ Infer* CreateInfer(InferConfig* config) {
 
     // 初始化 ACL
     infer->device_id_ = 0;  // 默认设备ID
-    aclError ret = aclInit(nullptr);
-    if (!QueryAcl(ret, "aclInit")) {
-        delete infer;
-        return nullptr;
-    }
-
     infer->sessions_.resize(config->threads_);
 
     auto CleanupSessions = [&]() {
@@ -102,15 +96,14 @@ Infer* CreateInfer(InferConfig* config) {
         ret = aclrtCreateContext(&session.context_, infer->device_id_);
         if (!QueryAcl(ret, "aclrtCreateContext")) {
             CleanupSessions();
-            aclFinalize();
             delete infer;
             return nullptr;
         }
 
+        aclrtSetDevice(infer->device_id_);
         ret = aclrtSetCurrentContext(session.context_);
         if (!QueryAcl(ret, "aclrtSetCurrentContext")) {
             CleanupSessions();
-            aclFinalize();
             delete infer;
             return nullptr;
         }
@@ -120,7 +113,6 @@ Infer* CreateInfer(InferConfig* config) {
             ret = aclrtGetRunMode(&runMode);
             if (!QueryAcl(ret, "aclrtGetRunMode")) {
                 CleanupSessions();
-                aclFinalize();
                 delete infer;
                 return nullptr;
             }
@@ -131,7 +123,6 @@ Infer* CreateInfer(InferConfig* config) {
             aclmdlLoadFromFile(config->path_model_, &session.model_id_);
         if (!QueryAcl(ret, "aclmdlLoadFromFile")) {
             CleanupSessions();
-            aclFinalize();
             delete infer;
             return nullptr;
         }
@@ -140,7 +131,6 @@ Infer* CreateInfer(InferConfig* config) {
         if (!session.model_desc_) {
             qDebug("Failed to create model description");
             CleanupSessions();
-            aclFinalize();
             delete infer;
             return nullptr;
         }
@@ -148,7 +138,6 @@ Infer* CreateInfer(InferConfig* config) {
         ret = aclmdlGetDesc(session.model_desc_, session.model_id_);
         if (!QueryAcl(ret, "aclmdlGetDesc")) {
             CleanupSessions();
-            aclFinalize();
             delete infer;
             return nullptr;
         }
@@ -181,7 +170,6 @@ void DestroyInfer(Infer* infer) {
 
     // 释放ACL资源
     if (infer->initialized_) {
-        aclFinalize();
         infer->initialized_ = false;
     }
 
@@ -199,6 +187,7 @@ void DestroyInferTask(struct InferTask* task) {
             if (dataset) {
                 if (idx < task->output_contexts_.size() &&
                     task->output_contexts_[idx]) {
+                    aclrtSetDevice(infer->device_id_);
                     QueryAcl(aclrtSetCurrentContext(
                                  task->output_contexts_[idx]),
                              "aclrtSetCurrentContext");
@@ -260,6 +249,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     }
 
     auto& session = infer->sessions_[no];
+    aclrtSetDevice(infer->device_id_);
     aclError set_ret = aclrtSetCurrentContext(session.context_);
     if (!QueryAcl(set_ret, "aclrtSetCurrentContext")) {
         throw std::runtime_error("Failed to set ACL context");
@@ -525,7 +515,6 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     // 保存输出数据集供后续处理使用
     task->output_datasets_.push_back(output_dataset);
     task->output_contexts_.push_back(session.context_);
-
 }
 
 void Detect1(Infer* infer, InferTask* task) {
@@ -546,6 +535,7 @@ void Detect1(Infer* infer, InferTask* task) {
     }
 
     auto& session = infer->sessions_[session_index];
+    aclrtSetDevice(infer->device_id_);
     aclError set_ret = aclrtSetCurrentContext(session.context_);
     if (!QueryAcl(set_ret, "aclrtSetCurrentContext")) {
         throw std::runtime_error("Failed to set ACL context");
@@ -635,6 +625,7 @@ void Detect1(Infer* infer, InferTask* task) {
         if (dataset) {
             if (idx < task->output_contexts_.size() &&
                 task->output_contexts_[idx]) {
+                aclrtSetDevice(infer->device_id_);
                 QueryAcl(
                     aclrtSetCurrentContext(task->output_contexts_[idx]),
                     "aclrtSetCurrentContext");
