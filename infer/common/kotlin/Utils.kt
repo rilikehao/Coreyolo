@@ -9,6 +9,8 @@ import platform.ffmpeg.av_make_error_string
 
 @OptIn(ExperimentalForeignApi::class)
 object Utils {
+    class Ref<T>(var value: T)
+
     fun Int.check(api: String) {
         if (this < 0) {
             memScoped {

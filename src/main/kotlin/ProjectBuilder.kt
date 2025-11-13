@@ -411,7 +411,7 @@ object ProjectBuilder {
                 
                 [http]
                 allow_cross_domains=1
-                allow_ip_range=::1,127.0.0.1,172.16.0.0-172.31.255.255,192.168.0.0-192.168.255.255,10.0.0.0-10.255.255.255
+                allow_ip_range=::1,127.0.0.1,0.0.0.0-255.255.255.255
                 charSet=utf-8
                 dirMenu=1
                 forbidCacheSuffix=

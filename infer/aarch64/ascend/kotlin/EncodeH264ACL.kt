@@ -159,3 +159,31 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
         }
     }
 }
+//val configResize = acldvppCreateResizeConfig()!!
+//acldvppSetResizeConfigInterpolation(configResize, 0U)
+//val channelResize = acldvppCreateChannelDesc()!!
+//acldvppCreateChannel(channelResize)
+
+//val rgbSize = (wStride(data.codecParams) * hStride(data.codecParams) * 3).toULong()  // RGB
+//val rgbDev = cPointer<CPointed> {
+//    acldvppMalloc(it.reinterpret(), rgbSize).checkEq0("acldvppMalloc")
+//}
+//val rgbDesc = acldvppCreatePicDesc()
+//acldvppSetPicDescData(rgbDesc, rgbDev)
+//acldvppSetPicDescFormat(rgbDesc, PIXEL_FORMAT_RGB_888)
+//acldvppSetPicDescWidth(rgbDesc, data.codecParams.width.toUInt())
+//acldvppSetPicDescHeight(rgbDesc, data.codecParams.height.toUInt())
+//acldvppSetPicDescWidthStride(rgbDesc, wStride(data.codecParams).toUInt())
+//acldvppSetPicDescHeightStride(rgbDesc, hStride(data.codecParams).toUInt())
+//acldvppSetPicDescSize(rgbDesc, rgbSize.toUInt())
+//acldvppVpcResizeAsync(data.channelResize, output, rgbDesc, data.configResize, null)
+//.checkEq0("acldvppVpcResizeAsync")
+//aclrtSynchronizeStream(null)
+//val image = CreateImageRGB24(data.codecParams.width, data.codecParams.height)
+//repeat(data.codecParams.height) {
+//    val dstLine = BytesPerLine(image)
+//    val dst = Bits(image) + dstLine * it
+//    val srcLine = data.codecParams.width * 3
+//    val src = frameDev.reinterpret<UByteVar>() + srcLine * it
+//    aclrtMemcpy(dst, dstLine.toULong(), src, srcLine.toULong(), data.acl.downloadMode())
+//}
