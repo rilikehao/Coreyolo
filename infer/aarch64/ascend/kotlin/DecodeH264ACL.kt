@@ -107,17 +107,16 @@ object DecodeH264ACL : (Int, InputRtsp.Output) -> Flow<Frame> {
                 val streamDesc = acldvppCreateStreamDesc()
                 acldvppSetStreamDescData(streamDesc, dev)
                 acldvppSetStreamDescSize(streamDesc, size.toUInt())
-                val frameSize = (wStride(codecParams) * hStride(codecParams) * 3 / 2).toULong()  // NV12
-                val frameDev =
-                    cPointer<CPointed> { acldvppMalloc(it.reinterpret(), frameSize).checkEq0("acldvppMalloc") }
+                val picSize = (wStride(codecParams.width) * hStride(codecParams.height) * 3 / 2).toULong()  // NV12
+                val picDev = cPointer<CPointed> { acldvppMalloc(it.reinterpret(), picSize).checkEq0("acldvppMalloc") }
                 val picDesc = acldvppCreatePicDesc()
-                acldvppSetPicDescData(picDesc, frameDev)
+                acldvppSetPicDescData(picDesc, picDev)
                 acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
                 acldvppSetPicDescWidth(picDesc, codecParams.width.toUInt())
                 acldvppSetPicDescHeight(picDesc, codecParams.height.toUInt())
-                acldvppSetPicDescWidthStride(picDesc, wStride(codecParams).toUInt())
-                acldvppSetPicDescHeightStride(picDesc, hStride(codecParams).toUInt())
-                acldvppSetPicDescSize(picDesc, frameSize.toUInt())
+                acldvppSetPicDescWidthStride(picDesc, wStride(codecParams.width).toUInt())
+                acldvppSetPicDescHeightStride(picDesc, hStride(codecParams.height).toUInt())
+                acldvppSetPicDescSize(picDesc, picSize.toUInt())
                 val data = Data(acl, swsCtx, codecParams, this, timestamp, keep)
                 aclvdecSendFrame(channel, streamDesc, picDesc, null, StableRef.create(data).asCPointer())
                 av_packet_unref(packet)
@@ -138,7 +137,4 @@ object DecodeH264ACL : (Int, InputRtsp.Output) -> Flow<Frame> {
             while (!reorder.isEmpty()) emit(pop())
         }.buffer(Channel.UNLIMITED)
     }
-
-    fun wStride(codecParams: AVCodecParameters) = (codecParams.width + 15) / 16 * 16
-    fun hStride(codecParams: AVCodecParameters) = (codecParams.height + 1) / 2 * 2
 }
