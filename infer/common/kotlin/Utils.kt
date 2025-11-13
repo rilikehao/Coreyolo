@@ -19,6 +19,16 @@ object Utils {
         }
     }
 
+    fun Int.checkEq0(api: String) {
+        if (this != 0) {
+            memScoped {
+                val buf = allocArray<ByteVar>(AV_ERROR_MAX_STRING_SIZE)
+                av_make_error_string(buf.pointed.ptr, AV_ERROR_MAX_STRING_SIZE.toULong(), this@checkEq0)
+                throw Error("$api 失败: ${buf.toKString()}")
+            }
+        }
+    }
+
     fun <T : CPointed> CPointer<T>?.check(api: String): CPointer<T> = this ?: throw Error("$api 失败")
 
     fun <T : CPointed> cPointer(block: (CPointer<CPointerVar<T>>) -> Unit) = memScoped {

@@ -1,51 +1,45 @@
 import common.Utils.cPointer
-import common.Utils.check
-import kotlinx.cinterop.CPointed
-import kotlinx.cinterop.CPointer
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.alloc
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.ptr
-import kotlinx.cinterop.reinterpret
-import platform.acl.aclrtCreateContext
-import platform.acl.aclrtCreateStream
-import platform.acl.aclrtDestroyContext
-import platform.acl.aclrtDestroyStream
-import platform.acl.aclrtGetRunMode
-import platform.acl.aclrtMemcpyKind
-import platform.acl.aclrtProcessReport
-import platform.acl.aclrtResetDevice
-import platform.acl.aclrtRunMode
-import platform.acl.aclrtSetCurrentContext
-import platform.acl.aclrtSetDevice
+import common.Utils.checkEq0
+import kotlinx.cinterop.*
+import kotlinx.coroutines.*
+import platform.acl.*
+import platform.posix.pthread_self
 
 @OptIn(ExperimentalForeignApi::class)
 class SessionACL(val device: Int) : AutoCloseable {
-    val context: CPointer<CPointed> = cPointer {
-        aclrtCreateContext(it.reinterpret(), device).check("aclrtCreateContext")
-    }
+    var threadId = 0UL
 
-    val stream: CPointer<CPointed> = cPointer {
-        aclrtCreateStream(it.reinterpret()).check("aclrtCreateStream")
+    val context: CPointer<CPointed> = cPointer {
+        aclrtCreateContext(it.reinterpret(), device).checkEq0("aclrtCreateContext")
     }
 
     val runMode: aclrtRunMode = memScoped {
-        alloc<aclrtRunMode.Var>().also { aclrtGetRunMode(it.ptr).check("aclrtGetRunMode") }.value
+        alloc<aclrtRunMode.Var>().also { aclrtGetRunMode(it.ptr).checkEq0("aclrtGetRunMode") }.value
+    }
+
+    @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+    val dispatcher = newSingleThreadContext("ACLCallbackThread")
+
+    val job = CoroutineScope(dispatcher).launch {
+        threadId = pthread_self()
+        setContext()
+        aclrtSubscribeReport(threadId, null)
+        while (true) {
+            aclrtProcessReport(-1).checkEq0("aclrtProcessReport")
+            delay(0)
+        }
     }
 
     fun setContext() {
-        aclrtSetDevice(device).check("aclrtSetDevice")
-        aclrtSetCurrentContext(context).check("aclrtSetCurrentContext")
-    }
-
-    fun process(timeout: Int) {
-        aclrtProcessReport(timeout).check("aclrtProcessReport")
+        aclrtSetDevice(device).checkEq0("aclrtSetDevice")
+        aclrtSetCurrentContext(context).checkEq0("aclrtSetCurrentContext")
     }
 
     override fun close() {
-        aclrtDestroyStream(stream).check("aclrtDestroyStream")
-        aclrtDestroyContext(context).check("aclrtDestroyContext")
-        aclrtResetDevice(device).check("aclrtResetDevice")
+        runBlocking { job.cancelAndJoin() }
+        dispatcher.close()
+        aclrtDestroyContext(context).checkEq0("aclrtDestroyContext")
+        aclrtResetDevice(device).checkEq0("aclrtResetDevice")
     }
 
     fun uploadMode() = when (runMode) {

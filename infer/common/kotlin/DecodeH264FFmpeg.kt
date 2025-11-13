@@ -19,8 +19,8 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-object DecodeH264FFmpeg : (InputRtsp.Output) -> Flow<Frame> {
-    override fun invoke(input: InputRtsp.Output): Flow<Frame> {
+object DecodeH264FFmpeg : (Int, InputRtsp.Output) -> Flow<Frame> {
+    override fun invoke(id: Int, input: InputRtsp.Output): Flow<Frame> {
         val codecParams = input.stream.codecpar
         val timeBase = input.stream.time_base
         var inputFrames = 0L

@@ -10,11 +10,11 @@ object SourceVideo : suspend () -> Unit {
     override suspend fun invoke() {
         Inference.use {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            AppConfig.instance.streams.map { config ->
+            AppConfig.instance.streams.mapIndexed { id, config ->
                 scope.launch {
                     while (true) {
                         val decoded = when (AppConfig.instance.source.type) {
-                            AppConfig.SourceType.VIDEO -> DecodeH264(InputRtsp(config.source))
+                            AppConfig.SourceType.VIDEO -> DecodeH264(id, InputRtsp(config.source))
                             AppConfig.SourceType.CAMERA -> Camera.open(config.source)()
                             else -> throw Error("不支持的视频来源")
                         }
