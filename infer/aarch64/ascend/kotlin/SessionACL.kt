@@ -7,27 +7,27 @@ import platform.posix.pthread_self
 
 @OptIn(ExperimentalForeignApi::class)
 class SessionACL(val device: Int) : AutoCloseable {
-    var threadId = 0UL
-
-    val context: CPointer<CPointed> = cPointer {
-        aclrtCreateContext(it.reinterpret(), device).checkEq0("aclrtCreateContext")
-    }
-
-    val runMode: aclrtRunMode = memScoped {
-        alloc<aclrtRunMode.Var>().also { aclrtGetRunMode(it.ptr).checkEq0("aclrtGetRunMode") }.value
-    }
+    val threadId = CompletableDeferred<ULong>()
+    val channelReady = CompletableDeferred<Unit>()
 
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-    val dispatcher = newSingleThreadContext("ACLCallbackThread")
+    val main = newSingleThreadContext("ACLMain")
 
-    val job = CoroutineScope(dispatcher).launch {
-        threadId = pthread_self()
+    @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+    val callback = newSingleThreadContext("ACLCallback")
+
+    val job = CoroutineScope(callback).launch {
+        threadId.complete(pthread_self())
+        channelReady.await()
         setContext()
-        aclrtSubscribeReport(threadId, null)
         while (true) {
             aclrtProcessReport(-1).checkEq0("aclrtProcessReport")
             delay(0)
         }
+    }
+
+    val context: CPointer<CPointed> = cPointer {
+        aclrtCreateContext(it.reinterpret(), device).checkEq0("aclrtCreateContext")
     }
 
     fun setContext() {
@@ -35,9 +35,14 @@ class SessionACL(val device: Int) : AutoCloseable {
         aclrtSetCurrentContext(context).checkEq0("aclrtSetCurrentContext")
     }
 
+    val runMode: aclrtRunMode = memScoped {
+        alloc<aclrtRunMode.Var>().also { aclrtGetRunMode(it.ptr).checkEq0("aclrtGetRunMode") }.value
+    }
+
     override fun close() {
         runBlocking { job.cancelAndJoin() }
-        dispatcher.close()
+        callback.close()
+        main.close()
         aclrtDestroyContext(context).checkEq0("aclrtDestroyContext")
         aclrtResetDevice(device).checkEq0("aclrtResetDevice")
     }

@@ -21,7 +21,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
-object DecodeH264ACL : (Int, InputRtsp.Output) -> Flow<Frame> {
+object DecodeH264ACL : suspend (Int, InputRtsp.Output) -> Flow<Frame> {
     const val REORDER_SIZE = 5
 
     data class Data(
@@ -33,7 +33,7 @@ object DecodeH264ACL : (Int, InputRtsp.Output) -> Flow<Frame> {
         val keep: Boolean,
     )
 
-    override fun invoke(id: Int, input: InputRtsp.Output): Flow<Frame> {
+    override suspend fun invoke(id: Int, input: InputRtsp.Output): Flow<Frame> {
         val codecParams = input.stream.codecpar!!.pointed
         val timeBase = input.stream.time_base
         var inputFrames = 0L
@@ -43,7 +43,7 @@ object DecodeH264ACL : (Int, InputRtsp.Output) -> Flow<Frame> {
         acl.setContext()
         val channel = aclvdecCreateChannelDesc()
         aclvdecSetChannelDescChannelId(channel, id.toUInt())
-        aclvdecSetChannelDescThreadId(channel, acl.threadId)
+        aclvdecSetChannelDescThreadId(channel, acl.threadId.await())
         aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, rawData ->
             val data = rawData!!.asStableRef<Data>().let { ref ->
                 ref.get().also { ref.dispose() }
@@ -90,6 +90,7 @@ object DecodeH264ACL : (Int, InputRtsp.Output) -> Flow<Frame> {
         aclvdecSetChannelDescEnType(channel, H264_HIGH_LEVEL)
         aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_RGB_888)
         aclvdecCreateChannel(channel)
+        acl.channelReady.complete(Unit)
         val reorder = mutableSetOf<Frame>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
         return callbackFlow {
