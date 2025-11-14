@@ -26,6 +26,7 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Frame>) -> Flow<OutputRtsp.Input> {
+    val aclEncode = SessionACL(0)
     val codec = avcodec_find_encoder_by_name(Device.ENCODER_NAME).check("avcodec_find_encoder_by_name")
 
     data class Data(
@@ -40,15 +41,14 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
     class Context(val ctx: OutputRtsp.Context) {
 //        val acl = SessionACL(0)
         var channel: CPointer<aclvencChannelDesc>? = null
-//        val configResize = acldvppCreateResizeConfig()
-//        val channelResize = acldvppCreateChannelDesc()
-//
-//        init {
-//            acldvppSetResizeConfigInterpolation(configResize, 0U)
-//            acldvppCreateChannel(channelResize)
-//        }
+        val configResize = acldvppCreateResizeConfig()
+        val channelResize = acldvppCreateChannelDesc()
 
-        var aclEncode: SessionACL? = SessionACL(0)
+        init {
+            acldvppSetResizeConfigInterpolation(configResize, 0U)
+            acldvppCreateChannel(channelResize)
+        }
+
     }
 
     override fun invoke(
@@ -97,7 +97,7 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                                         streamDev, streamSize.toULong(),
                                         data.aclEncode.downloadMode(),
                                     ).checkEq0("aclrtMemcpy")
-                                    acldvppFree(streamDev).checkEq0("acldvppFree")
+                                    // no need to acldvppFree(streamDev)
                                     acldvppFree(dev).checkEq0("acldvppFree")
                                     acldvppDestroyStreamDesc(output).checkEq0("acldvppDestroyStreamDesc")
                                     acldvppDestroyPicDesc(input).checkEq0("acldvppDestroyPicDesc")
@@ -185,9 +185,9 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                         acldvppSetPicDescWidthStride(picDesc, wStride(width).toUInt())
                         acldvppSetPicDescHeightStride(picDesc, hStride(height).toUInt())
                         acldvppSetPicDescSize(picDesc, picSize.toUInt())
-//                        acldvppVpcResizeAsync(channelResize, rgbDesc, picDesc, configResize, null)
-//                            .checkEq0("acldvppVpcResizeAsync")
-//                        aclrtSynchronizeStream(null)
+                        acldvppVpcResizeAsync(channelResize, rgbDesc, picDesc, configResize, null)
+                            .checkEq0("acldvppVpcResizeAsync")
+                        aclrtSynchronizeStream(null)
                         aclEncode!!.setContext()
                         val streamDesc = acldvppCreateStreamDesc()
                         val pts = timestamp.toEpochMilliseconds() * 90
@@ -201,20 +201,19 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                         DestroyImage(image)
                     }
                 }
-                originalCtx.createPacket(frame.timestamp, frame.original)
+                // originalCtx.createPacket(frame.timestamp, frame.original)
                 processedCtx.createPacket(frame.timestamp, frame.processed!!)
             }
             val config = aclvencCreateFrameConfig()
             aclvencSetFrameConfigEos(config, 1U)
             aclvencSetFrameConfigForceIFrame(config, 0U)
             listOf(originalCtx, processedCtx).forEach {
-                it.aclEncode!!.setContext()
+                aclEncode.setContext()
                 aclvencSendFrame(it.channel, null, null, config, null)
-//                acldvppDestroyChannel(it.channelResize)
-//                acldvppDestroyChannelDesc(it.channelResize)
+                acldvppDestroyChannel(it.channelResize)
+                acldvppDestroyChannelDesc(it.channelResize)
                 aclvencDestroyChannel(it.channel)
                 aclvencDestroyChannelDesc(it.channel)
-                it.aclEncode!!.close()
 //                it.acl.close()
             }
             close()
