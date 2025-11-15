@@ -225,6 +225,7 @@ object ProjectBuilder {
             }",
             "--enable-gpl",
             "--enable-version3",
+            "--enable-librav1e",
             "--enable-libdrm",
             "--enable-rkmpp",
             "--enable-rkrga",
@@ -244,8 +245,52 @@ object ProjectBuilder {
         ProcessBuilder("make", "install").directory(ffmpegDir).runCommand()
     }
 
+    fun buildFFmpegAarch64() {
+        val ffmpegDir = File("aarch64/ffmpeg")
+        cloneIfNeeded(ffmpegDir, "https://git.ffmpeg.org/ffmpeg.git")
+
+        val configureArgs = arrayOf(
+            "./configure",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}",
+            "--arch=arm64",
+            "--target-os=linux",
+            "--cross-prefix=${Config.aarch64.compilerPrefix}",
+            "--sysroot=${Config.aarch64.sysrootDir}",
+            "--pkg-config=pkg-config",
+            "--extra-cflags=${
+                arrayOf(
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/include",
+                    "${File(Config.aarch64.targetDir()).absolutePath}/usr/include"
+                ).joinToString(" ") { "-I$it" }
+            }",
+            "--extra-ldflags=${
+                arrayOf(
+                    "${File(Config.aarch64.installPrefix()).absolutePath}/lib",
+                    "${File(Config.aarch64.targetDir()).absolutePath}/usr/lib"
+                ).joinToString(" ") { "-L$it" }
+            }",
+            "--enable-gpl",
+            "--enable-version3",
+            "--enable-librav1e",
+            "--enable-shared",
+            "--disable-static",
+            "--disable-stripping",
+            "--disable-doc",
+        )
+
+        ProcessBuilder(*configureArgs).apply {
+            environment()["PKG_CONFIG_LIBDIR"] = arrayOf(
+                "${File(Config.aarch64.installPrefix()).absolutePath}/lib/pkgconfig",
+                "${File(Config.aarch64.targetDir()).absolutePath}/usr/lib/pkgconfig",
+            ).joinToString(":")
+        }.directory(ffmpegDir).runCommand()
+        ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(ffmpegDir).runCommand()
+        ProcessBuilder("make", "install").directory(ffmpegDir).runCommand()
+    }
+
     fun buildFFmpeg() {
         buildFFmpegRockchip()
+        buildFFmpegAarch64()
     }
 
     fun buildNative() {
