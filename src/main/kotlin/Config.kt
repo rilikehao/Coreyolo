@@ -19,6 +19,7 @@ object Config {
             "openssl",
             "libsrtp",
             "ffmpeg",
+            "rav1e",
         )
     }
 
