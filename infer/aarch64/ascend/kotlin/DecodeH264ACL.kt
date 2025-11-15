@@ -1,5 +1,6 @@
 import cnames.structs.acldvppPicDesc
 import cnames.structs.acldvppStreamDesc
+import cnames.structs.aclvdecChannelDesc
 import common.Frame
 import common.InputRtsp
 import common.InputRtsp.maxFrames
@@ -34,21 +35,24 @@ object DecodeH264ACL : suspend (Int, InputRtsp.Output) -> Flow<Frame> {
         var timestamp0 = Clock.System.now()
         val swsCtx = Utils.Ref<CPointer<SwsContext>?>(null)
         val acl = SessionACL(0)
-        acl.setContext()
-        val channel = aclvdecCreateChannelDesc()
-        aclvdecSetChannelDescChannelId(channel, id.toUInt())
-        aclvdecSetChannelDescThreadId(channel, acl.threadId.await())
-        aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, rawData ->
-            rawData!!.asStableRef<(
-                CPointer<acldvppStreamDesc>, CPointer<acldvppPicDesc>,
-            ) -> Unit>().let { ref ->
-                ref.get().also { ref.dispose() }(input!!, output!!)
-            }
-        })
-        aclvdecSetChannelDescEnType(channel, H264_HIGH_LEVEL)
-        aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_RGB_888)
-        aclvdecCreateChannel(channel)
-        acl.channelReady.complete(Unit)
+        var channel: CPointer<aclvdecChannelDesc>? = null
+        withContext(acl.main) {
+            acl.setContext()
+            channel = aclvdecCreateChannelDesc()
+            aclvdecSetChannelDescChannelId(channel, id.toUInt())
+            aclvdecSetChannelDescThreadId(channel, acl.threadId.await())
+            aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, rawData ->
+                rawData!!.asStableRef<(
+                    CPointer<acldvppStreamDesc>, CPointer<acldvppPicDesc>,
+                ) -> Unit>().let { ref ->
+                    ref.get().also { ref.dispose() }(input!!, output!!)
+                }
+            })
+            aclvdecSetChannelDescEnType(channel, H264_HIGH_LEVEL)
+            aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_RGB_888)
+            aclvdecCreateChannel(channel)
+            acl.channelReady.complete(Unit)
+        }
         val reorder = mutableSetOf<Frame>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
         return callbackFlow {
@@ -59,25 +63,7 @@ object DecodeH264ACL : suspend (Int, InputRtsp.Output) -> Flow<Frame> {
                 if (inputFrames == 0L) timestamp0 = timestamp
                 val keep = inputFrames <= maxFrames(timestamp - timestamp0)
                 if (keep) ++inputFrames
-                acl.setContext()
-                val size = packet.pointed.size.toULong()
-                val dev = cPointer<CPointed> { acldvppMalloc(it.reinterpret(), size).checkEq0("acldvppMalloc") }
-                aclrtMemcpy(dev, size, packet.pointed.data, size, acl.uploadMode()).checkEq0("aclrtMemcpy")
-                val streamDesc = acldvppCreateStreamDesc()
-                acldvppSetStreamDescData(streamDesc, dev)
-                acldvppSetStreamDescSize(streamDesc, size.toUInt())
-                val picSize = (wStride(codecParams.width) * hStride(codecParams.height) * 3 / 2).toULong()  // NV12
-                val picDev = cPointer<CPointed> { acldvppMalloc(it.reinterpret(), picSize).checkEq0("acldvppMalloc") }
-                val picDesc = acldvppCreatePicDesc()
-                acldvppSetPicDescData(picDesc, picDev)
-                acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
-                acldvppSetPicDescWidth(picDesc, codecParams.width.toUInt())
-                acldvppSetPicDescHeight(picDesc, codecParams.height.toUInt())
-                acldvppSetPicDescWidthStride(picDesc, wStride(codecParams.width).toUInt())
-                acldvppSetPicDescHeightStride(picDesc, hStride(codecParams.height).toUInt())
-                acldvppSetPicDescSize(picDesc, picSize.toUInt())
                 suspend fun run(input: CPointer<acldvppStreamDesc>, output: CPointer<acldvppPicDesc>) {
-                    acl.setContext()
                     val dev = acldvppGetStreamDescData(input)!!
                     val frameDev = acldvppGetPicDescData(output)!!
                     val frameSize = acldvppGetPicDescSize(output)
@@ -122,14 +108,37 @@ object DecodeH264ACL : suspend (Int, InputRtsp.Output) -> Flow<Frame> {
                     runBlocking { withContext(acl.main) { acl.setContext(); run(input, output) } }
                 }
                 val data = StableRef.create(runACL).asCPointer()
-                aclvdecSendFrame(channel, streamDesc, picDesc, null, StableRef.create(data).asCPointer())
+                withContext(acl.main) {
+                    acl.setContext()
+                    val size = packet.pointed.size.toULong()
+                    val dev = cPointer<CPointed> { acldvppMalloc(it.reinterpret(), size).checkEq0("acldvppMalloc") }
+                    aclrtMemcpy(dev, size, packet.pointed.data, size, acl.uploadMode()).checkEq0("aclrtMemcpy")
+                    val streamDesc = acldvppCreateStreamDesc()
+                    acldvppSetStreamDescData(streamDesc, dev)
+                    acldvppSetStreamDescSize(streamDesc, size.toUInt())
+                    val picSize = (wStride(codecParams.width) * hStride(codecParams.height) * 3 / 2).toULong()  // NV12
+                    val picDev =
+                        cPointer<CPointed> { acldvppMalloc(it.reinterpret(), picSize).checkEq0("acldvppMalloc") }
+                    val picDesc = acldvppCreatePicDesc()
+                    acldvppSetPicDescData(picDesc, picDev)
+                    acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
+                    acldvppSetPicDescWidth(picDesc, codecParams.width.toUInt())
+                    acldvppSetPicDescHeight(picDesc, codecParams.height.toUInt())
+                    acldvppSetPicDescWidthStride(picDesc, wStride(codecParams.width).toUInt())
+                    acldvppSetPicDescHeightStride(picDesc, hStride(codecParams.height).toUInt())
+                    acldvppSetPicDescSize(picDesc, picSize.toUInt())
+                    aclvdecSendFrame(channel, streamDesc, picDesc, null, data)
+                }
                 av_packet_unref(packet)
             }
-            val streamDesc = acldvppCreateStreamDesc()
-            acldvppSetStreamDescEos(streamDesc, 1U)
-            aclvdecSendFrame(channel, streamDesc, null, null, null)
-            aclvdecDestroyChannel(channel)
-            aclvdecDestroyChannelDesc(channel)
+            withContext(acl.main) {
+                acl.setContext()
+                val streamDesc = acldvppCreateStreamDesc()
+                acldvppSetStreamDescEos(streamDesc, 1U)
+                aclvdecSendFrame(channel, streamDesc, null, null, null)
+                aclvdecDestroyChannel(channel)
+                aclvdecDestroyChannelDesc(channel)
+            }
             acl.close()
             if (swsCtx.value != null) sws_freeContext(swsCtx.value)
             close()
