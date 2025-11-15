@@ -192,7 +192,7 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                     }
                 }
                 DestroyImage(frame.original)
-                // originalCtx.createPacket(frame.timestamp, frame.original)
+                originalCtx.createPacket(frame.timestamp, frame.original)
                 processedCtx.createPacket(frame.timestamp, frame.processed!!)
             }
             listOf(originalCtx, processedCtx).forEach {

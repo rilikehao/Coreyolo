@@ -1,7 +1,7 @@
 package common
 
-import DecodeH264
-import EncodeH264
+import DecodeVideo
+import EncodeVideo
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.*
 
@@ -14,14 +14,14 @@ object SourceVideo : suspend () -> Unit {
                 scope.launch {
                     while (true) {
                         val decoded = when (AppConfig.instance.source.type) {
-                            AppConfig.SourceType.VIDEO -> DecodeH264(id, InputRtsp(config.source))
+                            AppConfig.SourceType.VIDEO -> DecodeVideo(id, InputRtsp(config.source))
                             AppConfig.SourceType.CAMERA -> Camera.open(config.source)()
                             else -> throw Error("不支持的视频来源")
                         }
                         val inferred = Inference(config.id, decoded)
                         val original = OutputRtsp.Context("rtsp://127.0.0.1:50554/original/${config.id}")
                         val processed = OutputRtsp.Context("rtsp://127.0.0.1:50554/processed/${config.id}")
-                        val encoded = EncodeH264(config.id, original, processed, inferred)
+                        val encoded = EncodeVideo(config.id, original, processed, inferred)
                         OutputRtsp(encoded)
                         delay(5000)
                     }
