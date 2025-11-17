@@ -182,7 +182,7 @@ object ProjectBuilder {
             if (!File("aarch64/$it").exists()) {
                 ProcessBuilder(
                     "curl", "-o", File("aarch64/$it").absolutePath,
-                    "https://xwrt.kw92.cyou/JYSZ/$it",
+                    "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$it",
                 ).runCommand()
             }
             ProcessBuilder("chmod", "+x", File("aarch64/$it").absolutePath).runCommand()
@@ -195,7 +195,7 @@ object ProjectBuilder {
         ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
         ProcessBuilder(
             "curl", "-o", File("aarch64/root/usr/local/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
-            "https://xwrt.kw92.cyou/JYSZ/acl_dvpp.h",
+            "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/acl_dvpp.h",
         ).runCommand()
     }
 
