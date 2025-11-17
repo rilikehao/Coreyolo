@@ -25,17 +25,17 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Frame>) -> Flow<OutputRtsp.Input> {
-    class Context(val ctx: OutputRtsp.Context) : AutoCloseable {
+    class Context(val ctx: OutputRtsp.Context, encoder: String) : AutoCloseable {
         val fromRGBImage = FromRGBImage()
 
-        val codec = avcodec_find_encoder_by_name(Device.ENCODER_NAME).check("avcodec_find_encoder_by_name")
+        val codec = avcodec_find_encoder_by_name(encoder).check("avcodec_find_encoder_by_name")
 
         val codecCtx = avcodec_alloc_context3(codec)!!.apply {
             pointed.codec_type = AVMEDIA_TYPE_VIDEO
             pointed.pix_fmt = Device.ENCODER_FORMAT
-            pointed.bit_rate = AppConfig.instance.processing.bitRateStorage
             pointed.time_base.num = 1
             pointed.time_base.den = 90000
+            pointed.max_b_frames = 0
         }
 
         val frame = av_frame_alloc()!!
@@ -53,8 +53,8 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
         processed: OutputRtsp.Context,
         input: Flow<Frame>
     ): Flow<OutputRtsp.Input> {
-        val originalCtx = Context(original)
-        val processedCtx = Context(processed)
+        val originalCtx = Context(original, Device.ENCODER_NAME_STORAGE)
+        val processedCtx = Context(processed, Device.ENCODER_NAME_VIEW)
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
@@ -79,11 +79,11 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
         }.onCompletion {
             emit(Pair(null, null))
         }.transform { (originalFrame, processedFrame) ->
-            suspend fun Context.send(frame: CPointer<AVFrame>?) {
+            suspend fun Context.send(frame: CPointer<AVFrame>?, options: Array<Pair<String, String>>) {
                 if (codecCtx.pointed.width == 0 && frame != null) {
                     codecCtx.pointed.width = frame.pointed.width
                     codecCtx.pointed.height = frame.pointed.height
-                    withOptions(*Device.encoderOptions()) {
+                    withOptions(*options) {
                         avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
                     }
                     ctx.videoStream = avformat_new_stream(ctx.formatCtx, codec).check("avformat_new_stream")
@@ -99,8 +99,8 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
                     emit(OutputRtsp.Input(ctx, ctx.packet))
                 }
             }
-            originalCtx.send(originalFrame)
-            processedCtx.send(processedFrame)
+            originalCtx.send(originalFrame, Device.encoderOptionsStorage())
+            processedCtx.send(processedFrame, Device.encoderOptionsView())
         }.onCompletion {
             processedCtx.close()
             originalCtx.close()

@@ -42,8 +42,7 @@ object AppConfig {
     data class ProcessingConfig(
         val npuThreads: Int,
         val cpuThreads: Int,
-        val bitRateView: Long = 1500000,
-        val bitRateStorage: Long = 750000,
+        val q: Double = 26.0,
         val fpsYolo: Double = 90000.0,
         val fpsDecode: Double = 90000.0,
         val mute: Boolean = false,

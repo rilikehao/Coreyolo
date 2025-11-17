@@ -26,7 +26,7 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Frame>) -> Flow<OutputRtsp.Input> {
-    val codec = avcodec_find_encoder_by_name(Device.ENCODER_NAME).check("avcodec_find_encoder_by_name")
+    val codec = avcodec_find_encoder_by_name("libx264").check("avcodec_find_encoder_by_name")
 
     class Context(val ctx: OutputRtsp.Context) {
         var acl = SessionACL(0)

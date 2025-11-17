@@ -19,11 +19,11 @@ object SourceVideo : suspend () -> Unit {
                 val input = "rtsp://127.0.0.1:50554/original/${config.id}"
                 scope.launch {
                     while (true) {
-                        delay(5000)
+                        delay(2000)
                         scope.launch {
-                            delay(5000)
+                            delay(12000)
                             val base = "http://127.0.0.1:50080/index/api/startRecord?secret=21344657"
-                            val params = "&vhost=__defaultVhost__&app=dumped&stream=${config.id}"
+                            val params = "&type=0&vhost=__defaultVhost__&app=dumped&stream=${config.id}"
                             val status = HttpGetWaitStatus("$base$params")
                             if (status != 200) throw Error("录制流失败")
                         }
