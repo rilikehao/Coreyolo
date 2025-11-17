@@ -36,6 +36,7 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
             pointed.time_base.num = 1
             pointed.time_base.den = 90000
             pointed.max_b_frames = 0
+            pointed.gop_size = 10
         }
 
         val frame = av_frame_alloc()!!
@@ -44,6 +45,37 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
             av_frame_free(cValuesOf(frame))
             avcodec_free_context(cValuesOf(codecCtx))
             fromRGBImage.close()
+        }
+
+        fun createFrame(timestamp: Instant, image: CPointer<Image>) {
+            this.frame.pointed.pts = timestamp.toEpochMilliseconds() * 90
+            fromRGBImage(this.frame.pointed, image)
+            DestroyImage(image)
+        }
+
+        suspend fun send(
+            frame: CPointer<AVFrame>?,
+            options: Array<Pair<String, String>>,
+            emit: suspend (OutputRtsp.Input) -> Unit,
+        ) {
+            if (codecCtx.pointed.width == 0 && frame != null) {
+                codecCtx.pointed.width = frame.pointed.width
+                codecCtx.pointed.height = frame.pointed.height
+                withOptions(*options) {
+                    avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
+                }
+                ctx.videoStream = avformat_new_stream(ctx.formatCtx, codec).check("avformat_new_stream")
+                avcodec_parameters_from_context(ctx.videoStream!!.pointed.codecpar, codecCtx)
+                ctx.formatCtx.pointed.start_time_realtime = frame.pointed.pts / 90L * 1000L
+                withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
+                    avformat_write_header(ctx.formatCtx, it).check("avformat_write_header")
+                }
+            }
+            avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
+            if (frame != null) av_frame_unref(frame)
+            while (0 <= avcodec_receive_packet(codecCtx, ctx.packet)) {
+                emit(OutputRtsp.Input(ctx, ctx.packet))
+            }
         }
     }
 
@@ -68,39 +100,14 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
                 val delayMs = max(0L, delayed.inWholeMilliseconds)
                 "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
             }
-            fun Context.createFrame(timestamp: Instant, image: CPointer<Image>) {
-                this.frame.pointed.pts = timestamp.toEpochMilliseconds() * 90
-                fromRGBImage(this.frame.pointed, image)
-                DestroyImage(image)
-            }
             originalCtx.createFrame(frame.timestamp, frame.original)
             processedCtx.createFrame(frame.timestamp, frame.processed!!)
             emit(Pair(originalCtx.frame as CPointer<AVFrame>?, processedCtx.frame as CPointer<AVFrame>?))
         }.onCompletion {
             emit(Pair(null, null))
         }.transform { (originalFrame, processedFrame) ->
-            suspend fun Context.send(frame: CPointer<AVFrame>?, options: Array<Pair<String, String>>) {
-                if (codecCtx.pointed.width == 0 && frame != null) {
-                    codecCtx.pointed.width = frame.pointed.width
-                    codecCtx.pointed.height = frame.pointed.height
-                    withOptions(*options) {
-                        avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
-                    }
-                    ctx.videoStream = avformat_new_stream(ctx.formatCtx, codec).check("avformat_new_stream")
-                    avcodec_parameters_from_context(ctx.videoStream!!.pointed.codecpar, codecCtx)
-                    ctx.formatCtx.pointed.start_time_realtime = frame.pointed.pts / 90L * 1000L
-                    withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
-                        avformat_write_header(ctx.formatCtx, it).check("avformat_write_header")
-                    }
-                }
-                avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
-                if (frame != null) av_frame_unref(frame)
-                while (0 <= avcodec_receive_packet(codecCtx, ctx.packet)) {
-                    emit(OutputRtsp.Input(ctx, ctx.packet))
-                }
-            }
-            originalCtx.send(originalFrame, Device.encoderOptionsStorage())
-            processedCtx.send(processedFrame, Device.encoderOptionsView())
+            originalCtx.send(originalFrame, Device.encoderOptionsStorage(), ::emit)
+            processedCtx.send(processedFrame, Device.encoderOptionsView(), ::emit)
         }.onCompletion {
             processedCtx.close()
             originalCtx.close()

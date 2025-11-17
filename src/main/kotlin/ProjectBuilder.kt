@@ -482,7 +482,7 @@ object ProjectBuilder {
                 enable_hls=0
                 enable_hls_fmp4=0
                 enable_mp4=0
-                enable_rtmp=1
+                enable_rtmp=0
                 enable_rtsp=1
                 enable_ts=0
                 fmp4_demand=0

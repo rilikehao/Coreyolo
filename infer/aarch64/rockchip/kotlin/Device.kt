@@ -20,12 +20,12 @@ class Device : AutoCloseable {
 
         fun encoderOptionsView() = arrayOf(
             "rc_mode" to "CQP",
-            "qp_init" to AppConfig.instance.processing.q.toString(1),
+            "qp_init" to AppConfig.instance.processing.qH264.toString(1),
         )
 
         fun encoderOptionsStorage() = arrayOf(
             "rc_mode" to "CQP",
-            "qp_init" to (AppConfig.instance.processing.q + 3.0).toString(1),
+            "qp_init" to AppConfig.instance.processing.qH265.toString(1),
         )
     }
 
