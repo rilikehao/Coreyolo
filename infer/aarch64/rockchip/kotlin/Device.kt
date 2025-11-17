@@ -1,5 +1,3 @@
-import common.AppConfig
-import common.StringFormat.toString
 import common.Utils.cPointer
 import common.Utils.check
 import kotlinx.cinterop.CPointer
@@ -18,8 +16,7 @@ class Device : AutoCloseable {
 
         fun encoderOptions() = arrayOf(
             "profile" to "baseline",
-            "rc_mode" to "CQP",
-            "qp_init" to AppConfig.instance.processing.q.toString(1),
+            "rc_mode" to "AVBR",
         )
     }
 

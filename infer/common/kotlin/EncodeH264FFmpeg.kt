@@ -33,6 +33,7 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
         val codecCtx = avcodec_alloc_context3(codec)!!.apply {
             pointed.codec_type = AVMEDIA_TYPE_VIDEO
             pointed.pix_fmt = Device.ENCODER_FORMAT
+            pointed.bit_rate = AppConfig.instance.processing.bitRateStorage
             pointed.time_base.num = 1
             pointed.time_base.den = 90000
         }

@@ -1,5 +1,3 @@
-import common.AppConfig
-import common.StringFormat.toString
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ffmpeg.AVCodecContext
 import platform.ffmpeg.AV_PIX_FMT_YUV420P
@@ -15,7 +13,6 @@ class Device : AutoCloseable {
         fun encoderOptions() = arrayOf(
             "profile" to "baseline",
             "preset" to "fast",
-            "qp" to AppConfig.instance.processing.q.toString(1),
         )
     }
 

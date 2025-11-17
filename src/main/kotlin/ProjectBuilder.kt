@@ -245,13 +245,13 @@ object ProjectBuilder {
         ProcessBuilder("make", "install").directory(ffmpegDir).runCommand()
     }
 
-    fun buildFFmpegAarch64() {
+    fun buildFFmpegSoftware() {
         val ffmpegDir = File("aarch64/ffmpeg")
         cloneIfNeeded(ffmpegDir, "https://git.ffmpeg.org/ffmpeg.git")
 
         val configureArgs = arrayOf(
             "./configure",
-            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}",
+            "--prefix=${File(Config.aarch64.installPrefix()).absolutePath}/software",
             "--arch=arm64",
             "--target-os=linux",
             "--cross-prefix=${Config.aarch64.compilerPrefix}",
@@ -290,7 +290,7 @@ object ProjectBuilder {
 
     fun buildFFmpeg() {
         buildFFmpegRockchip()
-        buildFFmpegAarch64()
+        buildFFmpegSoftware()
     }
 
     fun buildNative() {
@@ -481,7 +481,7 @@ object ProjectBuilder {
                 continue_push_ms=15000
                 enable_audio=1
                 enable_fmp4=0
-                enable_hls=1
+                enable_hls=0
                 enable_hls_fmp4=0
                 enable_mp4=0
                 enable_rtmp=1
