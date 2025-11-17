@@ -18,6 +18,8 @@ object Config {
             "v4l-utils",
             "openssl",
             "libsrtp",
+            "x264",
+            "x265",
         )
     }
 

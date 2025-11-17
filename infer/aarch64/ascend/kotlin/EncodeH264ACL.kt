@@ -28,7 +28,7 @@ import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Frame>) -> Flow<OutputRtsp.Input> {
-    val codec = avcodec_find_encoder_by_name("libx264").check("avcodec_find_encoder_by_name")
+    val codec = avcodec_find_encoder_by_name("libx265").check("avcodec_find_encoder_by_name")
 
     class Context(val ctx: OutputRtsp.Context) {
         var acl = SessionACL(0)
@@ -55,7 +55,7 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                                 ref.get().also { ref.dispose() }(input!!, output!!)
                             }
                         })
-                        aclvencSetChannelDescEnType(channelEncode, H264_BASELINE_LEVEL)
+                        aclvencSetChannelDescEnType(channelEncode, H265_MAIN_LEVEL)
                         aclvencSetChannelDescPicFormat(channelEncode, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
                         aclvencSetChannelDescPicWidth(channelEncode, width.toUInt())
                         aclvencSetChannelDescPicHeight(channelEncode, height.toUInt())
@@ -194,7 +194,6 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                     val delayMs = max(0L, delayed.inWholeMilliseconds)
                     "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
                 }
-                DestroyImage(frame.original)
                 originalCtx.createPacket(frame.timestamp, frame.original, this)
                 processedCtx.createFrame(frame.timestamp, frame.processed!!)
                 processedCtx.send(processedCtx.frame, Device.encoderOptionsView(), ::send)

@@ -191,7 +191,7 @@ object ProjectBuilder {
                 "--quiet", "--nox11", "--install", "--install-path=${File("aarch64/root/usr/local").absolutePath}",
             ).runCommand()
         }
-        ProcessBuilder("chmod", "-R", "+w", File("aarch64/root/usr/local").absolutePath).runCommand()
+        ProcessBuilder("chmod", "-R", "+w", File("aarch64/root/usr/local/nnrt").absolutePath).runCommand()
         ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
         ProcessBuilder(
             "curl", "-o", File("aarch64/root/usr/local/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
@@ -270,6 +270,8 @@ object ProjectBuilder {
             }",
             "--enable-gpl",
             "--enable-version3",
+            "--enable-libx264",
+            "--enable-libx265",
             "--enable-shared",
             "--disable-static",
             "--disable-stripping",

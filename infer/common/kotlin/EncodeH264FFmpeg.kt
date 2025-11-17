@@ -37,6 +37,8 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
             pointed.time_base.den = 90000
             pointed.max_b_frames = 0
             pointed.gop_size = 10
+            pointed.thread_count = 0
+            pointed.thread_type = FF_THREAD_SLICE
         }
 
         val frame = av_frame_alloc()!!

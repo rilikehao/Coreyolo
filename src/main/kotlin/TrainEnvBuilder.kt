@@ -126,9 +126,9 @@ object TrainEnvBuilder {
         val path = File("train/deps").absolutePath
         ProcessBuilder(
             "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && $run --install --install-path=$path <<< Y",
+            "export PYTHONPATH=. && source bin/activate && $run --quiet --no-x11 --install --install-path=$path",
         ).directory(File(VENV_PATH_HUAWEI)).runCommand()
-
+        ProcessBuilder("chmod", "-R", "+w", path).runCommand()
         ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
 
         println("所有依赖安装完成")
