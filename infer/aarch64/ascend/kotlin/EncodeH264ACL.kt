@@ -9,13 +9,11 @@ import common.Utils.check
 import common.Utils.checkEq0
 import common.Utils.withOptions
 import kotlinx.cinterop.*
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import platform.acl.*
 import platform.ffmpeg.*
 import platform.native.*
@@ -35,16 +33,14 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
         var channelEncode: CPointer<aclvencChannelDesc>? = null
         var channelResize: CPointer<acldvppChannelDesc>? = null
         var swsCtx: CPointer<SwsContext>? = null
+        var frameNo = 0
 
-        suspend fun createPacket(timestamp: Instant, image: CPointer<Image>, scope: ProducerScope<OutputRtsp.Input>) {
-            try {
-                val width = GetWidth(image)
-                val height = GetHeight(image)
-                val picSize = wStride(width) * hStride(height) * 3 / 2
-                var picDev: CPointer<CPointed>?
-                var picDesc: CPointer<acldvppPicDesc>? = null
-                withContext(acl.main) {
-                    acl.setContext()
+        fun createPacket(timestamp: Instant, image: CPointer<Image>, scope: ProducerScope<OutputRtsp.Input>) {
+            CoroutineScope(acl.main).launch {
+                acl.setContext()
+                try {
+                    val width = GetWidth(image)
+                    val height = GetHeight(image)
                     if (channelEncode == null) {
                         channelEncode = aclvencCreateChannelDesc()
                         aclvencSetChannelDescThreadId(channelEncode, acl.threadId.await())
@@ -59,16 +55,17 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                         aclvencSetChannelDescPicFormat(channelEncode, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
                         aclvencSetChannelDescPicWidth(channelEncode, width.toUInt())
                         aclvencSetChannelDescPicHeight(channelEncode, height.toUInt())
-                        aclvencSetChannelDescKeyFrameInterval(channelEncode, 10U)
+                        aclvencSetChannelDescKeyFrameInterval(channelEncode, 65536U)
                         aclvencSetChannelDescRcMode(channelEncode, 1U)
                         aclvencSetChannelDescMaxBitRate(channelEncode, 750U)
                         aclvencCreateChannel(channelEncode).checkEq0("aclvencCreateChannel")
                         acl.channelReady.complete(Unit)
                     }
-                    picDev = cPointer {
+                    val picSize = wStride(width) * hStride(height) * 3 / 2
+                    val picDev = cPointer<CPointed> {
                         acldvppMalloc(it.reinterpret(), picSize.toULong()).checkEq0("acldvppMalloc")
                     }
-                    picDesc = acldvppCreatePicDesc()
+                    val picDesc = acldvppCreatePicDesc()
                     acldvppSetPicDescData(picDesc, picDev)
                     acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
                     acldvppSetPicDescWidth(picDesc, width.toUInt())
@@ -83,28 +80,22 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                             SWS_BILINEAR.toInt(), null, null, null,
                         )
                     }
-                }
-                memScoped {
-                    val pic = allocArray<UByteVar>(picSize)
-                    sws_scale(
-                        swsCtx,
-                        cValuesOf(Bits(image)),
-                        cValuesOf(BytesPerLine(image)),
-                        0, height,
-                        cValuesOf(pic, pic + height * width),
-                        cValuesOf(width, width),
-                    )
-                    withContext(acl.main) {
-                        acl.setContext()
+                    memScoped {
+                        val pic = allocArray<UByteVar>(picSize)
+                        sws_scale(
+                            swsCtx,
+                            cValuesOf(Bits(image)),
+                            cValuesOf(BytesPerLine(image)),
+                            0, height,
+                            cValuesOf(pic, pic + height * width),
+                            cValuesOf(width, width),
+                        )
                         aclrtMemcpy(picDev, picSize.toULong(), pic, picSize.toULong(), acl.uploadMode())
                     }
-                }
-                withContext(acl.main) {
-                    acl.setContext()
                     val config = aclvencCreateFrameConfig()
                     aclvencSetFrameConfigEos(config, 0U)
-                    aclvencSetFrameConfigForceIFrame(config, 0U)
-
+                    val keyFrame = if (frameNo++ % 10 == 0) 1 else 0
+                    aclvencSetFrameConfigForceIFrame(config, keyFrame.toUByte())
                     suspend fun run(input: CPointer<acldvppPicDesc>, output: CPointer<acldvppStreamDesc>) {
                         aclvencDestroyFrameConfig(config)
                         val pts = timestamp.toEpochMilliseconds() * 90
@@ -137,23 +128,24 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                                 it.height = height
                                 it.format = AV_PIX_FMT_YUV420P
                             }
-                            av_bsf_init(bsfContext).checkEq0("av_bsf_init")
-                            av_bsf_send_packet(bsfContext, ctx.packet).checkEq0("av_bsf_send_packet")
+                            av_bsf_init(bsfContext).check("av_bsf_init")
+                            av_bsf_send_packet(bsfContext, ctx.packet).check("av_bsf_send_packet")
                             av_packet_alloc().let {
-                                av_bsf_receive_packet(bsfContext, it).checkEq0("av_bsf_receive_packet")
+                                av_bsf_receive_packet(bsfContext, it).check("av_bsf_receive_packet")
+                                av_packet_move_ref(ctx.packet, it)
                                 av_packet_free(cValuesOf(it))
                             }
-                            avcodec_parameters_copy(
-                                ctx.videoStream!!.pointed.codecpar,
-                                bsfContext.pointed.par_out,
-                            )
+                            avcodec_parameters_copy(ctx.videoStream!!.pointed.codecpar, bsfContext.pointed.par_out)
                             avcodec_parameters_free(cValuesOf(bsfContext.pointed.par_in))
                             av_bsf_free(cValuesOf(bsfContext))
                             ctx.formatCtx.pointed.start_time_realtime = pts / 90L * 1000L
                             withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
                                 avformat_write_header(ctx.formatCtx, it)
-                                    .checkEq0("avformat_write_header")
+                                    .check("avformat_write_header")
                             }
+                        }
+                        if (keyFrame == 1) {
+                            ctx.packet.pointed.flags = ctx.packet.pointed.flags.or(AV_PKT_FLAG_KEY)
                         }
                         ctx.packet.pointed.pts = pts
                         ctx.packet.pointed.dts = pts
@@ -164,10 +156,10 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                         runBlocking { withContext(acl.main) { acl.setContext(); run(input, output) } }
                     }
                     val data = StableRef.create(runACL).asCPointer()
-                    aclvencSendFrame(channelEncode, picDesc, null, config, data).checkEq0("aclvencSendFrame")
+                    aclvencSendFrame(channelEncode, picDesc, null, config, data)
+                } finally {
+                    DestroyImage(image)
                 }
-            } finally {
-                DestroyImage(image)
             }
         }
     }
@@ -194,7 +186,7 @@ object EncodeH264ACL : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<Fra
                     val delayMs = max(0L, delayed.inWholeMilliseconds)
                     "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
                 }
-                originalCtx.createPacket(frame.timestamp, frame.original, this)
+                originalCtx.createPacket(frame.timestamp, frame.original, this@callbackFlow)
                 processedCtx.createFrame(frame.timestamp, frame.processed!!)
                 processedCtx.send(processedCtx.frame, Device.encoderOptionsView(), ::send)
             }

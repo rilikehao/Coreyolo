@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.transform
 import platform.ffmpeg.*
+import platform.linux.get_nprocs
 import platform.native.DestroyImage
 import kotlin.math.max
 import kotlin.time.Clock
@@ -37,8 +38,8 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
             pointed.time_base.den = 90000
             pointed.max_b_frames = 0
             pointed.gop_size = 10
-            pointed.thread_count = 0
-            pointed.thread_type = FF_THREAD_SLICE
+            pointed.thread_count = get_nprocs()
+            pointed.thread_type = FF_THREAD_FRAME.or(FF_THREAD_SLICE)
         }
 
         val frame = av_frame_alloc()!!

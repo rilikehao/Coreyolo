@@ -16,6 +16,7 @@ class Device : AutoCloseable {
         fun encoderOptionsView() = arrayOf(
             "preset" to "veryfast",
             "qp" to AppConfig.instance.processing.qH264.toString(1),
+            "slices" to "4",
         )
 
         fun encoderOptionsStorage() = arrayOf(
