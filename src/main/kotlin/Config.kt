@@ -18,7 +18,6 @@ object Config {
             "v4l-utils",
             "openssl",
             "libsrtp",
-            "rav1e",
         )
     }
 
