@@ -1,3 +1,5 @@
+package common
+
 import cnames.structs.Image
 import common.Utils.check
 import kotlinx.cinterop.CPointer
@@ -11,7 +13,7 @@ import platform.native.GetHeight
 import platform.native.GetWidth
 
 @OptIn(ExperimentalForeignApi::class)
-class FromRGBImage : AutoCloseable {
+class RGB2YUV : AutoCloseable {
     var swsCtx: CPointer<SwsContext>? = null
 
     override fun close() = sws_freeContext(swsCtx)

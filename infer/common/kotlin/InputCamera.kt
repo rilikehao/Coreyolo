@@ -20,7 +20,7 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-abstract class Camera(val fd: Int) : () -> Flow<Frame> {
+abstract class InputCamera(val fd: Int) : () -> Flow<Command.CommandImage> {
     companion object {
         const val BUFFER_COUNT = 4
 
@@ -33,7 +33,7 @@ abstract class Camera(val fd: Int) : () -> Flow<Frame> {
             V4L2_PIX_FMT_NV16,
         )
 
-        fun open(source: String): Camera {
+        fun open(source: String): InputCamera {
             val fd = open(source, O_RDWR)
             fd.check("打开摄像头")
             sequence {
@@ -77,7 +77,7 @@ abstract class Camera(val fd: Int) : () -> Flow<Frame> {
                         val h = resolution.h.toInt()
                         val image = toRGBImage.fromOpaque(buffers[buf.index.toInt()].ptr, w, h, resolution.format)
                         ioctl(fd, VIDIOC_QBUF, buf.ptr).check("VIDIOC_QBUF")
-                        emit(Frame(Clock.System.now(), image, null))
+                        emit(Command.CommandImage(Clock.System.now(), image))
                     }
                 }
             }
@@ -241,7 +241,7 @@ abstract class Camera(val fd: Int) : () -> Flow<Frame> {
             }
         }
 
-    class CameraS(fd: Int) : Camera(fd) {
+    class CameraS(fd: Int) : InputCamera(fd) {
         override fun bufType() = V4L2_BUF_TYPE_VIDEO_CAPTURE
 
         override fun setFormat(r: Resolution, fmt: v4l2_format) {
@@ -266,7 +266,7 @@ abstract class Camera(val fd: Int) : () -> Flow<Frame> {
         }
     }
 
-    class CameraM(fd: Int) : Camera(fd) {
+    class CameraM(fd: Int) : InputCamera(fd) {
         override fun bufType() = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE
 
         override fun setFormat(r: Resolution, fmt: v4l2_format) {

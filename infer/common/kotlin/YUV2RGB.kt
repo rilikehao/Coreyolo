@@ -1,3 +1,5 @@
+package common
+
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValuesOf
@@ -7,7 +9,7 @@ import platform.native.BytesPerLine
 import platform.native.CreateImageRGB24
 
 @OptIn(ExperimentalForeignApi::class)
-class ToRGBImage : AutoCloseable {
+class YUV2RGB : AutoCloseable {
     var swsCtx: CPointer<SwsContext>? = null
 
     override fun close() = sws_freeContext(swsCtx)

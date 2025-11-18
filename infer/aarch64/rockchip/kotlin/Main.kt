@@ -1,1 +1,5 @@
+@OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+typealias SwsContext = cnames.structs.SwsContext
+typealias FromRGBImage = common.RGB2RGB
+
 fun main(args: Array<String>) = common.main(args)

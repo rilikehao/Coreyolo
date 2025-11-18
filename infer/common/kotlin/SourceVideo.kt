@@ -1,7 +1,6 @@
 package common
 
-import DecodeVideo
-import EncodeVideo
+import Codec
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.*
 import platform.native.HttpGetWaitStatus
@@ -10,8 +9,8 @@ import platform.native.HttpGetWaitStatus
 object SourceVideo : suspend () -> Unit {
     override suspend fun invoke() {
         Inference.use {
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             AppConfig.instance.streams.mapIndexed { id, config ->
+                val scope = CoroutineScope(Dispatchers.IO)
                 val base = "http://127.0.0.1:50080/index/api/addStreamProxy?secret=21344657"
                 val params = "&vhost=__defaultVhost__&app=original&stream=${config.id}&url=${config.source}"
                 val status = HttpGetWaitStatus("$base$params")
@@ -28,24 +27,22 @@ object SourceVideo : suspend () -> Unit {
                             if (status != 200) throw Error("录制流失败")
                         }
                         val decoded = when (AppConfig.instance.source.type) {
-                            AppConfig.SourceType.VIDEO -> DecodeVideo(id, InputRtsp(input))
-                            AppConfig.SourceType.CAMERA -> Camera.open(config.source)()
+                            AppConfig.SourceType.VIDEO -> InputRtsp(input, Codec.DecoderVideo(id))
+                            AppConfig.SourceType.CAMERA -> InputCamera.open(config.source)
                             else -> throw Error("不支持的视频来源")
-                        }
-                        val inferred = Inference(config.id, decoded)
-                        val processed = OutputRtsp.Context("rtsp://127.0.0.1:50554/processed/${config.id}")
-                        val encoded = when (config.storage) {
-                            "dumped" -> {
-                                val original = OutputRtsp.Context("rtsp://127.0.0.1:50554/dumped/${config.id}")
-                                EncodeVideo(config.id, original, processed, inferred)
+                        }()
+                        val (main, side) = Fork()(decoded)
+                        val inferred = Inference(config.id)(main)
+                        val drawed = Draw()(inferred)
+                        val jobDump = if (config.storage == "dumped") {
+                            scope.launch {
+                                val dump = Codec.EncoderVideoH265(config.id + "-dump")
+                                OutputRtsp("rtsp://127.0.0.1:50554/dumped/${config.id}", dump)(side)
                             }
-                            "original" -> {
-                                EncodeVideo.noDump(config.id, processed, inferred)
-                            }
-
-                            else -> throw Error("不支持的存储类型")
-                        }
-                        OutputRtsp(encoded)
+                        } else null
+                        val draw = Codec.EncoderVideoH264(config.id + "-draw")
+                        OutputRtsp("rtsp://127.0.0.1:50554/drawed/${config.id}", draw)(drawed)
+                        jobDump?.cancelAndJoin()
                     }
                 }
             }.joinAll()
