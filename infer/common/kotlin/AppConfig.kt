@@ -33,10 +33,15 @@ object AppConfig {
     )
 
     @Serializable
+    enum class StorageType {
+        DUMPED, ORIGINAL,
+    }
+
+    @Serializable
     data class StreamConfig(
         val id: String,
         val source: String,
-        val storage: String = "dumped",
+        val storage: StorageType = StorageType.DUMPED,
     )
 
     @Serializable

@@ -3,7 +3,6 @@ import cnames.structs.acldvppStreamDesc
 import cnames.structs.aclvdecChannelDesc
 import common.Command
 import common.Decoder
-import common.Utils
 import common.Utils.cPointer
 import common.Utils.checkEq0
 import kotlinx.cinterop.*
@@ -41,6 +40,8 @@ open class DecoderACL(val id: Int) : Decoder {
     }
 
     override suspend fun invoke(input: Flow<CPointer<AVPacket>?>): Flow<Command.CommandImage> {
+        val width = stream.codecpar!!.pointed.width
+        val height = stream.codecpar!!.pointed.height
         val decodeType = when (avcodec_find_decoder(stream.codecpar!!.pointed.codec_id)!!.pointed.name!!.toKString()) {
             "h264" -> H264_HIGH_LEVEL
             "hevc" -> H265_MAIN_LEVEL
@@ -48,7 +49,11 @@ open class DecoderACL(val id: Int) : Decoder {
         }
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
-        val swsCtx = Utils.Ref<CPointer<SwsContext>?>(null)
+        val swsCtx = sws_getContext(
+            width, height, AV_PIX_FMT_NV12,
+            width, height, AV_PIX_FMT_RGB24,
+            SWS_BILINEAR.toInt(), null, null, null,
+        )
         val acl = SessionACL(0)
         var channel: CPointer<aclvdecChannelDesc>? = null
         withContext(acl.main) {
@@ -64,14 +69,12 @@ open class DecoderACL(val id: Int) : Decoder {
                 }
             })
             aclvdecSetChannelDescEnType(channel, decodeType)
-            aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_RGB_888)
+            aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
             aclvdecCreateChannel(channel)
             acl.channelReady.complete(Unit)
         }
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
-        var width = 0
-        var height = 0
         return callbackFlow {
             input.collect { packet ->
                 val pts = packet!!.pointed.pts.toDouble() * stream.time_base.num / stream.time_base.den
@@ -84,8 +87,6 @@ open class DecoderACL(val id: Int) : Decoder {
                     val dev = acldvppGetStreamDescData(input)!!
                     val frameDev = acldvppGetPicDescData(output)!!
                     val frameSize = acldvppGetPicDescSize(output)
-                    width = acldvppGetPicDescWidth(output).toInt()
-                    height = acldvppGetPicDescHeight(output).toInt()
                     if (keep) {
                         val image = memScoped {
                             val swFrameDev = allocArray<UByteVar>(frameSize.toInt())
@@ -95,15 +96,8 @@ open class DecoderACL(val id: Int) : Decoder {
                                 acl.downloadMode(),
                             ).checkEq0("aclrtMemcpy")
                             CreateImageRGB24(width, height)!!.also { image ->
-                                if (swsCtx.value == null) {
-                                    swsCtx.value = sws_getContext(
-                                        width, height, AV_PIX_FMT_NV12,
-                                        width, height, AV_PIX_FMT_RGB24,
-                                        SWS_BILINEAR.toInt(), null, null, null,
-                                    )
-                                }
                                 sws_scale(
-                                    swsCtx.value,
+                                    swsCtx,
                                     cValuesOf(
                                         swFrameDev,
                                         swFrameDev + height * width
@@ -135,8 +129,9 @@ open class DecoderACL(val id: Int) : Decoder {
                     acldvppSetStreamDescData(streamDesc, dev)
                     acldvppSetStreamDescSize(streamDesc, size.toUInt())
                     val picSize = (wStride(width) * hStride(height) * 3 / 2).toULong()  // NV12
-                    val picDev =
-                        cPointer<CPointed> { acldvppMalloc(it.reinterpret(), picSize).checkEq0("acldvppMalloc") }
+                    val picDev = cPointer<CPointed> {
+                        acldvppMalloc(it.reinterpret(), picSize).checkEq0("acldvppMalloc")
+                    }
                     val picDesc = acldvppCreatePicDesc()
                     acldvppSetPicDescData(picDesc, picDev)
                     acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
@@ -158,7 +153,7 @@ open class DecoderACL(val id: Int) : Decoder {
                 aclvdecDestroyChannelDesc(channel)
             }
             acl.close()
-            if (swsCtx.value != null) sws_freeContext(swsCtx.value)
+            sws_freeContext(swsCtx)
             close()
             awaitClose()
         }.transform { frame ->

@@ -31,18 +31,26 @@ object SourceVideo : suspend () -> Unit {
                             AppConfig.SourceType.CAMERA -> InputCamera.open(config.source)
                             else -> throw Error("不支持的视频来源")
                         }()
-                        val (main, side) = Fork()(decoded)
-                        val inferred = Inference(config.id)(main)
-                        val drawed = Draw()(inferred)
-                        val jobDump = if (config.storage == "dumped") {
-                            scope.launch {
-                                val dump = Codec.EncoderVideoH265(config.id + "-dump")
-                                OutputRtsp("rtsp://127.0.0.1:50554/dumped/${config.id}", dump)(side)
+                        when (config.storage) {
+                            AppConfig.StorageType.DUMPED -> {
+                                val (main, side) = Fork()(decoded)
+                                val inferred = Inference(config.id)(main)
+                                val drawn = Draw()(inferred)
+                                scope.launch {
+                                    val dump = Codec.EncoderVideoH265(config.id + "-dump")
+                                    OutputRtsp("rtsp://127.0.0.1:50554/dumped/${config.id}", dump)(side)
+                                }.also {
+                                    val draw = Codec.EncoderVideoH264(config.id + "-draw")
+                                    OutputRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}", draw)(drawn)
+                                }.join()
                             }
-                        } else null
-                        val draw = Codec.EncoderVideoH264(config.id + "-draw")
-                        OutputRtsp("rtsp://127.0.0.1:50554/drawed/${config.id}", draw)(drawed)
-                        jobDump?.cancelAndJoin()
+                            AppConfig.StorageType.ORIGINAL -> {
+                                val inferred = Inference(config.id)(decoded)
+                                val drawn = Draw()(inferred)
+                                val draw = Codec.EncoderVideoH264(config.id + "-draw")
+                                OutputRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}", draw)(drawn)
+                            }
+                        }
                     }
                 }
             }.joinAll()
