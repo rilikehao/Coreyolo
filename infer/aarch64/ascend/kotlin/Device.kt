@@ -10,18 +10,17 @@ class Device : AutoCloseable {
         const val H264_DECODER_NAME = "h264"
 
         const val ENCODER_NAME_VIEW = "libx264"
-        const val ENCODER_NAME_STORAGE = "PROVIDE BY ACL"
+        const val ENCODER_NAME_STORAGE = "libx264"
         const val ENCODER_FORMAT = AV_PIX_FMT_YUV420P
 
         fun encoderOptionsView() = arrayOf(
-            "preset" to "veryfast",
-            "qp" to AppConfig.instance.processing.qH264.toString(1),
-            "slices" to "4",
+            "preset" to "superfast",
+            "qp" to (AppConfig.instance.processing.qH264 - 2.0).toString(1),
         )
 
         fun encoderOptionsStorage() = arrayOf(
             "preset" to "veryfast",
-            "qp" to AppConfig.instance.processing.qH265.toString(1),
+            "qp" to AppConfig.instance.processing.qH264.toString(1),
         )
     }
 

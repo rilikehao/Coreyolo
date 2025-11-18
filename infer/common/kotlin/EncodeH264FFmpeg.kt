@@ -11,11 +11,14 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValuesOf
 import kotlinx.cinterop.pointed
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import platform.ffmpeg.*
-import platform.linux.get_nprocs
 import platform.native.DestroyImage
 import kotlin.math.max
 import kotlin.time.Clock
@@ -38,8 +41,6 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
             pointed.time_base.den = 90000
             pointed.max_b_frames = 0
             pointed.gop_size = 10
-            pointed.thread_count = get_nprocs()
-            pointed.thread_type = FF_THREAD_FRAME.or(FF_THREAD_SLICE)
         }
 
         val frame = av_frame_alloc()!!
@@ -82,6 +83,37 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
         }
     }
 
+    fun noDump(
+        id: String,
+        processed: OutputRtsp.Context,
+        input: Flow<Frame>
+    ): Flow<OutputRtsp.Input> {
+        val processedCtx = Context(processed, Device.ENCODER_NAME_VIEW)
+        var inputFrames = 0L
+        var outputFrames = 0L
+        var frame0 = TimeSource.Monotonic.markNow()
+        var timestamp0 = Clock.System.now()
+        return input.transform { frame ->
+            if (inputFrames++ == 0L) timestamp0 = frame.timestamp
+            Logger.i {
+                if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
+                val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
+                val delayed = frame0.elapsedNow() - (frame.timestamp - timestamp0)
+                val delayMs = max(0L, delayed.inWholeMilliseconds)
+                "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
+            }
+            DestroyImage(frame.original)
+            processedCtx.createFrame(frame.timestamp, frame.processed!!)
+            emit(processedCtx.frame as CPointer<AVFrame>?)
+        }.onCompletion {
+            emit(null)
+        }.transform { processedFrame ->
+            processedCtx.send(processedFrame, Device.encoderOptionsView(), ::emit)
+        }.onCompletion {
+            processedCtx.close()
+        }
+    }
+
     override fun invoke(
         id: String,
         original: OutputRtsp.Context,
@@ -103,14 +135,26 @@ object EncodeH264FFmpeg : (String, OutputRtsp.Context, OutputRtsp.Context, Flow<
                 val delayMs = max(0L, delayed.inWholeMilliseconds)
                 "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
             }
-            originalCtx.createFrame(frame.timestamp, frame.original)
-            processedCtx.createFrame(frame.timestamp, frame.processed!!)
+            listOf(
+                CoroutineScope(Dispatchers.Default).launch {
+                    originalCtx.createFrame(frame.timestamp, frame.original)
+                },
+                CoroutineScope(Dispatchers.Default).launch {
+                    processedCtx.createFrame(frame.timestamp, frame.processed!!)
+                },
+            ).joinAll()
             emit(Pair(originalCtx.frame as CPointer<AVFrame>?, processedCtx.frame as CPointer<AVFrame>?))
         }.onCompletion {
             emit(Pair(null, null))
         }.transform { (originalFrame, processedFrame) ->
-            originalCtx.send(originalFrame, Device.encoderOptionsStorage(), ::emit)
-            processedCtx.send(processedFrame, Device.encoderOptionsView(), ::emit)
+            listOf(
+                CoroutineScope(Dispatchers.Default).launch {
+                    originalCtx.send(originalFrame, Device.encoderOptionsStorage(), ::emit)
+                },
+                CoroutineScope(Dispatchers.Default).launch {
+                    processedCtx.send(processedFrame, Device.encoderOptionsView(), ::emit)
+                },
+            ).joinAll()
         }.onCompletion {
             processedCtx.close()
             originalCtx.close()

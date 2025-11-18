@@ -9,6 +9,7 @@ drawScript = "lua/example.lua"
 [[streams]]
 id = "default-00"
 source = "rtsp://100.64.0.2:8554/2025/2025.mp4"
+storage = "original"
 
 [processing]
 npuThreads = 2

@@ -23,7 +23,7 @@ object SourceVideo : suspend () -> Unit {
                         scope.launch {
                             delay(12000)
                             val base = "http://127.0.0.1:50080/index/api/startRecord?secret=21344657"
-                            val params = "&type=0&vhost=__defaultVhost__&app=dumped&stream=${config.id}"
+                            val params = "&type=0&vhost=__defaultVhost__&app=${config.storage}&stream=${config.id}"
                             val status = HttpGetWaitStatus("$base$params")
                             if (status != 200) throw Error("录制流失败")
                         }
@@ -33,9 +33,18 @@ object SourceVideo : suspend () -> Unit {
                             else -> throw Error("不支持的视频来源")
                         }
                         val inferred = Inference(config.id, decoded)
-                        val original = OutputRtsp.Context("rtsp://127.0.0.1:50554/dumped/${config.id}")
                         val processed = OutputRtsp.Context("rtsp://127.0.0.1:50554/processed/${config.id}")
-                        val encoded = EncodeVideo(config.id, original, processed, inferred)
+                        val encoded = when (config.storage) {
+                            "dumped" -> {
+                                val original = OutputRtsp.Context("rtsp://127.0.0.1:50554/dumped/${config.id}")
+                                EncodeVideo(config.id, original, processed, inferred)
+                            }
+                            "original" -> {
+                                EncodeVideo.noDump(config.id, processed, inferred)
+                            }
+
+                            else -> throw Error("不支持的存储类型")
+                        }
                         OutputRtsp(encoded)
                     }
                 }
