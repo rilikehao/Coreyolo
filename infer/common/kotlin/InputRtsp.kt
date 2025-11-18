@@ -11,8 +11,8 @@ import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class InputRtsp(val url: String, val decoder: Decoder) : () -> Flow<Command.CommandImage> {
-    override fun invoke(): Flow<Command.CommandImage> {
+class InputRtsp(val url: String, val decoder: Decoder) : suspend () -> Flow<Command.CommandImage> {
+    override suspend fun invoke(): Flow<Command.CommandImage> {
         val formatContext = cPointer { ptr ->
             withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp") {
                 avformat_open_input(ptr, url, null, it).check("avformat_open_input")

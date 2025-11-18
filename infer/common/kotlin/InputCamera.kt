@@ -20,7 +20,7 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-abstract class InputCamera(val fd: Int) : () -> Flow<Command.CommandImage> {
+abstract class InputCamera(val fd: Int) : suspend () -> Flow<Command.CommandImage> {
     companion object {
         const val BUFFER_COUNT = 4
 
@@ -60,7 +60,7 @@ abstract class InputCamera(val fd: Int) : () -> Flow<Command.CommandImage> {
     abstract fun queryBuf(buf: v4l2_buffer): Pair<UInt, UInt>
     abstract fun dequeueBuf(buf: v4l2_buffer)
 
-    override fun invoke() = flow {
+    override suspend fun invoke() = flow {
         val resolution = setResolution()
         setFrameRate(resolution)
         val buffers = mapBuffers()
@@ -72,7 +72,7 @@ abstract class InputCamera(val fd: Int) : () -> Flow<Command.CommandImage> {
                         val buf = alloc<v4l2_buffer>()
                         buf.type = bufType()
                         buf.memory = V4L2_MEMORY_MMAP
-                        withContext(Dispatchers.IO) { dequeueBuf(buf) }
+                        dequeueBuf(buf)
                         val w = resolution.w.toInt()
                         val h = resolution.h.toInt()
                         val image = toRGBImage.fromOpaque(buffers[buf.index.toInt()].ptr, w, h, resolution.format)

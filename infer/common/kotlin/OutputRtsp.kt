@@ -3,6 +3,7 @@ package common
 import common.Utils.cPointer
 import common.Utils.check
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.pointed
 import kotlinx.coroutines.flow.Flow
 import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
@@ -14,7 +15,7 @@ class OutputRtsp(val url: String, val encoder: Encoder) : suspend (Flow<Command.
             avformat_alloc_output_context2(it, null, "rtsp", url).check("avformat_alloc_output_context2")
         }
         encoder.apply {
-            setFormatContext(formatContext)
+            setFormatContext(formatContext.pointed)
         }(input).collect { packet ->
             av_interleaved_write_frame(formatContext, packet)
             av_packet_unref(packet)

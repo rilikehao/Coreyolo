@@ -1,5 +1,6 @@
 package common
 
+import SwsContext
 import cnames.structs.Image
 import common.Utils.check
 import kotlinx.cinterop.CPointer

@@ -70,8 +70,8 @@ open class DecoderACL(val id: Int) : Decoder {
         }
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
-        val width = stream.codecpar!!.pointed.width
-        val height = stream.codecpar!!.pointed.height
+        var width = 0
+        var height = 0
         return callbackFlow {
             input.collect { packet ->
                 val pts = packet!!.pointed.pts.toDouble() * stream.time_base.num / stream.time_base.den
@@ -84,6 +84,8 @@ open class DecoderACL(val id: Int) : Decoder {
                     val dev = acldvppGetStreamDescData(input)!!
                     val frameDev = acldvppGetPicDescData(output)!!
                     val frameSize = acldvppGetPicDescSize(output)
+                    width = acldvppGetPicDescWidth(output).toInt()
+                    height = acldvppGetPicDescHeight(output).toInt()
                     if (keep) {
                         val image = memScoped {
                             val swFrameDev = allocArray<UByteVar>(frameSize.toInt())

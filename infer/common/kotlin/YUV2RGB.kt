@@ -1,5 +1,6 @@
 package common
 
+import SwsContext
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValuesOf
