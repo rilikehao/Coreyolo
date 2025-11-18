@@ -69,9 +69,6 @@ open class EncoderFFmpeg(val id: String, val name: String) : Encoder {
                 videoStream = avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream")
                 avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx)
                 formatContext.start_time_realtime = frame.pointed.pts / 90L * 1000L
-                withOptions("tune" to "zerolatency", "rtsp_transport" to "tcp") {
-                    avformat_write_header(formatContext.ptr, it).check("avformat_write_header")
-                }
             }
             avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
             if (frame != null) av_frame_unref(frame)

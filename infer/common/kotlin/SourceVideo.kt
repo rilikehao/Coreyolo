@@ -44,6 +44,7 @@ object SourceVideo : suspend () -> Unit {
                                     OutputRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}", draw)(drawn)
                                 }.join()
                             }
+
                             AppConfig.StorageType.ORIGINAL -> {
                                 val inferred = Inference(config.id)(decoded)
                                 val drawn = Draw()(inferred)
