@@ -2,18 +2,18 @@
 type = "VIDEO"
 
 [paths]
-model = "assets/best.ascend310"
+model = "assets/bestL.ascend310"
 description = "assets/coco.txt"
 drawScript = "lua/example.lua"
 
 [[streams]]
 id = "default-00"
-source = "rtsp://100.64.0.2:8554/2025/2025.mp4"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
 storage = "original"
 
 [processing]
 npuThreads = 2
-cpuThreads = 6
+cpuThreads = 8
 fpsDecode = 30.0
-fpsYolo = 10.0
+fpsYolo = 30.0
 mute = false

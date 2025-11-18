@@ -121,6 +121,7 @@ aarch64/YoloInfer.AppImage rockchip configs/config-rk3576.toml
 #### 4. 配置图像尺寸
 
 编辑 `ultralytics/ultralytics/cfg/default.yaml` 文件，将 `imgsz` 参数修改为你最终要识别的图片尺寸（必须是 32 的倍数）。
+编辑 `src/to_ascend.py` 文件更新图片大小。
 
 #### 5. 准备校准数据
 

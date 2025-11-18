@@ -168,26 +168,26 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../ultralytics && python ultralytics/engine/exporter.py"
         ).directory(File(VENV_PATH)).runCommand()
 
-        println("转换为 MNN 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
-        ).directory(File(VENV_PATH)).runCommand()
-
-        println("重命名量化模型...")
-        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
-
-        println("转换为 RKNN (RK3588) 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
-        ).directory(File(VENV_PATH)).runCommand()
-
-        println("转换为 RKNN (RK3576) 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
-        ).directory(File(VENV_PATH)).runCommand()
+//        println("转换为 MNN 模型...")
+//        ProcessBuilder(
+//            "bash", "-c",
+//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
+//        ).directory(File(VENV_PATH)).runCommand()
+//
+//        println("重命名量化模型...")
+//        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
+//
+//        println("转换为 RKNN (RK3588) 模型...")
+//        ProcessBuilder(
+//            "bash", "-c",
+//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
+//        ).directory(File(VENV_PATH)).runCommand()
+//
+//        println("转换为 RKNN (RK3576) 模型...")
+//        ProcessBuilder(
+//            "bash", "-c",
+//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
+//        ).directory(File(VENV_PATH)).runCommand()
 
         println("华为量化...")
         ProcessBuilder(
