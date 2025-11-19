@@ -6,7 +6,9 @@ extern "C" {
 #include <QEventLoop>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QTcpServer>
 #include <QThread>
+#include <QUrlQuery>
 
 #include "image.h"
 
@@ -104,6 +106,84 @@ int HttpGetWaitStatus(const char* url) {
     thread->start();
     thread->wait();
     return status;
+}
+
+struct TcpSocket {
+    QTcpSocket* data_;
+};
+
+void SendData(TcpSocket* socket, const char* data, int size) {
+    if (data) {
+        auto number = QString::number(size, 16).toLatin1();
+        socket->data_->write(number);
+        socket->data_->write("\r\n");
+        socket->data_->write(data, size);
+        socket->data_->write("\r\n");
+    } else {
+        socket->data_->close();
+        delete socket;
+    }
+}
+
+struct HttpServerThread {
+    QThread data_;
+};
+
+namespace {
+
+double ParseTime(const QString& s) {
+    if (s.isEmpty()) return INFINITY;
+    auto t = QDateTime::fromString(s, Qt::ISODateWithMs);
+    return t.toMSecsSinceEpoch() / 1000.0;
+}
+
+void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
+    while (QTcpSocket* socket = tcpServer->nextPendingConnection()) {
+        QObject::connect(socket, &QTcpSocket::readyRead, socket, [=] {
+            auto req = QUrlQuery(QUrl::fromEncoded(socket->readAll()));
+            auto begin = ParseTime(req.queryItemValue("begin"));
+            auto end = ParseTime(req.queryItemValue("end"));
+            QByteArray headers =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: video/webm\r\n"
+                "Connection: keep-alive\r\n"
+                "Cache-Control: no-cache\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Transfer-Encoding: chunked\r\n\r\n";
+            socket->write(headers);
+            sub(new TcpSocket{socket});
+        });
+        QObject::connect(socket, &QTcpSocket::disconnected,  //
+                         socket, &QObject::deleteLater);
+    }
+}
+
+}  // namespace
+
+HttpServerThread* StartHttpServer(int port, Subscribe sub) {
+    auto thread = new HttpServerThread;
+    auto worker = new QObject;
+    worker->moveToThread(&thread->data_);
+    QObject::connect(&thread->data_, &QThread::started, worker, [=] {
+        auto tcpServer = new QTcpServer(worker);
+        if (!tcpServer->listen(QHostAddress::Any, port)) {
+            throw std::runtime_error("启动 Http Server 失败");
+        }
+        qDebug("Server listening on port %d", port);
+        QObject::connect(                           //
+            tcpServer, &QTcpServer::newConnection,  //
+            worker, [=] { AcceptConnection(tcpServer, sub); });
+        QObject::connect(&thread->data_, &QThread::finished, worker,
+                         &QObject::deleteLater);
+    });
+    thread->data_.start();
+    return thread;
+}
+
+void StopHttpServer(HttpServerThread* thread) {
+    thread->data_.quit();
+    thread->data_.wait();
+    delete thread;
 }
 
 }  // extern
