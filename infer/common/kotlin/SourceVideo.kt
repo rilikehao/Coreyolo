@@ -38,15 +38,16 @@ object SourceVideo : suspend () -> Unit {
                                 val drawn = Draw()(inferred)
                                 scope.launch {
                                     val dump = Codec.EncoderVideoH265(config.id + "-dump")
-                                    OutputRtsp(dump).apply {
-                                        add("rtsp://127.0.0.1:50554/dumped/${config.id}")
+                                    Output(dump).apply {
+                                        addRtsp("rtsp://127.0.0.1:50554/dumped/${config.id}")
                                         invoke(side)
                                         close()
                                     }
                                 }.also {
                                     val draw = Codec.EncoderVideoH264(config.id + "-draw")
-                                    OutputRtsp(draw).apply {
-                                        add("rtsp://127.0.0.1:50554/drawn/${config.id}")
+                                    Output(draw).apply {
+                                        addRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}")
+                                        addWebM("${config.id}.webm")
                                         invoke(drawn)
                                         close()
                                     }
@@ -57,8 +58,8 @@ object SourceVideo : suspend () -> Unit {
                                 val inferred = Inference(config.id)(decoded)
                                 val drawn = Draw()(inferred)
                                 val draw = Codec.EncoderVideoH264(config.id + "-draw")
-                                OutputRtsp(draw).apply {
-                                    add("rtsp://127.0.0.1:50554/drawn/${config.id}")
+                                Output(draw).apply {
+                                    addRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}")
                                     invoke(drawn)
                                     close()
                                 }

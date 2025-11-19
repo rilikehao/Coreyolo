@@ -160,7 +160,7 @@ void SendData(TcpSocket* socket, const char* data, int size) {
     }
 }
 
-HttpServerThread* StartHttpServer(int port, Subscribe sub) {
+HttpServerThread* HttpServer(int port, Subscribe sub) {
     auto thread = new HttpServerThread;
     auto worker = new QObject;
     worker->moveToThread(&thread->data_);

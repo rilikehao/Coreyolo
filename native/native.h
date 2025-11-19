@@ -78,7 +78,7 @@ struct Subscribe {
 };
 
 struct HttpServerThread;
-struct HttpServerThread* StartHttpServer(int port, Subscribe sub);
+struct HttpServerThread* HttpServer(int port, struct Subscribe sub);
 void StopHttpServer(struct HttpServerThread* thread);
 
 #endif  // NATIVE_H
