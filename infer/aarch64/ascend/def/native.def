@@ -2,4 +2,4 @@ package = platform.native
 headers = native.h
 compilerOpts = --sysroot=/usr/aarch64-linux-gnu -I../../../aarch64/root/usr/include -I../../../aarch64/root/usr/local/include -I../../../aarch64/root/usr/local/ascend/include
 linkerOpts = -Laarch64/root/usr/lib -Laarch64/root/usr/local/lib -Laarch64/root/usr/local/ascend/lib -lNative
-noStringConversion = HttpGet HttpPost DrawRect
+noStringConversion = HttpGet HttpPost DrawRect SendData

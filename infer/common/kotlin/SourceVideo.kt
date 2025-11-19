@@ -1,9 +1,12 @@
 package common
 
 import Codec
-import kotlinx.cinterop.ExperimentalForeignApi
+import cnames.structs.TcpSocket
+import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import platform.native.HttpGetWaitStatus
+import platform.native.HttpServer
+import platform.native.SendData
 
 @OptIn(ExperimentalForeignApi::class)
 object SourceVideo : suspend () -> Unit {
@@ -46,9 +49,21 @@ object SourceVideo : suspend () -> Unit {
                                 }.also {
                                     val draw = Codec.EncoderVideoH264(config.id + "-draw")
                                     Output(draw).apply {
-                                        addRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}")
-                                        addMatroska("${config.id}.webm")
+                                        // addRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}")
+                                        // addMatroska("${config.id}.webm")
+                                        val data = StableRef.create { socket: CPointer<TcpSocket> ->
+                                            addMatroskaStream { buf, size ->
+                                                SendData(socket, buf?.reinterpret(), size)
+                                            }
+                                        }
+                                        HttpServer(50000, cValue {
+                                            func_ = staticCFunction { socket, rawData ->
+                                                rawData!!.asStableRef<(CPointer<TcpSocket>) -> Unit>().get()(socket!!)
+                                            }
+                                            opaque_ = data.asCPointer()
+                                        })
                                         invoke(drawn)
+                                        data.dispose()
                                         close()
                                     }
                                 }.join()
