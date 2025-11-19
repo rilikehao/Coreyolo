@@ -33,7 +33,6 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
         socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
         QObject::connect(socket, &QTcpSocket::readyRead, socket, [=] {
             auto req = socket->readAll();
-            qDebug() << req;
             auto split = req.split(' ');
             auto query = QUrlQuery(QUrl::fromEncoded(split[1]));
             auto begin = ParseTime(query.queryItemValue("begin"));
