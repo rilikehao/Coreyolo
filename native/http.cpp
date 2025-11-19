@@ -42,7 +42,7 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
                 "Access-Control-Allow-Origin: *\r\n"
                 "Transfer-Encoding: chunked\r\n\r\n";
             socket->write(headers);
-            sub(new TcpSocket{socket});
+            sub.func_(new TcpSocket{socket}, sub.opaque_);
         });
         QObject::connect(socket, &QTcpSocket::disconnected,  //
                          socket, &QObject::deleteLater);

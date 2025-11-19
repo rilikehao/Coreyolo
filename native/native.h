@@ -72,8 +72,12 @@ int HttpGetWaitStatus(const char* url);
 struct TcpSocket;
 void SendData(struct TcpSocket* socket, const char* data, int size);
 
+struct Subscribe {
+    void (*func_)(struct TcpSocket*, void*);
+    void* opaque_;
+};
+
 struct HttpServerThread;
-typedef void (*Subscribe)(struct TcpSocket*);
 struct HttpServerThread* StartHttpServer(int port, Subscribe sub);
 void StopHttpServer(struct HttpServerThread* thread);
 
