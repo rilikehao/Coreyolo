@@ -9,8 +9,35 @@ import platform.native.HttpServer
 import platform.native.SendData
 
 @OptIn(ExperimentalForeignApi::class)
-object SourceVideo : suspend () -> Unit {
+object SourceVideo : AutoCloseable, suspend () -> Unit {
+    @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+    val mainContext = newSingleThreadContext("OutputRtsp")
+
+    override fun close() = mainContext.close()
+
     override suspend fun invoke() {
+        val outputs = mutableMapOf<String, Output>()
+        val data = StableRef.create { stream: CPointer<ByteVar>, socket: CPointer<TcpSocket> ->
+            CoroutineScope(mainContext).launch {
+                when (val output = outputs[stream.toKStringFromUtf8()]) {
+                    null -> SendData(socket, null, 0)
+                    else -> {
+                        var context: Output.Context? = null
+                        context = output.addMatroskaStream { buf, size ->
+                            if (!SendData(socket, buf?.reinterpret(), size)) {
+                                output.remove(context!!)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        HttpServer(60000, cValue {
+            func_ = staticCFunction { stream, socket, rawData ->
+                rawData!!.asStableRef<(CPointer<ByteVar>, CPointer<TcpSocket>) -> Unit>().get()(stream!!, socket!!)
+            }
+            opaque_ = data.asCPointer()
+        })
         Inference.use {
             AppConfig.instance.streams.mapIndexed { id, config ->
                 val scope = CoroutineScope(Dispatchers.IO)
@@ -48,24 +75,10 @@ object SourceVideo : suspend () -> Unit {
                                     }
                                 }.also {
                                     val draw = Codec.EncoderVideoH264(config.id + "-draw")
-                                    Output(draw).apply {
-                                        // addRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}")
-                                        // addMatroska("${config.id}.webm")
-                                        val data = StableRef.create { socket: CPointer<TcpSocket> ->
-                                            addMatroskaStream { buf, size ->
-                                                SendData(socket, buf?.reinterpret(), size)
-                                            }
-                                        }
-                                        HttpServer(50000, cValue {
-                                            func_ = staticCFunction { socket, rawData ->
-                                                rawData!!.asStableRef<(CPointer<TcpSocket>) -> Unit>().get()(socket!!)
-                                            }
-                                            opaque_ = data.asCPointer()
-                                        })
-                                        invoke(drawn)
-                                        data.dispose()
-                                        close()
-                                    }
+                                    val output = Output(draw)
+                                    CoroutineScope(mainContext).launch { outputs[config.id] = output }
+                                    output(drawn)
+                                    output.close()
                                 }.join()
                             }
 
@@ -84,5 +97,6 @@ object SourceVideo : suspend () -> Unit {
                 }
             }.joinAll()
         }
+        data.dispose()
     }
 }

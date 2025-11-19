@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
                 -> staticCFunction { -> SourceImage() }
 
             AppConfig.SourceType.VIDEO, AppConfig.SourceType.CAMERA,
-                -> staticCFunction { -> runBlocking { SourceVideo() } }
+                -> staticCFunction { -> runBlocking { SourceVideo.apply { invoke() }.close() } }
         }.let { memScoped { Main(1, arrayOf("YoloInfer").toCStringArray(this), it) } }
     }
 }

@@ -4,13 +4,8 @@ import common.Utils.cPointer
 import common.Utils.check
 import common.Utils.withOptions
 import kotlinx.cinterop.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
-import kotlinx.coroutines.withContext
 import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
 
@@ -95,14 +90,18 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
         }
     }
 
-    val contexts = mutableListOf<Context>()
+    val contexts = mutableSetOf<Context>()
 
     fun addRtsp(url: String) =
-        ContextRtsp(url).let { CoroutineScope(main).launch { contexts.add(it) } }
+        ContextRtsp(url).also { CoroutineScope(main).launch { contexts.add(it) } }
+
     fun addMatroska(path: String) =
-        ContextMatroska(path).let { CoroutineScope(main).launch { contexts.add(it) } }
+        ContextMatroska(path).also { CoroutineScope(main).launch { contexts.add(it) } }
+
     fun addMatroskaStream(write: (CPointer<UByteVar>?, Int) -> Unit) =
-        ContextMatroskaStream(write).let { CoroutineScope(main).launch { contexts.add(it) } }
+        ContextMatroskaStream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
+
+    fun remove(context: Context) = CoroutineScope(main).launch { context.also { contexts.remove(it) }.close() }
 
     override suspend fun invoke(input: Flow<Command.CommandImage>) {
         encoder(input).collect { packet ->

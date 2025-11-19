@@ -70,10 +70,10 @@ void HttpPost(const char* url, struct Image* image);
 int HttpGetWaitStatus(const char* url);
 
 struct TcpSocket;
-void SendData(struct TcpSocket* socket, const char* data, int size);
+bool SendData(struct TcpSocket* socket, const char* data, int size);
 
 struct Subscribe {
-    void (*func_)(struct TcpSocket*, void*);
+    void (*func_)(const char* stream, struct TcpSocket*, void*);
     void* opaque_;
 };
 

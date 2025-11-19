@@ -30,10 +30,15 @@ double ParseTime(const QString& s) {
 
 void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
     while (QTcpSocket* socket = tcpServer->nextPendingConnection()) {
+        socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
         QObject::connect(socket, &QTcpSocket::readyRead, socket, [=] {
-            auto req = QUrlQuery(QUrl::fromEncoded(socket->readAll()));
-            auto begin = ParseTime(req.queryItemValue("begin"));
-            auto end = ParseTime(req.queryItemValue("end"));
+            auto req = socket->readAll();
+            qDebug() << req;
+            auto split = req.split(' ');
+            auto query = QUrlQuery(QUrl::fromEncoded(split[1]));
+            auto begin = ParseTime(query.queryItemValue("begin"));
+            auto end = ParseTime(query.queryItemValue("end"));
+            auto stream = query.queryItemValue("stream").toUtf8();
             QByteArray headers =
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: video/webm\r\n"
@@ -42,10 +47,10 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
                 "Access-Control-Allow-Origin: *\r\n"
                 "Transfer-Encoding: chunked\r\n\r\n";
             socket->write(headers);
-            sub.func_(new TcpSocket{socket}, sub.opaque_);
+            socket->flush();
+            auto tcpSocket = new TcpSocket{socket};
+            sub.func_(stream.constData(), tcpSocket, sub.opaque_);
         });
-        QObject::connect(socket, &QTcpSocket::disconnected,  //
-                         socket, &QObject::deleteLater);
     }
 }
 
@@ -147,17 +152,26 @@ int HttpGetWaitStatus(const char* url) {
     return status;
 }
 
-void SendData(TcpSocket* socket, const char* data, int size) {
-    if (data) {
-        auto number = QString::number(size, 16).toLatin1();
-        socket->data_->write(number);
-        socket->data_->write("\r\n");
-        socket->data_->write(data, size);
-        socket->data_->write("\r\n");
-    } else {
-        socket->data_->close();
-        delete socket;
-    }
+bool SendData(TcpSocket* socket, const char* data, int size) {
+    QMetaObject::invokeMethod(
+        socket->data_,
+        [&] {
+            if (data && socket->data_->isWritable()) {
+                auto number = QString::number(size, 16).toLatin1();
+                socket->data_->write(number);
+                socket->data_->write("\r\n");
+                socket->data_->write(data, size);
+                socket->data_->write("\r\n");
+                socket->data_->flush();
+            } else {
+                socket->data_->close();
+                socket->data_->deleteLater();
+                delete socket;
+                socket = nullptr;
+            }
+        },
+        Qt::BlockingQueuedConnection);
+    return socket;
 }
 
 HttpServerThread* HttpServer(int port, Subscribe sub) {
