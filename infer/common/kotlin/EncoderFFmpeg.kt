@@ -19,29 +19,28 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-open class EncoderFFmpeg(val id: String, val name: String) : Encoder {
-    lateinit var formatContext: AVFormatContext
-    lateinit var options: Array<Pair<String, String>>
-    var format = AV_PIX_FMT_NONE
-
-    override fun setFormatContext(formatContext: AVFormatContext) {
-        this.formatContext = formatContext
+open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
+    val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
+    val codecCtx = avcodec_alloc_context3(codec)!!.apply {
+        pointed.codec_type = AVMEDIA_TYPE_VIDEO
+        pointed.pix_fmt = format
+        pointed.time_base.num = 1
+        pointed.time_base.den = 90000
+        pointed.max_b_frames = 0
+        pointed.gop_size = 10
     }
+
+    lateinit var options: Array<Pair<String, String>>
+
+    override fun initStream(formatContext: AVFormatContext) =
+        avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
+            avcodec_parameters_from_context(it.pointed.codecpar, codecCtx)
+        }
 
     override fun invoke(input: Flow<Command.CommandImage>): Flow<CPointer<AVPacket>> {
         val fromRGBImage = FromRGBImage()
-        val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
-        val codecCtx = avcodec_alloc_context3(codec)!!.apply {
-            pointed.codec_type = AVMEDIA_TYPE_VIDEO
-            pointed.pix_fmt = format
-            pointed.time_base.num = 1
-            pointed.time_base.den = 90000
-            pointed.max_b_frames = 0
-            pointed.gop_size = 10
-        }
         val frame = av_frame_alloc()!!
         val packet = av_packet_alloc()!!
-        var videoStream: CPointer<AVStream>? = null
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
@@ -66,14 +65,10 @@ open class EncoderFFmpeg(val id: String, val name: String) : Encoder {
                 withOptions(*options) {
                     avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
                 }
-                videoStream = avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream")
-                avcodec_parameters_from_context(videoStream.pointed.codecpar, codecCtx)
-                formatContext.start_time_realtime = frame.pointed.pts / 90L * 1000L
             }
             avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
             if (frame != null) av_frame_unref(frame)
             while (0 <= avcodec_receive_packet(codecCtx, packet)) {
-                packet.pointed.stream_index = videoStream!!.pointed.index
                 emit(packet)
             }
         }.onCompletion {

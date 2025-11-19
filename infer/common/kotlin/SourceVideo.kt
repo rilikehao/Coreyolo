@@ -38,10 +38,10 @@ object SourceVideo : suspend () -> Unit {
                                 val drawn = Draw()(inferred)
                                 scope.launch {
                                     val dump = Codec.EncoderVideoH265(config.id + "-dump")
-                                    OutputRtsp("rtsp://127.0.0.1:50554/dumped/${config.id}", dump)(side)
+                                    OutputRtsp(arrayOf("rtsp://127.0.0.1:50554/dumped/${config.id}"), dump)(side)
                                 }.also {
                                     val draw = Codec.EncoderVideoH264(config.id + "-draw")
-                                    OutputRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}", draw)(drawn)
+                                    OutputRtsp(arrayOf("rtsp://127.0.0.1:50554/drawn/${config.id}"), draw)(drawn)
                                 }.join()
                             }
 
@@ -49,7 +49,7 @@ object SourceVideo : suspend () -> Unit {
                                 val inferred = Inference(config.id)(decoded)
                                 val drawn = Draw()(inferred)
                                 val draw = Codec.EncoderVideoH264(config.id + "-draw")
-                                OutputRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}", draw)(drawn)
+                                OutputRtsp(arrayOf("rtsp://127.0.0.1:50554/drawn/${config.id}"), draw)(drawn)
                             }
                         }
                     }

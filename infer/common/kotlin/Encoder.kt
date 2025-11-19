@@ -5,8 +5,9 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.Flow
 import platform.ffmpeg.AVFormatContext
 import platform.ffmpeg.AVPacket
+import platform.ffmpeg.AVStream
 
 @OptIn(ExperimentalForeignApi::class)
 interface Encoder : (Flow<Command.CommandImage>) -> Flow<CPointer<AVPacket>> {
-    fun setFormatContext(formatContext: AVFormatContext)
+    fun initStream(formatContext: AVFormatContext): CPointer<AVStream>
 }
