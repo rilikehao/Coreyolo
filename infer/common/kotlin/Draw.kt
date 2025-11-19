@@ -14,8 +14,8 @@ import platform.native.SetImage
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class Draw : suspend (Flow<Command>) -> Flow<Command.CommandImage> {
-    override suspend fun invoke(input: Flow<Command>): Flow<Command.CommandImage> {
+class Draw(val input: Flow<Command>) : suspend () -> Flow<Command.CommandImage> {
+    override suspend fun invoke(): Flow<Command.CommandImage> {
         var taskLast: CPointer<InferTask>? = null
         val draw = DrawScript(AppConfig.instance.paths.drawScript)
         return input.map { command ->

@@ -18,7 +18,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class Inference(val id: String) : (Flow<Command.CommandImage>) -> Flow<Command> {
+class Inference(val id: String, val input: Flow<Command.CommandImage>) : () -> Flow<Command> {
     companion object : AutoCloseable {
         val infer = memScoped {
             val config = alloc<InferConfig>()
@@ -37,7 +37,7 @@ class Inference(val id: String) : (Flow<Command.CommandImage>) -> Flow<Command> 
         }
     }
 
-    override fun invoke(input: Flow<Command.CommandImage>): Flow<Command> {
+    override fun invoke(): Flow<Command> {
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()

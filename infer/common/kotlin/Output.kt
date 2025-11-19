@@ -10,7 +10,7 @@ import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.CommandImage>) -> Unit {
+class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoCloseable, suspend () -> Unit {
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
     val main = newSingleThreadContext("Output")
 
@@ -106,12 +106,12 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
 
     fun remove(context: Context) = CoroutineScope(main).launch { context.also { contexts.remove(it) }.close() }
 
-    override suspend fun invoke(input: Flow<Command.CommandImage>) {
-        encoder(input).collect { packet ->
+    override suspend fun invoke() {
+        input.collect { packet ->
             withContext(main) {
                 val toWrite = av_packet_alloc()!!
                 contexts.forEach { context ->
-                    if (context.stream == null && packet.pointed.flags.and(AV_PKT_FLAG_KEY) != 0) {
+                    if (context.stream == null && packet!!.pointed.flags.and(AV_PKT_FLAG_KEY) != 0) {
                         context.stream = encoder.initStream(context.formatContext.pointed)
                         context.formatContext.pointed.start_time_realtime = encoder.startTimeRealtime()
                         withOptions(*context.options) {
@@ -136,6 +136,7 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
         }
         withContext(main) {
             contexts.forEach { context ->
+                av_write_frame(context.formatContext, null).check("av_write_frame")
                 av_write_trailer(context.formatContext)
                 context.close()
             }
