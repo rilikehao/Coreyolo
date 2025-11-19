@@ -16,12 +16,14 @@ import kotlin.math.max
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
     val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
     val codecCtx = avcodec_alloc_context3(codec)!!.apply {
+        pointed.flags = pointed.flags or AV_CODEC_FLAG_GLOBAL_HEADER
         pointed.codec_type = AVMEDIA_TYPE_VIDEO
         pointed.pix_fmt = format
         pointed.time_base.num = 1
@@ -31,6 +33,9 @@ open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
     }
 
     lateinit var options: Array<Pair<String, String>>
+    lateinit var timestamp0: Instant
+
+    override fun startTimeRealtime() = timestamp0.toEpochMilliseconds()
 
     override fun initStream(formatContext: AVFormatContext) =
         avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
@@ -44,7 +49,7 @@ open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
-        var timestamp0 = Clock.System.now()
+
         return input.map { commandImage ->
             if (inputFrames++ == 0L) timestamp0 = commandImage.timestamp
             Logger.i {
@@ -54,7 +59,7 @@ open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
                 val delayMs = max(0L, delayed.inWholeMilliseconds)
                 "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
             }
-            frame.pointed.pts = commandImage.timestamp.toEpochMilliseconds() * 90
+            frame.pointed.pts = (commandImage.timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
             fromRGBImage(frame.pointed, commandImage.data)
             DestroyImage(commandImage.data)
             frame as CPointer<AVFrame>?

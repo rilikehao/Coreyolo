@@ -47,7 +47,7 @@ object SourceVideo : suspend () -> Unit {
                                     val draw = Codec.EncoderVideoH264(config.id + "-draw")
                                     Output(draw).apply {
                                         addRtsp("rtsp://127.0.0.1:50554/drawn/${config.id}")
-                                        addWebM("${config.id}.webm")
+                                        addMatroska("${config.id}.webm")
                                         invoke(drawn)
                                         close()
                                     }
