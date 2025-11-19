@@ -28,6 +28,7 @@ find_package(Qt6 COMPONENTS Core Gui Network REQUIRED)
 add_library(Native SHARED
     application.cpp
     draw.cpp
+    http.cpp
     image.cpp
     inference.cpp
     ${PLATFORM_SRC}
