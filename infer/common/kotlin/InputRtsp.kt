@@ -11,8 +11,11 @@ import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class InputRtsp(val url: String, val decoder: Decoder) : suspend () -> Flow<Command.CommandImage> {
-    override suspend fun invoke(): Flow<Command.CommandImage> {
+class InputRtsp(val url: String) : suspend () -> Flow<CPointer<AVPacket>?> {
+    lateinit var stream: AVStream
+    lateinit var formatCtx: AVFormatContext
+
+    override suspend fun invoke(): Flow<CPointer<AVPacket>?> {
         val formatContext = cPointer { ptr ->
             withOptions("fflags" to "nobuffer", "rtsp_transport" to "tcp") {
                 avformat_open_input(ptr, url, null, it).check("avformat_open_input")
@@ -21,7 +24,9 @@ class InputRtsp(val url: String, val decoder: Decoder) : suspend () -> Flow<Comm
         avformat_find_stream_info(formatContext, null).check("avformat_find_stream_info")
         val videoStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, null, 0)
         val packet = av_packet_alloc()!!
-        val packets = flow {
+        stream = formatContext.pointed.streams!![videoStreamIndex]!!.pointed
+        formatCtx = formatContext.pointed
+        return flow {
             while (av_read_frame(formatContext, packet) != AVERROR_EOF) {
                 if (packet.pointed.stream_index == videoStreamIndex) emit(packet as CPointer<AVPacket>?)
             }
@@ -29,9 +34,5 @@ class InputRtsp(val url: String, val decoder: Decoder) : suspend () -> Flow<Comm
             avformat_close_input(cValuesOf(formatContext))
             av_packet_free(cValuesOf(packet))
         }
-        return decoder.apply {
-            setStream(formatContext.pointed.streams!![videoStreamIndex]!!.pointed)
-            setFormatContext(formatContext.pointed)
-        }(packets)
     }
 }

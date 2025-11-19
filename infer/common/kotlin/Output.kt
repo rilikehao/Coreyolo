@@ -12,7 +12,7 @@ import kotlin.time.ExperimentalTime
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.CommandImage>) -> Unit {
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-    val main = newSingleThreadContext("OutputRtsp")
+    val main = newSingleThreadContext("Output")
 
     override fun close() = main.close()
 
@@ -35,38 +35,38 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
         }
     }
 
-    class ContextMatroska(path: String) : Context(arrayOf(), initFormatContext(path), null) {
+    class ContextFmp4(path: String) : Context(options, initFormatContext(path), null) {
         companion object {
+            val options = arrayOf("movflags" to "frag_keyframe+empty_moov+default_base_moof")
             fun initFormatContext(path: String) = cPointer {
-                avformat_alloc_output_context2(
-                    it,
-                    null,
-                    "matroska",
-                    "stream.mkv"
-                ).check("avformat_alloc_output_context2")
+                avformat_alloc_output_context2(it, null, "mp4", "stream.mp4").check("avformat_alloc_output_context2")
             }.apply {
-                pointed.flags = pointed.flags or AVFMT_FLAG_FLUSH_PACKETS
                 pointed.pb = cPointer { avio_open(it, path, AVIO_FLAG_WRITE).check("avio_open") }
             }
         }
 
         override fun close() {
-            avio_closep(cValuesOf(formatContext.pointed.pb))
-            formatContext.pointed.pb = null
+            if (formatContext.pointed.pb != null) {
+                avio_closep(cValuesOf(formatContext.pointed.pb))
+                formatContext.pointed.pb = null
+            }
             avformat_free_context(formatContext)
         }
     }
 
-    class ContextMatroskaStream(write: (CPointer<UByteVar>?, Int) -> Unit) :
-        Context(arrayOf(), initFormatContext(write), null) {
+    class ContextFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) :
+        Context(options, initFormatContext(write), null) {
 
         companion object {
+            val options = arrayOf(
+                "movflags" to "frag_keyframe+empty_moov+default_base_moof",
+                "fflags" to "nobuffer",
+            )
             fun initFormatContext(write: (CPointer<UByteVar>?, Int) -> Unit) = cPointer {
-                avformat_alloc_output_context2(it, null, "matroska", "stream.mkv")
+                avformat_alloc_output_context2(it, null, "mp4", "stream.mp4")
                     .check("avformat_alloc_output_context2")
             }.apply {
-                pointed.flags = pointed.flags or AVFMT_FLAG_FLUSH_PACKETS
-                val bufferSize = 1048576
+                val bufferSize = 4096
                 val avioBuffer = av_malloc(bufferSize.toULong())?.reinterpret<UByteVar>()
                     ?: throw Error("Failed to allocate avio buffer")
                 val data = StableRef.create(write)
@@ -81,11 +81,14 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
         }
 
         override fun close() {
-            formatContext.pointed.pb!!.pointed.opaque!!.asStableRef<(CPointer<UByteVar>?, Int) -> Int>()
-                .apply { get()(null, 0) }.dispose()
-            av_free(formatContext.pointed.pb!!.pointed.buffer)
-            av_free(formatContext.pointed.pb)
-            formatContext.pointed.pb = null
+            if (formatContext.pointed.pb != null) {
+                formatContext.pointed.pb!!.pointed.opaque!!.asStableRef<(CPointer<UByteVar>?, Int) -> Int>()
+                    .apply { get()(null, 0) }
+                    .dispose()
+                av_free(formatContext.pointed.pb!!.pointed.buffer)
+                av_free(formatContext.pointed.pb)
+                formatContext.pointed.pb = null
+            }
             avformat_free_context(formatContext)
         }
     }
@@ -95,11 +98,11 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
     fun addRtsp(url: String) =
         ContextRtsp(url).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun addMatroska(path: String) =
-        ContextMatroska(path).also { CoroutineScope(main).launch { contexts.add(it) } }
+    fun addFmp4(path: String) =
+        ContextFmp4(path).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun addMatroskaStream(write: (CPointer<UByteVar>?, Int) -> Unit) =
-        ContextMatroskaStream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
+    fun addFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) =
+        ContextFmp4Stream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
 
     fun remove(context: Context) = CoroutineScope(main).launch { context.also { contexts.remove(it) }.close() }
 
@@ -123,7 +126,8 @@ class Output(val encoder: Encoder) : AutoCloseable, suspend (Flow<Command.Comman
                             cValue { num = 1; den = 90000 },
                             context.stream!!.pointed.time_base.readValue(),
                         )
-                        av_interleaved_write_frame(context.formatContext, toWrite).check("av_interleaved_write_frame")
+                        av_write_frame(context.formatContext, toWrite).check("av_write_frame")
+                        context.formatContext.pointed.pb?.let { avio_flush(it) }
                     }
                 }
                 av_packet_free(cValuesOf(toWrite))

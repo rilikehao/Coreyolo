@@ -8,27 +8,27 @@ drawScript = "lua/example.lua"
 
 [[streams]]
 id = "default-00"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+source = "rtsp://10.42.0.1:8554/2025/2025.mp4"
 
 [[streams]]
 id = "default-01"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+source = "rtsp://10.42.0.1:8554/2025/2025.mp4"
 
 [[streams]]
 id = "default-02"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+source = "rtsp://10.42.0.1:8554/2025/2025.mp4"
 
 [[streams]]
 id = "default-03"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+source = "rtsp://10.42.0.1:8554/2025/2025.mp4"
 
 [[streams]]
 id = "default-04"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+source = "rtsp://10.42.0.1:8554/2025/2025.mp4"
 
 [[streams]]
 id = "default-05"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
+source = "rtsp://10.42.0.1:8554/2025/2025.mp4"
 
 [processing]
 npuThreads = 4

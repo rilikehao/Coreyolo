@@ -9,9 +9,9 @@ import platform.native.CreateImageCopy
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class Fork : (Flow<Command.CommandImage>) -> Pair<Flow<Command.CommandImage>, Flow<Command.CommandImage>> {
-    override fun invoke(input: Flow<Command.CommandImage>)
-            : Pair<Flow<Command.CommandImage>, Flow<Command.CommandImage>> {
+class ForkImage(val input: Flow<Command.CommandImage>) :
+        () -> Pair<Flow<Command.CommandImage>, Flow<Command.CommandImage>> {
+    override fun invoke(): Pair<Flow<Command.CommandImage>, Flow<Command.CommandImage>> {
         val dump = Channel<Command.CommandImage>()
         val main = input.onEach { dump.send(Command.CommandImage(it.timestamp, CreateImageCopy(it.data)!!)) }
         val side = dump.consumeAsFlow()

@@ -9,7 +9,7 @@ object AppConfig {
     
     @Serializable
     enum class SourceType {
-        IMAGE, VIDEO, CAMERA,
+        IMAGE, CAMERA, VIDEO, VIDEO_KEEP,
     }
 
     @Serializable
@@ -33,15 +33,9 @@ object AppConfig {
     )
 
     @Serializable
-    enum class StorageType {
-        DUMPED, ORIGINAL,
-    }
-
-    @Serializable
     data class StreamConfig(
         val id: String,
         val source: String,
-        val storage: StorageType = StorageType.DUMPED,
     )
 
     @Serializable

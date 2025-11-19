@@ -4,7 +4,6 @@ import Codec
 import cnames.structs.TcpSocket
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
-import platform.native.HttpGetWaitStatus
 import platform.native.HttpServer
 import platform.native.SendData
 
@@ -23,7 +22,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                     null -> SendData(socket, null, 0)
                     else -> {
                         var context: Output.Context? = null
-                        context = output.addMatroskaStream { buf, size ->
+                        context = output.addFmp4Stream { buf, size ->
                             if (!SendData(socket, buf?.reinterpret(), size)) {
                                 output.remove(context!!)
                             }
@@ -41,29 +40,24 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
         Inference.use {
             AppConfig.instance.streams.mapIndexed { id, config ->
                 val scope = CoroutineScope(Dispatchers.IO)
-                val base = "http://127.0.0.1:50080/index/api/addStreamProxy?secret=21344657"
-                val params = "&vhost=__defaultVhost__&app=original&stream=${config.id}&url=${config.source}"
-                val status = HttpGetWaitStatus("$base$params")
-                if (status != 200) throw Error("拉取流失败")
-                val input = "rtsp://127.0.0.1:50554/original/${config.id}"
                 scope.launch {
                     while (true) {
-                        delay(2000)
-                        scope.launch {
-                            delay(12000)
-                            val base = "http://127.0.0.1:50080/index/api/startRecord?secret=21344657"
-                            val params = "&type=0&vhost=__defaultVhost__&app=${config.storage}&stream=${config.id}"
-                            val status = HttpGetWaitStatus("$base$params")
-                            if (status != 200) throw Error("录制流失败")
-                        }
                         val decoded = when (AppConfig.instance.source.type) {
-                            AppConfig.SourceType.VIDEO -> InputRtsp(input, Codec.DecoderVideo(id))
-                            AppConfig.SourceType.CAMERA -> InputCamera.open(config.source)
+                            AppConfig.SourceType.CAMERA -> InputCamera.open(config.source)()
+                            AppConfig.SourceType.VIDEO -> {
+                                val inputRtsp = InputRtsp(config.source)
+                                Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
+                            }
+                            AppConfig.SourceType.VIDEO_KEEP -> {
+                                val inputRtsp = InputRtsp(config.source)
+                                val (main, side) = ForkPacket(inputRtsp())()
+                                Codec.DecoderVideo(id, inputRtsp, main)()
+                            }
                             else -> throw Error("不支持的视频来源")
-                        }()
+                        }
                         when (config.storage) {
                             AppConfig.StorageType.DUMPED -> {
-                                val (main, side) = Fork()(decoded)
+                                val (main, side) = ForkImage()(decoded)
                                 val inferred = Inference(config.id)(main)
                                 val drawn = Draw()(inferred)
                                 scope.launch {
@@ -93,6 +87,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                 }
                             }
                         }
+                        delay(2000)
                     }
                 }
             }.joinAll()

@@ -19,7 +19,13 @@ import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
+open class EncoderFFmpeg(
+    val id: String,
+    val input: Flow<Command.CommandImage>,
+    name: String,
+    format: Int,
+    val options: Array<Pair<String, String>>,
+) : Encoder {
     val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
     val codecCtx = avcodec_alloc_context3(codec)!!.apply {
         pointed.flags = pointed.flags or AV_CODEC_FLAG_GLOBAL_HEADER
@@ -31,7 +37,6 @@ open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
         pointed.gop_size = 10
     }
 
-    lateinit var options: Array<Pair<String, String>>
     lateinit var timestamp0: Instant
 
     override fun startTimeRealtime() = timestamp0.toEpochMilliseconds()
@@ -41,7 +46,7 @@ open class EncoderFFmpeg(val id: String, name: String, format: Int) : Encoder {
             avcodec_parameters_from_context(it.pointed.codecpar, codecCtx)
         }
 
-    override fun invoke(input: Flow<Command.CommandImage>): Flow<CPointer<AVPacket>> {
+    override fun invoke(): Flow<CPointer<AVPacket>?> {
         val fromRGBImage = FromRGBImage()
         val frame = av_frame_alloc()!!
         val packet = av_packet_alloc()!!
