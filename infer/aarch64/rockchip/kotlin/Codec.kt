@@ -11,24 +11,22 @@ object Codec {
     }
 
     @OptIn(ExperimentalForeignApi::class)
-    class EncoderVideoH264(id: String) : common.EncoderFFmpeg(id, "h264_rkmpp") {
+    class EncoderVideoH264(id: String) : common.EncoderFFmpeg(id, "h264_rkmpp", AV_PIX_FMT_RGB24) {
         init {
             options = arrayOf(
                 "rc_mode" to "CQP",
                 "qp_init" to AppConfig.instance.processing.qH264.toString(1),
             )
-            format = AV_PIX_FMT_RGB24
         }
     }
 
     @OptIn(ExperimentalForeignApi::class)
-    class EncoderVideoH265(id: String) : common.EncoderFFmpeg(id, "hevc_rkmpp") {
+    class EncoderVideoH265(id: String) : common.EncoderFFmpeg(id, "hevc_rkmpp", AV_PIX_FMT_RGB24) {
         init {
             options = arrayOf(
                 "rc_mode" to "CQP",
                 "qp_init" to AppConfig.instance.processing.qH265.toString(1),
             )
-            format = AV_PIX_FMT_RGB24
         }
     }
 }
