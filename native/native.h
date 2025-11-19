@@ -70,11 +70,11 @@ void HttpPost(const char* url, struct Image* image);
 int HttpGetWaitStatus(const char* url);
 
 struct TcpSocket;
-void SendData(TcpSocket* socket, const char* data, int size);
+void SendData(struct TcpSocket* socket, const char* data, int size);
 
 struct HttpServerThread;
 typedef void (*Subscribe)(TcpSocket*);
-HttpServerThread* StartHttpServer(int port, Subscribe sub);
-void StopHttpServer(HttpServerThread* thread);
+struct HttpServerThread* StartHttpServer(int port, Subscribe sub);
+void StopHttpServer(struct HttpServerThread* thread);
 
 #endif  // NATIVE_H

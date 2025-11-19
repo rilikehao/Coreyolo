@@ -12,6 +12,37 @@ extern "C" {
 
 #include "image.h"
 
+namespace {
+
+double ParseTime(const QString& s) {
+    if (s.isEmpty()) return INFINITY;
+    auto t = QDateTime::fromString(s, Qt::ISODateWithMs);
+    return t.toMSecsSinceEpoch() / 1000.0;
+}
+
+void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
+    while (QTcpSocket* socket = tcpServer->nextPendingConnection()) {
+        QObject::connect(socket, &QTcpSocket::readyRead, socket, [=] {
+            auto req = QUrlQuery(QUrl::fromEncoded(socket->readAll()));
+            auto begin = ParseTime(req.queryItemValue("begin"));
+            auto end = ParseTime(req.queryItemValue("end"));
+            QByteArray headers =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: video/webm\r\n"
+                "Connection: keep-alive\r\n"
+                "Cache-Control: no-cache\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Transfer-Encoding: chunked\r\n\r\n";
+            socket->write(headers);
+            sub(new TcpSocket{socket});
+        });
+        QObject::connect(socket, &QTcpSocket::disconnected,  //
+                         socket, &QObject::deleteLater);
+    }
+}
+
+}  // namespace
+
 extern "C" {
 
 void HttpGet(const char* url) {
@@ -128,37 +159,6 @@ void SendData(TcpSocket* socket, const char* data, int size) {
 struct HttpServerThread {
     QThread data_;
 };
-
-namespace {
-
-double ParseTime(const QString& s) {
-    if (s.isEmpty()) return INFINITY;
-    auto t = QDateTime::fromString(s, Qt::ISODateWithMs);
-    return t.toMSecsSinceEpoch() / 1000.0;
-}
-
-void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
-    while (QTcpSocket* socket = tcpServer->nextPendingConnection()) {
-        QObject::connect(socket, &QTcpSocket::readyRead, socket, [=] {
-            auto req = QUrlQuery(QUrl::fromEncoded(socket->readAll()));
-            auto begin = ParseTime(req.queryItemValue("begin"));
-            auto end = ParseTime(req.queryItemValue("end"));
-            QByteArray headers =
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: video/webm\r\n"
-                "Connection: keep-alive\r\n"
-                "Cache-Control: no-cache\r\n"
-                "Access-Control-Allow-Origin: *\r\n"
-                "Transfer-Encoding: chunked\r\n\r\n";
-            socket->write(headers);
-            sub(new TcpSocket{socket});
-        });
-        QObject::connect(socket, &QTcpSocket::disconnected,  //
-                         socket, &QObject::deleteLater);
-    }
-}
-
-}  // namespace
 
 HttpServerThread* StartHttpServer(int port, Subscribe sub) {
     auto thread = new HttpServerThread;
