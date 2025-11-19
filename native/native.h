@@ -73,7 +73,7 @@ struct TcpSocket;
 void SendData(struct TcpSocket* socket, const char* data, int size);
 
 struct HttpServerThread;
-typedef void (*Subscribe)(TcpSocket*);
+typedef void (*Subscribe)(struct TcpSocket*);
 struct HttpServerThread* StartHttpServer(int port, Subscribe sub);
 void StopHttpServer(struct HttpServerThread* thread);
 

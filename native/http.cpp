@@ -12,6 +12,14 @@ extern "C" {
 
 #include "image.h"
 
+struct TcpSocket {
+    QTcpSocket* data_;
+};
+
+struct HttpServerThread {
+    QThread data_;
+};
+
 namespace {
 
 double ParseTime(const QString& s) {
@@ -139,10 +147,6 @@ int HttpGetWaitStatus(const char* url) {
     return status;
 }
 
-struct TcpSocket {
-    QTcpSocket* data_;
-};
-
 void SendData(TcpSocket* socket, const char* data, int size) {
     if (data) {
         auto number = QString::number(size, 16).toLatin1();
@@ -155,10 +159,6 @@ void SendData(TcpSocket* socket, const char* data, int size) {
         delete socket;
     }
 }
-
-struct HttpServerThread {
-    QThread data_;
-};
 
 HttpServerThread* StartHttpServer(int port, Subscribe sub) {
     auto thread = new HttpServerThread;
