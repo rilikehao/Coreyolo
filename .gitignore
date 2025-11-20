@@ -8,6 +8,5 @@ sysroot/
 
 /aarch64/
 /x86_64/
-/www/
+/default-*/
 
-YOLOV4*
