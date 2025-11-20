@@ -1,14 +1,18 @@
 import common.AppConfig
 import common.Command
+import common.InputRtsp
 import common.StringFormat.toString
+import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.Flow
+import platform.ffmpeg.AVPacket
 import platform.ffmpeg.AV_PIX_FMT_NONE
 import platform.ffmpeg.AV_PIX_FMT_YUV420P
 
 @OptIn(ExperimentalForeignApi::class)
 object Codec {
-    class DecoderVideo(id: Int) : DecoderACL(id)
+    class DecoderVideo(id: Int, inputRtsp: InputRtsp, input: Flow<CPointer<AVPacket>?>) :
+        DecoderACL(id, inputRtsp, input)
 
     class EncoderVideoH264(id: String, input: Flow<Command.CommandImage>) :
         common.EncoderFFmpeg(

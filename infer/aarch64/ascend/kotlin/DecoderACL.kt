@@ -3,6 +3,7 @@ import cnames.structs.acldvppStreamDesc
 import cnames.structs.aclvdecChannelDesc
 import common.Command
 import common.Decoder
+import common.InputRtsp
 import common.Utils.cPointer
 import common.Utils.checkEq0
 import kotlinx.cinterop.*
@@ -23,26 +24,20 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
-open class DecoderACL(val id: Int) : Decoder {
+open class DecoderACL(
+    val id: Int,
+    val inputRtsp: InputRtsp,
+    val input: Flow<CPointer<AVPacket>?>,
+) : Decoder {
     companion object {
         const val REORDER_SIZE = 5
     }
 
-    lateinit var stream: AVStream
-    lateinit var formatContext: AVFormatContext
-
-    override fun setStream(stream: AVStream) {
-        this.stream = stream
-    }
-
-    override fun setFormatContext(formatContext: AVFormatContext) {
-        this.formatContext = formatContext
-    }
-
-    override suspend fun invoke(input: Flow<CPointer<AVPacket>?>): Flow<Command.CommandImage> {
-        val width = stream.codecpar!!.pointed.width
-        val height = stream.codecpar!!.pointed.height
-        val decodeType = when (avcodec_find_decoder(stream.codecpar!!.pointed.codec_id)!!.pointed.name!!.toKString()) {
+    override suspend fun invoke(): Flow<Command.CommandImage> {
+        val codecpar = inputRtsp.stream.codecpar!!
+        val width = codecpar.pointed.width
+        val height = codecpar.pointed.height
+        val decodeType = when (avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()) {
             "h264" -> H264_HIGH_LEVEL
             "hevc" -> H265_MAIN_LEVEL
             else -> throw Error("不支持的格式")
@@ -77,8 +72,9 @@ open class DecoderACL(val id: Int) : Decoder {
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
         return callbackFlow {
             input.collect { packet ->
-                val pts = packet!!.pointed.pts.toDouble() * stream.time_base.num / stream.time_base.den
-                val start = Instant.fromEpochMilliseconds(formatContext.start_time_realtime / 1000L)
+                val base = inputRtsp.stream.time_base
+                val pts = packet!!.pointed.pts.toDouble() * base.num / base.den
+                val start = Instant.fromEpochMilliseconds(inputRtsp.formatCtx.start_time_realtime / 1000L)
                 val timestamp = start + pts.seconds
                 if (inputFrames == 0L) timestamp0 = timestamp
                 val keep = inputFrames <= Decoder.maxFrames(timestamp - timestamp0)
