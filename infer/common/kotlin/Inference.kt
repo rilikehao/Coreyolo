@@ -27,8 +27,15 @@ class Inference(val id: String, val input: Flow<Command.CommandImage>) : () -> F
             config.threads_ = AppConfig.instance.processing.npuThreads
             CreateInfer(config.ptr)!!
         }
+
         val detect0Manager = Manager(AppConfig.instance.processing.npuThreads)
         val detect1Manager = Manager(AppConfig.instance.processing.cpuThreads)
+
+        init {
+            val image = CreateImageRGB24(1, 1)
+            DrawRect(image, cValue<Rect>(), 0, 0, 0, "强制初始化".cstr)
+            DestroyImage(image)
+        }
 
         override fun close() = runBlocking {
             detect1Manager.close()
