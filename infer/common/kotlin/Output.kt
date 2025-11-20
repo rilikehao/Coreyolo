@@ -136,7 +136,6 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     fun remove(context: Context) = CoroutineScope(main).launch {
         contexts.remove(context)
         context.close()
-        Logger.i { "客户端断联" }
     }
 
     override suspend fun invoke() {

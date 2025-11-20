@@ -56,7 +56,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                             if (context!!.stream != null) {
                                 if (!SendData(socket, buf?.reinterpret(), size)) {
                                     context!!.stream = null
-                                    vod!!.cancel()
+                                    it.remove(context!!).invokeOnCompletion { vod!!.cancel() }
                                 }
                             }; size
                         }

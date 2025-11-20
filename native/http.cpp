@@ -156,7 +156,9 @@ bool SendData(TcpSocket* socket, const char* data, int size) {
     QMetaObject::invokeMethod(
         socket->data_,
         [&] {
-            if (data && socket->data_->isWritable()) {
+            if (data &&  //
+                socket->data_->state() ==
+                    QAbstractSocket::ConnectedState) {
                 auto number = QString::number(size, 16).toLatin1();
                 socket->data_->write(number);
                 socket->data_->write("\r\n");
