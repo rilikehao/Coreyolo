@@ -77,9 +77,7 @@ open class EncoderFFmpeg(
             }
             avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
             if (frame != null) av_frame_unref(frame)
-            while (0 <= avcodec_receive_packet(codecCtx, packet)) {
-                emit(packet)
-            }
+            while (0 <= avcodec_receive_packet(codecCtx, packet)) emit(packet)
         }.onCompletion {
             av_packet_free(cValuesOf(packet))
             av_frame_free(cValuesOf(frame))
