@@ -178,8 +178,8 @@ end
 -- 参数：pts - 当前帧的最初产生时间 Unix 时间戳, 实数
 -- 参数：detections - 检测框数组，每个元素包含 x0, x1, y0, y1, score, text 字段
 function Process(pts, detections)
-    -- 限制最多画5个框
-    local max_boxes = 5
+    -- 限制最多画10个框
+    local max_boxes = 10
     local count = 0
 
     -- 遍历所有检测框
