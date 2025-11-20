@@ -6,8 +6,11 @@ import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoCloseable, suspend () -> Unit {
@@ -20,7 +23,9 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         val options: Array<Pair<String, String>>,
         val formatContext: CPointer<AVFormatContext>,
         var stream: CPointer<AVStream>?,
-    ) : AutoCloseable
+    ) : AutoCloseable {
+        abstract fun initPb(startTimeRealtime: Long)
+    }
 
     class ContextRtsp(url: String) : Context(options, initFormatContext(url), null) {
         companion object {
@@ -33,15 +38,15 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         override fun close() {
             avformat_free_context(formatContext)
         }
+
+        override fun initPb(startTimeRealtime: Long) = Unit
     }
 
-    class ContextFmp4(path: String) : Context(options, initFormatContext(path), null) {
+    class ContextFmp4(val id: String) : Context(options, initFormatContext(), null) {
         companion object {
             val options = arrayOf("movflags" to "frag_keyframe+empty_moov+default_base_moof")
-            fun initFormatContext(path: String) = cPointer {
+            fun initFormatContext() = cPointer {
                 avformat_alloc_output_context2(it, null, "mp4", "stream.mp4").check("avformat_alloc_output_context2")
-            }.apply {
-                pointed.pb = cPointer { avio_open(it, path, AVIO_FLAG_WRITE).check("avio_open") }
             }
         }
 
@@ -51,6 +56,11 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 formatContext.pointed.pb = null
             }
             avformat_free_context(formatContext)
+        }
+
+        override fun initPb(startTimeRealtime: Long) {
+            val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(TimeZone.of("Asia/Shanghai"))
+            formatContext.pointed.pb = cPointer { avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open") }
         }
     }
 
@@ -62,6 +72,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 "movflags" to "frag_keyframe+empty_moov+default_base_moof",
                 "fflags" to "nobuffer",
             )
+
             fun initFormatContext(write: (CPointer<UByteVar>?, Int) -> Unit) = cPointer {
                 avformat_alloc_output_context2(it, null, "mp4", "stream.mp4")
                     .check("avformat_alloc_output_context2")
@@ -91,6 +102,8 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             }
             avformat_free_context(formatContext)
         }
+
+        override fun initPb(startTimeRealtime: Long) = Unit
     }
 
     val contexts = mutableSetOf<Context>()
@@ -98,8 +111,8 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     fun addRtsp(url: String) =
         ContextRtsp(url).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun addFmp4(path: String) =
-        ContextFmp4(path).also { CoroutineScope(main).launch { contexts.add(it) } }
+    fun addFmp4(id: String) =
+        ContextFmp4(id).also { CoroutineScope(main).launch { contexts.add(it) } }
 
     fun addFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) =
         ContextFmp4Stream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
@@ -112,8 +125,11 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 val toWrite = av_packet_alloc()!!
                 contexts.forEach { context ->
                     if (context.stream == null && packet!!.pointed.flags.and(AV_PKT_FLAG_KEY) != 0) {
+                        encoder.startTimeRealtime().let {
+                            context.formatContext.pointed.start_time_realtime = it
+                            context.initPb(it)
+                        }
                         context.stream = encoder.initStream(context.formatContext.pointed)
-                        context.formatContext.pointed.start_time_realtime = encoder.startTimeRealtime()
                         withOptions(*context.options) {
                             avformat_write_header(context.formatContext, it).check("avformat_write_header")
                         }
