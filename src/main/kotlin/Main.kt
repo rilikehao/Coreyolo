@@ -19,7 +19,6 @@ fun main(args: Array<String>) {
             "train-export" -> TrainEnvBuilder.exportModels()
             "train-clean" -> TrainEnvBuilder.clean()
             else -> throw Error("未识别的参数")
-            // "zLMediaKit" -> ProjectBuilder.buildZLMediaKit()
         }
     }
 }

@@ -17,7 +17,6 @@ object Config {
             "qt6-base",
             "v4l-utils",
             "openssl",
-            "libsrtp",
             "x264",
             "x265",
         )
