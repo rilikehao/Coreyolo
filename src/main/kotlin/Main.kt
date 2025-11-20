@@ -1,6 +1,6 @@
 fun main(args: Array<String>) {
     SystemUtils.checkHostTools()
-    val commands = if (args.isEmpty()) listOf("download", "rga", "mpp", "rknpu2", "acl", "ffmpeg", "mnn", "zLMediaKit", "native") else args.toList()
+    val commands = if (args.isEmpty()) listOf("download", "rga", "mpp", "rknpu2", "acl", "ffmpeg", "mnn", "native") else args.toList()
 
     commands.forEach { command ->
         when (command) {
@@ -12,7 +12,6 @@ fun main(args: Array<String>) {
             "ffmpeg" -> ProjectBuilder.buildFFmpeg()
             "mnn" -> ProjectBuilder.buildMNN()
             "native" -> ProjectBuilder.buildNative()
-            "zLMediaKit" -> ProjectBuilder.buildZLMediaKit()
             "clean" -> ProjectBuilder.clean()
             "image" -> ProjectBuilder.buildAppImage()
             "train" -> TrainEnvBuilder.buildTrainEnv()
@@ -20,6 +19,7 @@ fun main(args: Array<String>) {
             "train-export" -> TrainEnvBuilder.exportModels()
             "train-clean" -> TrainEnvBuilder.clean()
             else -> throw Error("未识别的参数")
+            // "zLMediaKit" -> ProjectBuilder.buildZLMediaKit()
         }
     }
 }
