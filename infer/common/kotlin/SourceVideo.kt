@@ -41,74 +41,78 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
             opaque_ = data.asCPointer()
         })
         Inference.use {
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             AppConfig.instance.streams.mapIndexed { id, config ->
-                val scope = CoroutineScope(Dispatchers.IO)
                 scope.launch {
                     while (true) {
-                        when (AppConfig.instance.source.type) {
-                            AppConfig.SourceType.CAMERA -> {
-                                val decoded = InputCamera.open(config.source)()
-                                val (main, side) = ForkImage(decoded)()
-                                scope.launch {
-                                    val encoder = Codec.EncoderVideoH265(config.id, side)
-                                    Output(encoder, encoder()).use {
-                                        it.addFmp4(config.id)
-                                        it.invoke()
+                        try {
+                            coroutineScope {
+                                when (AppConfig.instance.source.type) {
+                                    AppConfig.SourceType.CAMERA -> {
+                                        val decoded = InputCamera.open(config.source)()
+                                        val (main, side) = ForkImage(decoded)()
+                                        scope.launch {
+                                            val encoder = Codec.EncoderVideoH265(config.id, side)
+                                            Output(encoder, encoder()).use {
+                                                it.addFmp4(config.id)
+                                                it.invoke()
+                                            }
+                                        }.also {
+                                            val inferred = Inference(config.id, main)()
+                                            val drawn = Draw(inferred)()
+                                            val encoder = Codec.EncoderVideoH264(config.id, drawn)
+                                            Output(encoder, encoder()).use {
+                                                CoroutineScope(mainContext).launch { outputs[config.id] = it }
+                                                it.invoke()
+                                            }
+                                        }.join()
                                     }
-                                }.also {
-                                    val inferred = Inference(config.id, main)()
-                                    val drawn = Draw(inferred)()
-                                    val encoder = Codec.EncoderVideoH264(config.id, drawn)
-                                    Output(encoder, encoder()).use {
-                                        CoroutineScope(mainContext).launch { outputs[config.id] = it }
-                                        it.invoke()
-                                    }
-                                }.join()
-                            }
 
-                            AppConfig.SourceType.VIDEO -> {
-                                val inputRtsp = InputRtsp(config.source)
-                                val decoded = Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
-                                val (main, side) = ForkImage(decoded)()
-                                scope.launch {
-                                    val encoder = Codec.EncoderVideoH265(config.id, side)
-                                    Output(encoder, encoder()).use {
-                                        it.addFmp4(config.id)
-                                        it.invoke()
+                                    AppConfig.SourceType.VIDEO -> {
+                                        val inputRtsp = InputRtsp(config.source)
+                                        val decoded = Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
+                                        val (main, side) = ForkImage(decoded)()
+                                        scope.launch {
+                                            val encoder = Codec.EncoderVideoH265(config.id, side)
+                                            Output(encoder, encoder()).use {
+                                                it.addFmp4(config.id)
+                                                it.invoke()
+                                            }
+                                        }.also {
+                                            val inferred = Inference(config.id, main)()
+                                            val drawn = Draw(inferred)()
+                                            val encoder = Codec.EncoderVideoH264(config.id, drawn)
+                                            Output(encoder, encoder()).use {
+                                                CoroutineScope(mainContext).launch { outputs[config.id] = it }
+                                                it.invoke()
+                                            }
+                                        }.join()
                                     }
-                                }.also {
-                                    val inferred = Inference(config.id, main)()
-                                    val drawn = Draw(inferred)()
-                                    val encoder = Codec.EncoderVideoH264(config.id, drawn)
-                                    Output(encoder, encoder()).use {
-                                        CoroutineScope(mainContext).launch { outputs[config.id] = it }
-                                        it.invoke()
-                                    }
-                                }.join()
-                            }
 
-                            AppConfig.SourceType.VIDEO_KEEP -> {
-                                val inputRtsp = InputRtsp(config.source)
-                                val (main, side) = ForkPacket(inputRtsp())()
-                                scope.launch {
-                                    Output(EncoderNoop(inputRtsp), side).use {
-                                        it.addFmp4(config.id)
-                                        it.invoke()
+                                    AppConfig.SourceType.VIDEO_KEEP -> {
+                                        val inputRtsp = InputRtsp(config.source)
+                                        val (main, side) = ForkPacket(inputRtsp())()
+                                        scope.launch {
+                                            Output(EncoderNoop(inputRtsp), side).use {
+                                                it.addFmp4(config.id)
+                                                it.invoke()
+                                            }
+                                        }.also {
+                                            val decoded = Codec.DecoderVideo(id, inputRtsp, main)()
+                                            val inferred = Inference(config.id, decoded)()
+                                            val drawn = Draw(inferred)()
+                                            val encoder = Codec.EncoderVideoH264(config.id, drawn)
+                                            Output(encoder, encoder()).use {
+                                                CoroutineScope(mainContext).launch { outputs[config.id] = it }
+                                                it.invoke()
+                                            }
+                                        }.join()
                                     }
-                                }.also {
-                                    val decoded = Codec.DecoderVideo(id, inputRtsp, main)()
-                                    val inferred = Inference(config.id, decoded)()
-                                    val drawn = Draw(inferred)()
-                                    val encoder = Codec.EncoderVideoH264(config.id, drawn)
-                                    Output(encoder, encoder()).use {
-                                        CoroutineScope(mainContext).launch { outputs[config.id] = it }
-                                        it.invoke()
-                                    }
-                                }.join()
-                            }
 
-                            else -> throw Error("不支持的视频来源")
-                        }
+                                    else -> throw Error("不支持的视频来源")
+                                }
+                            }
+                        } catch (e: Throwable) { e.printStackTrace() }
                         delay(2000)
                     }
                 }

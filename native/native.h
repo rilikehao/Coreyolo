@@ -43,7 +43,10 @@ struct Detection {
 struct InferTask;
 
 struct InferTask* CreateInferTask();
+
+// 在调用之前要求用户先删除里面的 Image
 void DestroyInferTask(struct InferTask* task);
+
 void Detect0(struct Infer* infer, struct InferTask* task, int no);
 void Detect1(struct Infer* infer, struct InferTask* task);
 
