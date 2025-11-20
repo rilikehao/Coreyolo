@@ -38,10 +38,7 @@ object Config {
             LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib"
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            until "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-$PLATFORM" "$@"; do
-                echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
-                sleep 5
-            done
+            exec "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-$PLATFORM" "$@"
         """.trimIndent()
     )
 
@@ -61,10 +58,7 @@ object Config {
             LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib"
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            until LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-x86_64-$PLATFORM" "$@"; do
-                echo "YoloInfer failed with exit code $EXIT_CODE, restart..."
-                sleep 5
-            done
+            LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" exec "$APP_DIR/usr/local/bin/YoloInfer-x86_64-$PLATFORM" "$@"
         """.trimIndent()
     )
 

@@ -27,6 +27,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         var stream: CPointer<AVStream>?,
     ) : AutoCloseable {
         abstract fun initPb(startTimeRealtime: Long)
+        abstract fun closeConnection()
     }
 
     class ContextRtsp(url: String) : Context(options, initFormatContext(url), null) {
@@ -42,6 +43,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         }
 
         override fun initPb(startTimeRealtime: Long) = Unit
+        override fun closeConnection() = Unit
     }
 
     class ContextFmp4(val id: String) : Context(options, initFormatContext(), null) {
@@ -63,8 +65,12 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         override fun initPb(startTimeRealtime: Long) {
             mkdir(id, S_IRWXU.toUInt())
             val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(TimeZone.of("Asia/Shanghai"))
-            formatContext.pointed.pb = cPointer { avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open") }
+            formatContext.pointed.pb = cPointer {
+                avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open")
+            }
         }
+
+        override fun closeConnection() = Unit
     }
 
     class ContextFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) :
@@ -96,9 +102,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
 
         override fun close() {
             if (formatContext.pointed.pb != null) {
-                formatContext.pointed.pb!!.pointed.opaque!!.asStableRef<(CPointer<UByteVar>?, Int) -> Int>()
-                    .apply { get()(null, 0) }
-                    .dispose()
+                formatContext.pointed.pb!!.pointed.opaque!!.asStableRef<(CPointer<UByteVar>?, Int) -> Int>().dispose()
                 av_free(formatContext.pointed.pb!!.pointed.buffer)
                 av_free(formatContext.pointed.pb)
                 formatContext.pointed.pb = null
@@ -107,6 +111,12 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         }
 
         override fun initPb(startTimeRealtime: Long) = Unit
+
+        override fun closeConnection() {
+            if (formatContext.pointed.pb == null) return
+            formatContext.pointed.pb!!.pointed.opaque!!.asStableRef<(CPointer<UByteVar>?, Int) -> Int>()
+                .get()(null, 0)
+        }
     }
 
     val contexts = mutableSetOf<Context>()
@@ -120,7 +130,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     fun addFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) =
         ContextFmp4Stream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun remove(context: Context) = CoroutineScope(main).launch { context.also { contexts.remove(it) }.close() }
+    fun remove(context: Context) = CoroutineScope(main).launch { contexts.remove(context); context.close() }
 
     override suspend fun invoke() {
         input.collect { packet ->
@@ -157,6 +167,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             contexts.forEach { context ->
                 av_write_frame(context.formatContext, null).check("av_write_frame")
                 av_write_trailer(context.formatContext)
+                context.closeConnection()
                 context.close()
             }
         }

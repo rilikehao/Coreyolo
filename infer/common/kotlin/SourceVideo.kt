@@ -6,6 +6,7 @@ import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import platform.native.HttpServer
 import platform.native.SendData
+import platform.native.StopHttpServer
 
 @OptIn(ExperimentalForeignApi::class)
 object SourceVideo : AutoCloseable, suspend () -> Unit {
@@ -23,7 +24,9 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                     else -> {
                         var context: Output.Context? = null
                         context = output.addFmp4Stream { buf, size ->
+                            if (context!!.stream == null) return@addFmp4Stream
                             if (!SendData(socket, buf?.reinterpret(), size)) {
+                                context!!.stream = null
                                 output.remove(context!!)
                             }
                         }
@@ -31,7 +34,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                 }
             }
         }
-        HttpServer(60000, cValue {
+        val serverThread = HttpServer(60000, cValue {
             func_ = staticCFunction { stream, socket, rawData ->
                 rawData!!.asStableRef<(CPointer<ByteVar>, CPointer<TcpSocket>) -> Unit>().get()(stream!!, socket!!)
             }
@@ -111,6 +114,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                 }
             }.joinAll()
         }
+        StopHttpServer(serverThread)
         data.dispose()
     }
 }
