@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
+import platform.posix.S_IRWXU
+import platform.posix.mkdir
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -59,6 +61,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         }
 
         override fun initPb(startTimeRealtime: Long) {
+            mkdir(id, S_IRWXU.toUInt())
             val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(TimeZone.of("Asia/Shanghai"))
             formatContext.pointed.pb = cPointer { avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open") }
         }
