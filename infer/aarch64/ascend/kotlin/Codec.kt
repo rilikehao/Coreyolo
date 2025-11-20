@@ -19,7 +19,6 @@ object Codec {
             id, input, "libx264", AV_PIX_FMT_YUV420P, arrayOf(
                 "preset" to "superfast",
                 "qp" to AppConfig.instance.processing.qH264.toString(1),
-                "tune" to "zerolatency",
             )
         )
 

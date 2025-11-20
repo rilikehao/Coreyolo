@@ -6,7 +6,8 @@ import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.datetime.TimeZone
+import kotlinx.datetime.FixedOffsetTimeZone
+import kotlinx.datetime.UtcOffset
 import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
 import platform.posix.S_IRWXU
@@ -64,7 +65,8 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
 
         override fun initPb(startTimeRealtime: Long) {
             mkdir(id, S_IRWXU.toUInt())
-            val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(TimeZone.of("Asia/Shanghai"))
+            val shanghai = FixedOffsetTimeZone(UtcOffset(hours = 8))
+            val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(shanghai)
             formatContext.pointed.pb = cPointer {
                 avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open")
             }
@@ -165,9 +167,11 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         }
         withContext(main) {
             contexts.forEach { context ->
-                av_write_frame(context.formatContext, null).check("av_write_frame")
-                av_write_trailer(context.formatContext)
-                context.closeConnection()
+                if (context.stream != null) {
+                    av_write_frame(context.formatContext, null).check("av_write_frame")
+                    av_write_trailer(context.formatContext)
+                    context.closeConnection()
+                }
                 context.close()
             }
         }

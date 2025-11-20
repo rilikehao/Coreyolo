@@ -2,6 +2,7 @@ package common
 
 import Codec
 import cnames.structs.TcpSocket
+import co.touchlab.kermit.Logger
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import platform.native.HttpServer
@@ -112,7 +113,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                     else -> throw Error("不支持的视频来源")
                                 }
                             }
-                        } catch (e: Throwable) { e.printStackTrace() }
+                        } catch (e: Throwable) { Logger.w { e.message.toString() } }
                         delay(2000)
                     }
                 }

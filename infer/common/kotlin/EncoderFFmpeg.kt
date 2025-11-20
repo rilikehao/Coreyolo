@@ -34,7 +34,7 @@ open class EncoderFFmpeg(
         pointed.time_base.num = 1
         pointed.time_base.den = 90000
         pointed.max_b_frames = 0
-        pointed.gop_size = 10
+        pointed.gop_size = 5
     }
 
     lateinit var timestamp0: Instant
@@ -75,7 +75,7 @@ open class EncoderFFmpeg(
                     avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
                 }
             }
-            avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
+            if (codecCtx.pointed.width != 0) avcodec_send_frame(codecCtx, frame).check("avcodec_send_frame")
             if (frame != null) av_frame_unref(frame)
             while (0 <= avcodec_receive_packet(codecCtx, packet)) emit(packet)
         }.onCompletion {

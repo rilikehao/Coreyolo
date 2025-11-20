@@ -21,9 +21,10 @@ class ToRGBImage : AutoCloseable {
     var srcSize1 = 0
 
     override fun close() {
-        releasebuffer_handle(dstHandle)
+        if (srcFd == 0) return
+        releasebuffer_handle(dstHandle).check("releasebuffer_handle")
         dma_buf_free(dstSize, cValuesOf(dstFd), dstBuf)
-        releasebuffer_handle(srcHandle)
+        releasebuffer_handle(srcHandle).check("releasebuffer_handle")
         dma_buf_free(srcSize, cValuesOf(srcFd), srcBuf)
     }
 
