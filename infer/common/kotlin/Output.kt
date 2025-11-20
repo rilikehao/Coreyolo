@@ -1,5 +1,6 @@
 package common
 
+import co.touchlab.kermit.Logger
 import common.Utils.cPointer
 import common.Utils.check
 import common.Utils.withOptions
@@ -75,7 +76,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         override fun closeConnection() = Unit
     }
 
-    class ContextFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) :
+    class ContextFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Int) :
         Context(options, initFormatContext(write), null) {
 
         companion object {
@@ -84,7 +85,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 "fflags" to "nobuffer",
             )
 
-            fun initFormatContext(write: (CPointer<UByteVar>?, Int) -> Unit) = cPointer {
+            fun initFormatContext(write: (CPointer<UByteVar>?, Int) -> Int) = cPointer {
                 avformat_alloc_output_context2(it, null, "mp4", "stream.mp4")
                     .check("avformat_alloc_output_context2")
             }.apply {
@@ -129,10 +130,14 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     fun addFmp4(id: String) =
         ContextFmp4(id).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun addFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Unit) =
+    fun addFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Int) =
         ContextFmp4Stream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun remove(context: Context) = CoroutineScope(main).launch { contexts.remove(context); context.close() }
+    fun remove(context: Context) = CoroutineScope(main).launch {
+        contexts.remove(context)
+        context.close()
+        Logger.i { "客户端断联" }
+    }
 
     override suspend fun invoke() {
         input.collect { packet ->

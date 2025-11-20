@@ -17,32 +17,62 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
     override fun close() = mainContext.close()
 
     override suspend fun invoke() {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val outputs = mutableMapOf<String, Output>()
-        val data = StableRef.create { stream: CPointer<ByteVar>, socket: CPointer<TcpSocket> ->
-            CoroutineScope(mainContext).launch {
-                when (val output = outputs[stream.toKStringFromUtf8()]) {
-                    null -> SendData(socket, null, 0)
-                    else -> {
-                        var context: Output.Context? = null
-                        context = output.addFmp4Stream { buf, size ->
-                            if (context!!.stream == null) return@addFmp4Stream
-                            if (!SendData(socket, buf?.reinterpret(), size)) {
-                                context!!.stream = null
-                                output.remove(context!!)
+        val data = StableRef.create { stream: CPointer<ByteVar>,
+                                      begin: Double,
+                                      end: Double,
+                                      socket: CPointer<TcpSocket> ->
+            val id = stream.toKStringFromUtf8()
+            if (begin.isInfinite()) {
+                CoroutineScope(mainContext).launch {
+                    when (val output = outputs[id]) {
+                        null -> SendData(socket, null, 0)
+                        else -> {
+                            var context: Output.Context? = null
+                            context = output.addFmp4Stream { buf, size ->
+                                if (context!!.stream != null) {
+                                    if (!SendData(socket, buf?.reinterpret(), size)) {
+                                        context!!.stream = null
+                                        output.remove(context!!)
+                                    }
+                                }; size
                             }
                         }
+                    }
+                }
+            } else {
+                var vod: Job? = null
+                vod = scope.launch {
+                    val inputFmp4 = InputRtsp(AppConfig.instance.streams[0].source)
+                    // val inputFmp4 = InputFmp4(stream, begin, end)
+                    val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
+                    val inferred = Inference("$id-vod", decoded)()
+                    val drawn = Draw(inferred)()
+                    val encoder = Codec.EncoderVideoH264("$id-vod", drawn)
+                    Output(encoder, encoder()).use {
+                        var context: Output.Context? = null
+                        context = it.addFmp4Stream { buf, size ->
+                            if (context!!.stream != null) {
+                                if (!SendData(socket, buf?.reinterpret(), size)) {
+                                    context!!.stream = null
+                                    vod!!.cancel()
+                                }
+                            }; size
+                        }
+                        it.invoke()
                     }
                 }
             }
         }
         val serverThread = HttpServer(60000, cValue {
-            func_ = staticCFunction { stream, socket, rawData ->
-                rawData!!.asStableRef<(CPointer<ByteVar>, CPointer<TcpSocket>) -> Unit>().get()(stream!!, socket!!)
+            func_ = staticCFunction { stream, begin, end, socket, rawData ->
+                rawData!!.asStableRef<(CPointer<ByteVar>, Double, Double, CPointer<TcpSocket>) -> Unit>()
+                    .get()(stream!!, begin, end, socket!!)
             }
             opaque_ = data.asCPointer()
         })
         Inference.use {
-            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             AppConfig.instance.streams.mapIndexed { id, config ->
                 scope.launch {
                     while (true) {
@@ -113,7 +143,9 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                     else -> throw Error("不支持的视频来源")
                                 }
                             }
-                        } catch (e: Throwable) { Logger.w { e.message.toString() } }
+                        } catch (e: Throwable) {
+                            Logger.w { e.message.toString() }
+                        }
                         delay(2000)
                     }
                 }

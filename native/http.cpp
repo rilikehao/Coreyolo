@@ -48,7 +48,8 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
             socket->write(headers);
             socket->flush();
             auto tcpSocket = new TcpSocket{socket};
-            sub.func_(stream.constData(), tcpSocket, sub.opaque_);
+            sub.func_(stream.constData(),  //
+                      begin, end, tcpSocket, sub.opaque_);
         });
     }
 }
