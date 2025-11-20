@@ -18,7 +18,6 @@ object Codec {
             id, input, "libx264", AV_PIX_FMT_YUV420P, arrayOf(
                 "preset" to "veryfast",
                 "qp" to AppConfig.instance.processing.qH264.toString(1),
-                "tune" to "zerolatency",
             )
         )
 
@@ -28,7 +27,6 @@ object Codec {
             id, input, "libx265", AV_PIX_FMT_YUV420P, arrayOf(
                 "preset" to "veryfast",
                 "qp" to AppConfig.instance.processing.qH265.toString(1),
-                "tune" to "zerolatency",
                 "x265-params" to "repeat-headers=1",
             )
         )
