@@ -19,7 +19,9 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
     val main = newSingleThreadContext("Output")
 
-    override fun close() = main.close()
+    override fun close() {
+        CoroutineScope(main).launch { main.close() }
+    }
 
     abstract class Context(
         val options: Array<Pair<String, String>>,
@@ -53,6 +55,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             val options = arrayOf(
                 "movflags" to "frag_keyframe+empty_moov+default_base_moof",
             )
+
             fun initFormatContext() = cPointer {
                 avformat_alloc_output_context2(it, null, "mp4", "stream.mp4").check("avformat_alloc_output_context2")
             }
@@ -152,7 +155,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                     if (context.stream == null) {
                         encoder.startTimeRealtime().let {
                             context.formatContext.pointed.start_time_realtime = it
-                            context.initPb(Instant.fromEpochMilliseconds(it + packet!!.pointed.pts / 90))
+                            context.initPb(Instant.fromEpochMilliseconds(it + (packet?.pointed?.pts ?: 0) / 90))
                         }
                         context.stream = encoder.initStream(context.formatContext.pointed)
                         withOptions(*context.options) {
