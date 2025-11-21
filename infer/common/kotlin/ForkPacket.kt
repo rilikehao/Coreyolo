@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.onEach
 import platform.ffmpeg.AVPacket
 import platform.ffmpeg.av_packet_alloc
 import platform.ffmpeg.av_packet_ref
-import platform.native.CreateImageCopy
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)

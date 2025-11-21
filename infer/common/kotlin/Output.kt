@@ -1,14 +1,12 @@
 package common
 
-import co.touchlab.kermit.Logger
 import common.Utils.cPointer
 import common.Utils.check
+import common.Utils.timeZone
 import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.datetime.FixedOffsetTimeZone
-import kotlinx.datetime.UtcOffset
 import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
 import platform.posix.S_IRWXU
@@ -66,8 +64,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
 
         override fun initPb(startTimeRealtime: Long) {
             mkdir(id, S_IRWXU.toUInt())
-            val shanghai = FixedOffsetTimeZone(UtcOffset(hours = 8))
-            val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(shanghai)
+            val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(timeZone)
             formatContext.pointed.pb = cPointer {
                 avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open")
             }

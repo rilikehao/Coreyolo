@@ -76,8 +76,8 @@ struct TcpSocket;
 bool SendData(struct TcpSocket* socket, const char* data, int size);
 
 struct Subscribe {
-    void (*func_)(const char* stream,  //
-                  double begin, double end, struct TcpSocket*, void*);
+    void (*func_)(const char* stream, struct TcpSocket*, void*,  //
+                  double begin, double end, bool fast);
     void* opaque_;
 };
 

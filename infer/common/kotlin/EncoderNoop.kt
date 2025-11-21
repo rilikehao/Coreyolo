@@ -6,11 +6,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.coroutines.flow.flow
-import platform.ffmpeg.AVFormatContext
-import platform.ffmpeg.AVPacket
-import platform.ffmpeg.avcodec_find_encoder_by_name
-import platform.ffmpeg.avcodec_parameters_copy
-import platform.ffmpeg.avformat_new_stream
+import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)

@@ -17,31 +17,36 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 open class DecoderFFmpeg(
-    val inputRtsp: InputRtsp,
-    val input: Flow<CPointer<AVPacket>?>,
+    val input: Input,
+    val packets: Flow<CPointer<AVPacket>?>,
     val changeName: (String) -> String,
 ) : Decoder {
+    var codecCtx: CPointer<AVCodecContext>? = null
+
     override suspend fun invoke(): Flow<Command.CommandImage> {
         val device = Device()
         val toRGBImage = ToRGBImage()
-        val name = avcodec_find_decoder(inputRtsp.stream.codecpar!!.pointed.codec_id)!!.pointed.name!!.toKString()
-        val codec = avcodec_find_decoder_by_name(changeName(name)).check("avcodec_find_decoder")
-        val codecCtx = avcodec_alloc_context3(codec)!!
-        avcodec_parameters_to_context(codecCtx, inputRtsp.stream.codecpar)
-        device.bind(codecCtx.pointed)
-        avcodec_open2(codecCtx, codec, null).check("avcodec_open2")
         val frame = av_frame_alloc()!!
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
-        return input.onCompletion {
+        return packets.onCompletion {
             emit(null)
         }.transform { packet ->
             try {
+                if (codecCtx == null) {
+                    val codecId = input.getStream().codecpar!!.pointed.codec_id
+                    val name = avcodec_find_decoder(codecId)!!.pointed.name!!.toKString()
+                    val codec = avcodec_find_decoder_by_name(changeName(name)).check("avcodec_find_decoder")
+                    codecCtx = avcodec_alloc_context3(codec)!!
+                    avcodec_parameters_to_context(codecCtx, input.getStream().codecpar)
+                    device.bind(codecCtx!!.pointed)
+                    avcodec_open2(codecCtx, codec, null).check("avcodec_open2")
+                }
                 avcodec_send_packet(codecCtx, packet).check("avcodec_send_packet")
                 while (avcodec_receive_frame(codecCtx, frame) == 0) {
-                    val base = inputRtsp.stream.time_base
+                    val base = input.getStream().time_base
                     val pts = frame.pointed.pts.toDouble() * base.num / base.den
-                    val start = Instant.fromEpochMilliseconds(inputRtsp.formatCtx.start_time_realtime / 1000L)
+                    val start = Instant.fromEpochMilliseconds(input.getFormatCtx().start_time_realtime / 1000L)
                     val timestamp = start + pts.seconds
                     if (inputFrames == 0L) timestamp0 = timestamp
                     if (Decoder.maxFrames(timestamp - timestamp0) < inputFrames) continue
@@ -52,8 +57,8 @@ open class DecoderFFmpeg(
                 if (packet != null) av_packet_unref(packet)
             }
         }.onCompletion {
+            if (codecCtx != null) avcodec_free_context(cValuesOf(codecCtx))
             av_frame_free(cValuesOf(frame))
-            avcodec_free_context(cValuesOf(codecCtx))
             toRGBImage.close()
             device.close()
         }.buffer(Channel.UNLIMITED)

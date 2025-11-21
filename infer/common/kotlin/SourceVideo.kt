@@ -20,9 +20,10 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val outputs = mutableMapOf<String, Output>()
         val data = StableRef.create { stream: CPointer<ByteVar>,
+                                      socket: CPointer<TcpSocket>,
                                       begin: Double,
                                       end: Double,
-                                      socket: CPointer<TcpSocket> ->
+                                      fast: Boolean ->
             val id = stream.toKStringFromUtf8()
             if (begin.isInfinite()) {
                 CoroutineScope(mainContext).launch {
@@ -44,8 +45,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
             } else {
                 var vod: Job? = null
                 vod = scope.launch {
-                    val inputFmp4 = InputRtsp(AppConfig.instance.streams[0].source)
-                    // val inputFmp4 = InputFmp4(stream, begin, end)
+                    val inputFmp4 = InputFmp4(id, begin, end, fast)
                     val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
                     val inferred = Inference("$id-vod", decoded)()
                     val drawn = Draw(inferred)()
@@ -66,9 +66,9 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
             }
         }
         val serverThread = HttpServer(60000, cValue {
-            func_ = staticCFunction { stream, begin, end, socket, rawData ->
-                rawData!!.asStableRef<(CPointer<ByteVar>, Double, Double, CPointer<TcpSocket>) -> Unit>()
-                    .get()(stream!!, begin, end, socket!!)
+            func_ = staticCFunction { stream, socket, rawData, begin, end, fast ->
+                rawData!!.asStableRef<(CPointer<ByteVar>, CPointer<TcpSocket>, Double, Double, Boolean) -> Unit>()
+                    .get()(stream!!, socket!!, begin, end, fast)
             }
             opaque_ = data.asCPointer()
         })

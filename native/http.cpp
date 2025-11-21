@@ -35,9 +35,10 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
             auto req = socket->readAll();
             auto split = req.split(' ');
             auto query = QUrlQuery(QUrl::fromEncoded(split[1]));
+            auto stream = query.queryItemValue("stream").toUtf8();
             auto begin = ParseTime(query.queryItemValue("begin"));
             auto end = ParseTime(query.queryItemValue("end"));
-            auto stream = query.queryItemValue("stream").toUtf8();
+            auto fast = query.queryItemValue("fast") == "1";
             QByteArray headers =
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: video/webm\r\n"
@@ -48,8 +49,8 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
             socket->write(headers);
             socket->flush();
             auto tcpSocket = new TcpSocket{socket};
-            sub.func_(stream.constData(),  //
-                      begin, end, tcpSocket, sub.opaque_);
+            sub.func_(stream.constData(), tcpSocket, sub.opaque_,  //
+                      begin, end, fast);
         });
     }
 }

@@ -25,6 +25,7 @@ open class EncoderFFmpeg(
     name: String,
     format: Int,
     val options: Array<Pair<String, String>>,
+    maxBFrames: Int = 2,
 ) : Encoder {
     val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
     val codecCtx = avcodec_alloc_context3(codec)!!.apply {
@@ -33,7 +34,7 @@ open class EncoderFFmpeg(
         pointed.pix_fmt = format
         pointed.time_base.num = 1
         pointed.time_base.den = 90000
-        pointed.max_b_frames = 2
+        pointed.max_b_frames = maxBFrames
         pointed.gop_size = 25
     }
 

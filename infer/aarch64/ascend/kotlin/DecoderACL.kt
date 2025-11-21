@@ -3,7 +3,7 @@ import cnames.structs.acldvppStreamDesc
 import cnames.structs.aclvdecChannelDesc
 import common.Command
 import common.Decoder
-import common.InputRtsp
+import common.Input
 import common.Utils.cPointer
 import common.Utils.checkEq0
 import kotlinx.cinterop.*
@@ -26,15 +26,15 @@ import kotlin.time.Instant
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 open class DecoderACL(
     val id: Int,
-    val inputRtsp: InputRtsp,
-    val input: Flow<CPointer<AVPacket>?>,
+    val input: Input,
+    val packets: Flow<CPointer<AVPacket>?>,
 ) : Decoder {
     companion object {
         const val REORDER_SIZE = 5
     }
 
     override suspend fun invoke(): Flow<Command.CommandImage> {
-        val codecpar = inputRtsp.stream.codecpar!!
+        val codecpar = input.getStream().codecpar!!
         val width = codecpar.pointed.width
         val height = codecpar.pointed.height
         val decodeType = when (avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()) {
@@ -71,10 +71,10 @@ open class DecoderACL(
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
         return callbackFlow {
-            input.collect { packet ->
-                val base = inputRtsp.stream.time_base
+            packets.collect { packet ->
+                val base = input.getStream().time_base
                 val pts = packet!!.pointed.pts.toDouble() * base.num / base.den
-                val start = Instant.fromEpochMilliseconds(inputRtsp.formatCtx.start_time_realtime / 1000L)
+                val start = Instant.fromEpochMilliseconds(input.getFormatCtx().start_time_realtime / 1000L)
                 val timestamp = start + pts.seconds
                 if (inputFrames == 0L) timestamp0 = timestamp
                 val keep = inputFrames <= Decoder.maxFrames(timestamp - timestamp0)

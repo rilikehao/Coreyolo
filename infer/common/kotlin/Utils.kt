@@ -2,6 +2,8 @@ package common
 
 import cnames.structs.AVDictionary
 import kotlinx.cinterop.*
+import kotlinx.datetime.FixedOffsetTimeZone
+import kotlinx.datetime.UtcOffset
 import platform.ffmpeg.AV_ERROR_MAX_STRING_SIZE
 import platform.ffmpeg.av_dict_free
 import platform.ffmpeg.av_dict_set
@@ -9,7 +11,7 @@ import platform.ffmpeg.av_make_error_string
 
 @OptIn(ExperimentalForeignApi::class)
 object Utils {
-    class Ref<T>(var value: T)
+    val timeZone = FixedOffsetTimeZone(UtcOffset(hours = 8))
 
     fun Int.check(api: String) {
         if (this < 0) {
