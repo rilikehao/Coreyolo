@@ -13,6 +13,8 @@ import kotlin.time.ExperimentalTime
 class EncoderNoop(val inputRtsp: InputRtsp) : Encoder {
     val codec = avcodec_find_encoder_by_name("libx264").check("avcodec_find_encoder_by_name")
 
+    override fun startTimeRealtime() = inputRtsp.formatCtx.start_time_realtime
+
     override fun initStream(formatContext: AVFormatContext) =
         avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
             avcodec_parameters_copy(it.pointed.codecpar, inputRtsp.stream.codecpar)

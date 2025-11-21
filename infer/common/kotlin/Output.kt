@@ -82,7 +82,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
 
         companion object {
             val options = arrayOf(
-                "movflags" to "frag_keyframe+empty_moov+default_base_moof",
+                "movflags" to "frag_every_frame+empty_moov+default_base_moof",
                 "fflags" to "nobuffer",
             )
 
@@ -150,9 +150,10 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 val toWrite = av_packet_alloc()!!
                 contexts.forEach { context ->
                     if (context.stream == null) {
-                        val epochMs = packet!!.pointed.pts / 90
-                        context.formatContext.pointed.start_time_realtime = epochMs
-                        context.initPb(Instant.fromEpochMilliseconds(epochMs))
+                        encoder.startTimeRealtime().let {
+                            context.formatContext.pointed.start_time_realtime = it
+                            context.initPb(Instant.fromEpochMilliseconds(it + packet!!.pointed.pts / 90))
+                        }
                         context.stream = encoder.initStream(context.formatContext.pointed)
                         withOptions(*context.options) {
                             avformat_write_header(context.formatContext, it).check("avformat_write_header")
@@ -160,7 +161,6 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                     }
                     av_packet_ref(toWrite, packet).check("av_packet_ref")
                     toWrite.pointed.stream_index = context.stream!!.pointed.index
-                    packet!!.pointed.pts -= context.formatContext.pointed.start_time_realtime * 90
                     av_packet_rescale_ts(
                         toWrite,
                         cValue { num = 1; den = 90000 },

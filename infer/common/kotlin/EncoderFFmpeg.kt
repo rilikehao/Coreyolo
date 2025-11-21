@@ -40,6 +40,8 @@ open class EncoderFFmpeg(
 
     lateinit var timestamp0: Instant
 
+    override fun startTimeRealtime() = timestamp0.toEpochMilliseconds()
+
     override fun initStream(formatContext: AVFormatContext) =
         avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
             avcodec_parameters_from_context(it.pointed.codecpar, codecCtx)
@@ -62,7 +64,7 @@ open class EncoderFFmpeg(
                 val delayMs = max(0L, delayed.inWholeMilliseconds)
                 "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
             }
-            frame.pointed.pts = commandImage.timestamp.toEpochMilliseconds() * 90
+            frame.pointed.pts = (commandImage.timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
             fromRGBImage(frame.pointed, commandImage.data)
             DestroyImage(commandImage.data)
             frame as CPointer<AVFrame>?

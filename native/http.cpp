@@ -160,11 +160,13 @@ bool SendData(TcpSocket* socket, const char* data, int size) {
             if (data &&  //
                 socket->data_->state() ==
                     QAbstractSocket::ConnectedState) {
-                auto number = QString::number(size, 16).toLatin1();
-                socket->data_->write(number);
-                socket->data_->write("\r\n");
-                socket->data_->write(data, size);
-                socket->data_->write("\r\n");
+                QByteArray packet;
+                packet.reserve(size + 32);
+                packet.append(QString::number(size, 16).toLatin1());
+                packet.append("\r\n");
+                packet.append(data, size);
+                packet.append("\r\n");
+                socket->data_->write(packet);
                 socket->data_->flush();
             } else {
                 socket->data_->write("0\r\n\r\n");

@@ -41,9 +41,7 @@ open class DecoderFFmpeg(
                     codecCtx = avcodec_alloc_context3(codec)!!
                     avcodec_parameters_to_context(codecCtx, input.getStream().codecpar)
                     device.bind(codecCtx!!.pointed)
-                    withOptions("fflags" to "nobuffer") {
-                        avcodec_open2(codecCtx, codec, it).check("avcodec_open2")
-                    }
+                    avcodec_open2(codecCtx, codec, null).check("avcodec_open2")
                 }
                 avcodec_send_packet(codecCtx, packet).check("avcodec_send_packet")
                 while (avcodec_receive_frame(codecCtx, frame) == 0) {
