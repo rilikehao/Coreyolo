@@ -17,6 +17,7 @@ object Codec {
     class EncoderVideoH264(id: String, input: Flow<Command.CommandImage>) :
         common.EncoderFFmpeg(
             id, input, "libx264", AV_PIX_FMT_YUV420P, arrayOf(
+                "fflags" to "nobuffer",
                 "preset" to "superfast",
                 "qp" to AppConfig.instance.processing.qH264.toString(1),
             ), maxBFrames = 0

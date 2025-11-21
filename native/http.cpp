@@ -167,6 +167,8 @@ bool SendData(TcpSocket* socket, const char* data, int size) {
                 socket->data_->write("\r\n");
                 socket->data_->flush();
             } else {
+                socket->data_->write("0\r\n\r\n");
+                socket->data_->flush();
                 socket->data_->close();
                 socket->data_->deleteLater();
                 delete socket;

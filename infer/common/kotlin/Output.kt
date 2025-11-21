@@ -26,7 +26,9 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         val formatContext: CPointer<AVFormatContext>,
         var stream: CPointer<AVStream>?,
     ) : AutoCloseable {
-        abstract fun initPb(startTimeRealtime: Long)
+        var stopped = false
+
+        abstract fun initPb(timestamp0: Instant)
         abstract fun closeConnection()
     }
 
@@ -42,13 +44,15 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             avformat_free_context(formatContext)
         }
 
-        override fun initPb(startTimeRealtime: Long) = Unit
+        override fun initPb(timestamp0: Instant) = Unit
         override fun closeConnection() = Unit
     }
 
     class ContextFmp4(val id: String) : Context(options, initFormatContext(), null) {
         companion object {
-            val options = arrayOf("movflags" to "frag_keyframe+empty_moov+default_base_moof")
+            val options = arrayOf(
+                "movflags" to "frag_keyframe+empty_moov+default_base_moof",
+            )
             fun initFormatContext() = cPointer {
                 avformat_alloc_output_context2(it, null, "mp4", "stream.mp4").check("avformat_alloc_output_context2")
             }
@@ -62,9 +66,9 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             avformat_free_context(formatContext)
         }
 
-        override fun initPb(startTimeRealtime: Long) {
+        override fun initPb(timestamp0: Instant) {
             mkdir(id, S_IRWXU.toUInt())
-            val time = Instant.fromEpochMilliseconds(startTimeRealtime).toLocalDateTime(timeZone)
+            val time = timestamp0.toLocalDateTime(timeZone)
             formatContext.pointed.pb = cPointer {
                 avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open")
             }
@@ -110,7 +114,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             avformat_free_context(formatContext)
         }
 
-        override fun initPb(startTimeRealtime: Long) = Unit
+        override fun initPb(timestamp0: Instant) = Unit
 
         override fun closeConnection() {
             if (formatContext.pointed.pb == null) return
@@ -124,15 +128,20 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     fun addRtsp(url: String) =
         ContextRtsp(url).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    fun addFmp4(id: String) =
-        ContextFmp4(id).also { CoroutineScope(main).launch { contexts.add(it) } }
+    suspend fun addFmp4Blocking(id: String) =
+        ContextFmp4(id).also { withContext(main) { contexts.add(it) } }
+
+    suspend fun addFmp4StreamBlocking(write: (CPointer<UByteVar>?, Int) -> Int) =
+        ContextFmp4Stream(write).also { withContext(main) { contexts.add(it) } }
 
     fun addFmp4Stream(write: (CPointer<UByteVar>?, Int) -> Int) =
         ContextFmp4Stream(write).also { CoroutineScope(main).launch { contexts.add(it) } }
 
     fun remove(context: Context) = CoroutineScope(main).launch {
-        contexts.remove(context)
-        context.close()
+        if (context in contexts) {
+            contexts.remove(context)
+            context.close()
+        }
     }
 
     override suspend fun invoke() {
@@ -140,27 +149,25 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             withContext(main) {
                 val toWrite = av_packet_alloc()!!
                 contexts.forEach { context ->
-                    if (context.stream == null && packet!!.pointed.flags.and(AV_PKT_FLAG_KEY) != 0) {
-                        encoder.startTimeRealtime().let {
-                            context.formatContext.pointed.start_time_realtime = it
-                            context.initPb(it)
-                        }
+                    if (context.stream == null) {
+                        val epochMs = packet!!.pointed.pts / 90
+                        context.formatContext.pointed.start_time_realtime = epochMs
+                        context.initPb(Instant.fromEpochMilliseconds(epochMs))
                         context.stream = encoder.initStream(context.formatContext.pointed)
                         withOptions(*context.options) {
                             avformat_write_header(context.formatContext, it).check("avformat_write_header")
                         }
                     }
-                    if (context.stream != null) {
-                        av_packet_ref(toWrite, packet).check("av_packet_ref")
-                        toWrite.pointed.stream_index = context.stream!!.pointed.index
-                        av_packet_rescale_ts(
-                            toWrite,
-                            cValue { num = 1; den = 90000 },
-                            context.stream!!.pointed.time_base.readValue(),
-                        )
-                        av_write_frame(context.formatContext, toWrite).check("av_write_frame")
-                        context.formatContext.pointed.pb?.let { avio_flush(it) }
-                    }
+                    av_packet_ref(toWrite, packet).check("av_packet_ref")
+                    toWrite.pointed.stream_index = context.stream!!.pointed.index
+                    packet!!.pointed.pts -= context.formatContext.pointed.start_time_realtime * 90
+                    av_packet_rescale_ts(
+                        toWrite,
+                        cValue { num = 1; den = 90000 },
+                        context.stream!!.pointed.time_base.readValue(),
+                    )
+                    av_write_frame(context.formatContext, toWrite).check("av_write_frame")
+                    context.formatContext.pointed.pb?.let { avio_flush(it) }
                 }
                 av_packet_free(cValuesOf(toWrite))
                 av_packet_unref(packet)
@@ -175,6 +182,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 }
                 context.close()
             }
+            contexts.clear()
         }
     }
 }

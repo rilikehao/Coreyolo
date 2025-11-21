@@ -10,12 +10,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
-import kotlinx.datetime.*
+import kotlinx.coroutines.flow.onEach
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
 import platform.posix.closedir
 import platform.posix.opendir
 import platform.posix.readdir
-import kotlin.math.abs
 import kotlin.math.roundToLong
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -41,11 +43,10 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
 
     class SegmentWalker(val dirPath: String, val startCursor: String) {
         operator fun invoke() = flow {
-            var currentFile = findFile(Op.LE_MAX, startCursor) ?: findFile(Op.MIN_GLOBAL, "")
-            emit(currentFile!!)
+            var currentFile = findFile(Op.LE_MAX, startCursor) ?: findFile(Op.MIN_GLOBAL, "") ?: return@flow
+            emit(currentFile)
             while (true) {
-                currentFile = findFile(Op.GT_MIN, currentFile!!)
-                if (currentFile == null) break
+                currentFile = findFile(Op.GT_MIN, currentFile) ?: break
                 emit(currentFile)
             }
         }
@@ -82,9 +83,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
 
             val pkt = av_packet_alloc() ?: return@flow
             val formatCtx = cPointer { ptr ->
-                withOptions("fflags" to "nobuffer") {
-                    avformat_open_input(ptr, filePath, null, it).check("avformat_open_input")
-                }
+                avformat_open_input(ptr, filePath, null, null).check("avformat_open_input")
             }.also { formatContext = it.pointed }
             try {
                 avformat_find_stream_info(formatCtx, null).check("avformat_find_stream_info")
@@ -124,11 +123,8 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
             return nri == 0 // NRI为0表示不被参考，可以安全丢弃（即 B 帧）
         }
 
-        fun parseTime(name: String) = try {
+        fun parseTime(name: String) =
             LocalDateTime.parse(name.removeSuffix(".mp4")).toInstant(timeZone).toEpochMilliseconds() / 1000.0
-        } catch (_: Exception) {
-            0.0
-        }
     }
 
     inner class SmartFilter {
@@ -170,36 +166,80 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
     class SpeedLimiter(private val speed: Double) {
         operator fun invoke(upstream: Flow<CPointer<AVPacket>?>) = flow {
             var startSystemTime = 0L
-            var startOriginalPts = 0L
+
+            // 锚点：记录首帧的 DTS 作为整个时间轴的 0 点
+            var startOriginalDts = 0L
+
+            // 上一帧的原始 DTS，用于检测断流/大间隔
+            var lastOriginalDts = 0L
+
+            // 累计所有因“间隔压缩”而被剔除的时间 (Ticks)
+            var totalSkippedTicks = 0L
+
             var isFirst = true
 
             upstream.collect { pkt ->
-                val ptr = pkt!!
-                val originalPts = ptr.pointed.pts
-                val originalDts = ptr.pointed.dts // 获取原始 DTS
+                val ptr = pkt!!.pointed
 
-                val tb = ptr.pointed.time_base
+                // 使用局部变量，避免直接修改 ptr 导致后续计算读取错误值
+                val originalPts = ptr.pts
+                val originalDts = ptr.dts
+
+                val tb = ptr.time_base
                 val timeBaseDouble = tb.num.toDouble() / tb.den.toDouble()
 
                 if (isFirst) {
-                    startOriginalPts = originalPts
-                    startSystemTime = Clock.System.now().toEpochMilliseconds()
+                    // 初始化锚点
+                    startOriginalDts = originalDts
+                    lastOriginalDts = originalDts
+                    totalSkippedTicks = 0L
 
-                    // 第一帧全部归零 (DTS 也必须相对 StartPTS 归零，保持相位)
-                    ptr.pointed.pts = 0
-                    ptr.pointed.dts = (originalDts - startOriginalPts).toLong() // 通常为 <= 0
+                    // 计算第一帧的新 PTS (保留首帧可能存在的 PTS-DTS 延迟)
+                    // 公式：(OrigPTS - StartDTS - Skipped) / Speed
+                    val initialDelay = originalPts - originalDts
+                    val newPts = (initialDelay / speed).roundToLong()
+
+                    ptr.pts = newPts
+                    ptr.dts = 0 // 首帧 DTS 归零
+
+                    // 初始化系统时钟，并扣除首帧的 Presentation Delay，确保画面立刻播放
+                    // 否则带有延迟的 B 帧流可能会在第一帧这就 Sleep
+                    startSystemTime = Clock.System.now().toEpochMilliseconds() - (newPts * timeBaseDouble * 1000).toLong()
 
                     isFirst = false
                 } else {
-                    // --- 你的神来之笔 (注意加括号) ---
-                    // 统一计算，无需区分 fast/normal，自动保留了 PTS/DTS 的相对关系
-                    val newPts = ((originalPts - startOriginalPts) / speed).toLong()
-                    val newDts = ((originalDts - startOriginalPts) / speed).toLong()
+                    // 1. 使用 DTS (解码序) 计算物理间隔，这在 B 帧存在时依然是单调递增的
+                    val dtsDelta = originalDts - lastOriginalDts
+                    val dtsDeltaSeconds = dtsDelta * timeBaseDouble
 
-                    ptr.pointed.pts = newPts
-                    ptr.pointed.dts = newDts
+                    // 2. 检测大间隔 (> 1.0s)
+                    if (dtsDeltaSeconds > 1.0) {
+                        // 计算目标间隔 (1.0s) 对应的 ticks
+                        val targetGapTicks = (1.0 / timeBaseDouble).roundToLong()
 
-                    // --- 限速逻辑 ---
+                        // 计算多余的部分：实际间隔 - 1.0s
+                        // 这些多余的 ticks 将被永远“切除”
+                        val excessTicks = dtsDelta - targetGapTicks
+
+                        totalSkippedTicks += excessTicks
+                    }
+
+                    // 3. 核心公式：绝对位置计算 (无累计误差)
+                    // 这里的关键是 PTS 和 DTS 都减去同一个 totalSkippedTicks 和 startOriginalDts
+                    // 从而完美保持了 (PTS - DTS) 的相对关系
+
+                    val effectivePtsTicks = originalPts - startOriginalDts - totalSkippedTicks
+                    val effectiveDtsTicks = originalDts - startOriginalDts - totalSkippedTicks
+
+                    val newPts = (effectivePtsTicks / speed).roundToLong()
+                    val newDts = (effectiveDtsTicks / speed).roundToLong()
+
+                    ptr.pts = newPts
+                    ptr.dts = newDts
+
+                    lastOriginalDts = originalDts
+
+                    // 4. 控速逻辑 (基于显示时间 PTS)
                     val currentVideoTimeMs = newPts * timeBaseDouble * 1000
                     val systemElapsedMs = Clock.System.now().toEpochMilliseconds() - startSystemTime
 

@@ -52,10 +52,10 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                     val encoder = Codec.EncoderVideoH264("$id-vod", drawn)
                     Output(encoder, encoder()).use {
                         var context: Output.Context? = null
-                        context = it.addFmp4Stream { buf, size ->
-                            if (context!!.stream != null) {
+                        context = it.addFmp4StreamBlocking { buf, size ->
+                            if (!context!!.stopped) {
                                 if (!SendData(socket, buf?.reinterpret(), size)) {
-                                    context!!.stream = null
+                                    context!!.stopped = true
                                     it.remove(context!!).invokeOnCompletion { vod!!.cancel() }
                                 }
                             }; size
@@ -85,7 +85,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         scope.launch {
                                             val encoder = Codec.EncoderVideoH265(config.id, side)
                                             Output(encoder, encoder()).use {
-                                                it.addFmp4(config.id)
+                                                it.addFmp4Blocking(config.id)
                                                 it.invoke()
                                             }
                                         }.also {
@@ -106,7 +106,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         scope.launch {
                                             val encoder = Codec.EncoderVideoH265(config.id, side)
                                             Output(encoder, encoder()).use {
-                                                it.addFmp4(config.id)
+                                                it.addFmp4Blocking(config.id)
                                                 it.invoke()
                                             }
                                         }.also {
@@ -125,7 +125,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         val (main, side) = ForkPacket(inputRtsp())()
                                         scope.launch {
                                             Output(EncoderNoop(inputRtsp), side).use {
-                                                it.addFmp4(config.id)
+                                                it.addFmp4Blocking(config.id)
                                                 it.invoke()
                                             }
                                         }.also {
