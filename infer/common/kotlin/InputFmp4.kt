@@ -3,14 +3,12 @@ package common
 import common.Utils.cPointer
 import common.Utils.check
 import common.Utils.timeZone
-import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onEach
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
@@ -78,9 +76,9 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
 
     inner class FrameReader(private val filename: String) {
         operator fun invoke() = flow {
+            var pts0: Long? = null
             val filePath = "$id/$filename"
             val fileStartTime = parseTime(filename)
-
             val pkt = av_packet_alloc() ?: return@flow
             val formatCtx = cPointer { ptr ->
                 avformat_open_input(ptr, filePath, null, null).check("avformat_open_input")
@@ -91,13 +89,14 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
                 stream = formatCtx.pointed.streams!![vidIdx]!!.pointed
                 val tb = formatCtx.pointed.streams!![vidIdx]!!.pointed.time_base
                 val timeBase = tb.num.toDouble() / tb.den.toDouble()
-                val offsetTicks = (fileStartTime / timeBase).roundToLong()
                 while (av_read_frame(formatCtx, pkt) >= 0) {
                     if (pkt.pointed.stream_index == vidIdx) {
                         if (fast && isBFrame(pkt)) {
                             av_packet_unref(pkt)
                             continue
                         }
+                        if (pts0 == null) pts0 = pkt.pointed.pts
+                        val offsetTicks = (fileStartTime / timeBase).roundToLong() - pts0
                         pkt.pointed.pts += offsetTicks
                         pkt.pointed.dts += offsetTicks
                         pkt.pointed.time_base.num = tb.num
@@ -130,35 +129,21 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
     inner class SmartFilter {
         operator fun invoke(upstream: Flow<CPointer<AVPacket>?>) = flow {
             var hasStarted = false
-
             try {
                 upstream.collect { pkt ->
-                    val ptr = pkt!!.pointed
-                    val timeBase = ptr.time_base.let { it.num.toDouble() / it.den.toDouble() }
-                    val currentTime = ptr.pts * timeBase
-
-                    // 判定关键帧
-                    val isKeyFrame = (ptr.flags and AV_PKT_FLAG_KEY) != 0
-
-                    // 1. 结束逻辑：严格大于 end 即刻停止（不含当前帧）
-                    if (!end.isInfinite() && end <= currentTime) {
-                        throw FlowStopException()
-                    }
-
                     if (hasStarted) {
-                        // 已经开始，直接透传
                         emit(pkt)
                     } else {
-                        // 2. 起播逻辑：时间达到 begin 且 必须是关键帧
-                        if (begin <= currentTime && isKeyFrame) {
-                            hasStarted = true
-                            emit(pkt)
-                        }
-                        // 否则直接丢弃（什么都不做，上游 FrameReader 会自动 av_packet_unref）
+                        val ptr = pkt!!.pointed
+                        val timeBase = ptr.time_base.let { it.num.toDouble() / it.den.toDouble() }
+                        val currentTime = ptr.pts * timeBase
+                        val isKeyFrame = (ptr.flags and AV_PKT_FLAG_KEY) != 0
+                        if (!end.isInfinite() && end <= currentTime) throw FlowStopException()
+                        if (begin <= currentTime && isKeyFrame) hasStarted = true
+                        if (hasStarted) emit(pkt)
                     }
                 }
             } catch (_: FlowStopException) {
-                // 正常退出
             }
         }
     }
@@ -166,88 +151,59 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
     class SpeedLimiter(private val speed: Double) {
         operator fun invoke(upstream: Flow<CPointer<AVPacket>?>) = flow {
             var startSystemTime = 0L
-
-            // 锚点：记录首帧的 DTS 作为整个时间轴的 0 点
             var startOriginalDts = 0L
-
-            // 上一帧的原始 DTS，用于检测断流/大间隔
             var lastOriginalDts = 0L
-
-            // 累计所有因“间隔压缩”而被剔除的时间 (Ticks)
             var totalSkippedTicks = 0L
-
             var isFirst = true
-
             upstream.collect { pkt ->
                 val ptr = pkt!!.pointed
-
-                // 使用局部变量，避免直接修改 ptr 导致后续计算读取错误值
                 val originalPts = ptr.pts
                 val originalDts = ptr.dts
-
                 val tb = ptr.time_base
                 val timeBaseDouble = tb.num.toDouble() / tb.den.toDouble()
-
                 if (isFirst) {
-                    // 初始化锚点
                     startOriginalDts = originalDts
                     lastOriginalDts = originalDts
                     totalSkippedTicks = 0L
-
                     // 计算第一帧的新 PTS (保留首帧可能存在的 PTS-DTS 延迟)
                     // 公式：(OrigPTS - StartDTS - Skipped) / Speed
                     val initialDelay = originalPts - originalDts
                     val newPts = (initialDelay / speed).roundToLong()
-
                     ptr.pts = newPts
                     ptr.dts = 0 // 首帧 DTS 归零
-
                     // 初始化系统时钟，并扣除首帧的 Presentation Delay，确保画面立刻播放
                     // 否则带有延迟的 B 帧流可能会在第一帧这就 Sleep
-                    startSystemTime = Clock.System.now().toEpochMilliseconds() - (newPts * timeBaseDouble * 1000).toLong()
-
+                    startSystemTime =
+                        Clock.System.now().toEpochMilliseconds() - (newPts * timeBaseDouble * 1000).toLong()
                     isFirst = false
                 } else {
                     // 1. 使用 DTS (解码序) 计算物理间隔，这在 B 帧存在时依然是单调递增的
                     val dtsDelta = originalDts - lastOriginalDts
                     val dtsDeltaSeconds = dtsDelta * timeBaseDouble
-
                     // 2. 检测大间隔 (> 1.0s)
                     if (dtsDeltaSeconds > 1.0) {
                         // 计算目标间隔 (1.0s) 对应的 ticks
                         val targetGapTicks = (1.0 / timeBaseDouble).roundToLong()
-
                         // 计算多余的部分：实际间隔 - 1.0s
                         // 这些多余的 ticks 将被永远“切除”
                         val excessTicks = dtsDelta - targetGapTicks
-
                         totalSkippedTicks += excessTicks
                     }
-
                     // 3. 核心公式：绝对位置计算 (无累计误差)
                     // 这里的关键是 PTS 和 DTS 都减去同一个 totalSkippedTicks 和 startOriginalDts
                     // 从而完美保持了 (PTS - DTS) 的相对关系
-
                     val effectivePtsTicks = originalPts - startOriginalDts - totalSkippedTicks
                     val effectiveDtsTicks = originalDts - startOriginalDts - totalSkippedTicks
-
                     val newPts = (effectivePtsTicks / speed).roundToLong()
                     val newDts = (effectiveDtsTicks / speed).roundToLong()
-
                     ptr.pts = newPts
                     ptr.dts = newDts
-
                     lastOriginalDts = originalDts
-
                     // 4. 控速逻辑 (基于显示时间 PTS)
                     val currentVideoTimeMs = newPts * timeBaseDouble * 1000
                     val systemElapsedMs = Clock.System.now().toEpochMilliseconds() - startSystemTime
-
                     val delayMs = (currentVideoTimeMs - systemElapsedMs).toLong()
-
-                    if (delayMs > 0) {
-                        delay(delayMs)
-                    }
+                    if (delayMs > 0) delay(delayMs)
                 }
                 emit(pkt)
             }
