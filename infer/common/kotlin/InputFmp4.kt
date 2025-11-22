@@ -24,6 +24,9 @@ import kotlin.time.Instant
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Boolean) : Input,
     suspend () -> Flow<CPointer<AVPacket>?> {
+
+    val speed = if (fast) 3.0 else 1.0
+
     lateinit var stream: AVStream
     lateinit var formatContext: AVFormatContext
 
@@ -36,7 +39,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
         return SegmentWalker(id, startCursor)()
             .flatMapConcat { filename -> FrameReader(filename)() }
             .let { SmartFilter()(it) }
-            .let { SpeedLimiter(if (fast) 3.0 else 1.0)(it) }
+            .let { SpeedLimiter()(it) }
     }
 
     class SegmentWalker(val dirPath: String, val startCursor: String) {
@@ -77,6 +80,8 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
     inner class FrameReader(private val filename: String) {
         operator fun invoke() = flow {
             var pts0: Long? = null
+            var inputCount = 0L
+            var outputCount = 0L
             val filePath = "$id/$filename"
             val fileStartTime = parseTime(filename)
             val pkt = av_packet_alloc() ?: return@flow
@@ -87,21 +92,21 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
                 avformat_find_stream_info(formatCtx, null).check("avformat_find_stream_info")
                 val vidIdx = av_find_best_stream(formatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, null, 0)
                 stream = formatCtx.pointed.streams!![vidIdx]!!.pointed
-                val tb = formatCtx.pointed.streams!![vidIdx]!!.pointed.time_base
+                val tb = stream.time_base
                 val timeBase = tb.num.toDouble() / tb.den.toDouble()
                 while (av_read_frame(formatCtx, pkt) >= 0) {
                     if (pkt.pointed.stream_index == vidIdx) {
-                        if (fast && isBFrame(pkt)) {
-                            av_packet_unref(pkt)
-                            continue
-                        }
                         if (pts0 == null) pts0 = pkt.pointed.pts
-                        val offsetTicks = (fileStartTime / timeBase).roundToLong() - pts0
-                        pkt.pointed.pts += offsetTicks
-                        pkt.pointed.dts += offsetTicks
-                        pkt.pointed.time_base.num = tb.num
-                        pkt.pointed.time_base.den = tb.den
-                        emit(pkt)
+                        inputCount++
+                        if (!fast || isReference(pkt) || outputCount < inputCount / speed) {
+                            outputCount++
+                            val offsetTicks = (fileStartTime / timeBase).roundToLong() - pts0
+                            pkt.pointed.pts += offsetTicks
+                            pkt.pointed.dts += offsetTicks
+                            pkt.pointed.time_base.num = tb.num
+                            pkt.pointed.time_base.den = tb.den
+                            emit(pkt)
+                        }
                     }
                     av_packet_unref(pkt)
                 }
@@ -111,15 +116,34 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
             }
         }
 
-        fun isBFrame(pkt: CPointer<AVPacket>): Boolean {
-            val size = pkt.pointed.size
-            if (size < 5) return false
-            val data = pkt.pointed.data ?: return false
-            // AVCC 格式：4字节长度 + 1字节 NAL Header
-            // NAL Header: [F(1) | NRI(2) | Type(5)]
-            // 提取 NRI (nal_ref_idc)
-            val nri = (data[4].toInt() shr 5) and 0x03
-            return nri == 0 // NRI为0表示不被参考，可以安全丢弃（即 B 帧）
+        fun isReference(pkt: CPointer<AVPacket>): Boolean {
+            val ptr = pkt.pointed
+            val data = ptr.data ?: return false
+            val size = ptr.size
+            var offset = 0
+            var hasReferenceSlice = false
+            while (offset + 4 < size) {
+                val len = ((data[offset].toInt() and 0xFF) shl 24) or
+                        ((data[offset + 1].toInt() and 0xFF) shl 16) or
+                        ((data[offset + 2].toInt() and 0xFF) shl 8) or
+                        (data[offset + 3].toInt() and 0xFF)
+                offset += 4
+                if (offset >= size) break
+
+                val header = data[offset].toInt() and 0xFF
+                val type = header and 0x1F
+                val nri = (header shr 5) and 0x03
+
+                // Type 1 (Slice) 或 Type 5 (IDR)
+                if (type == 1 || type == 5) {
+                    if (nri != 0) {
+                        hasReferenceSlice = true
+                        break
+                    }
+                }
+                offset += len
+            }
+            return hasReferenceSlice
         }
 
         fun parseTime(name: String) =
@@ -148,7 +172,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
         }
     }
 
-    class SpeedLimiter(private val speed: Double) {
+    inner class SpeedLimiter {
         operator fun invoke(upstream: Flow<CPointer<AVPacket>?>) = flow {
             var startSystemTime = 0L
             var startOriginalDts = 0L
