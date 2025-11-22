@@ -135,7 +135,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
                         }
 
                         if (shouldEmit) {
-                            val offsetTicks = (fileStartTime / timeBase).roundToLong() - pts0!!
+                            val offsetTicks = (fileStartTime / timeBase).roundToLong() - pts0
                             pkt.pointed.pts += offsetTicks
                             pkt.pointed.dts += offsetTicks
                             pkt.pointed.time_base.num = tb.num
