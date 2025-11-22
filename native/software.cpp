@@ -163,4 +163,8 @@ Detection* PtrDetections(InferTask* task) {
     return task->detections_.data();
 }
 
+void AddDetection(InferTask* task, Detection* detection) {
+    task->detections_.emplace_back(*detection);
+}
+
 }  // extern
