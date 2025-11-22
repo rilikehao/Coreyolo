@@ -6,12 +6,14 @@ import common.StringFormat.toString
 import common.Utils.check
 import common.Utils.withOptions
 import kotlinx.cinterop.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.transform
 import platform.ffmpeg.*
 import platform.native.DestroyImage
+import platform.native.ToTimeString
 import kotlin.math.max
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -21,6 +23,7 @@ import kotlin.time.TimeSource
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 open class EncoderFFmpeg(
     val id: String,
+    val suggestedName: CompletableDeferred<String>?,
     val input: Flow<Command.CommandImage>,
     name: String,
     format: Int,
@@ -56,7 +59,11 @@ open class EncoderFFmpeg(
         var frame0 = TimeSource.Monotonic.markNow()
 
         return input.map { commandImage ->
-            if (inputFrames++ == 0L) timestamp0 = commandImage.timestamp
+            if (inputFrames++ == 0L) {
+                timestamp0 = commandImage.timestamp
+                val name = ToTimeString(timestamp0.toEpochMilliseconds() / 1000.0).useContents { data_.toKString() }
+                suggestedName?.complete(name)
+            }
             Logger.i {
                 if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
                 val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)

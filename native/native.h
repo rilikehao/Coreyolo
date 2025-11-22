@@ -61,7 +61,9 @@ int GetHeight(struct Image* image);
 
 int SizeDetections(struct InferTask* task);
 struct Detection* PtrDetections(struct InferTask* task);
-const char* GetError(struct InferTask* task);
+void AddDetection(struct InferTask* task, struct Detection* detection);
+
+const char* NormalizeName(struct Infer* infer, const char* name);
 
 void DrawRect(                               //
     struct Image* image, struct Rect* rect,  //
@@ -84,5 +86,11 @@ struct Subscribe {
 struct HttpServerThread;
 struct HttpServerThread* HttpServer(int port, struct Subscribe sub);
 void StopHttpServer(struct HttpServerThread* thread);
+
+struct TimeString {
+    char data_[24];
+};
+
+struct TimeString ToTimeString(double instant);
 
 #endif  // NATIVE_H

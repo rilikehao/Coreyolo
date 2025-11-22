@@ -673,4 +673,11 @@ void AddDetection(InferTask* task, Detection* detection) {
     task->detections_.emplace_back(*detection);
 }
 
+const char* NormalizeName(Infer* infer, const char* name) {
+    for (auto& i : infer->names_) {
+        if (name == i) return i.c_str();
+    }
+    return nullptr;
+}
+
 }  // extern

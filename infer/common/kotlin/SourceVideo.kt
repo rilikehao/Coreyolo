@@ -49,7 +49,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                     val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
                     val inferred = Inference("$id-vod", decoded)()
                     val drawn = Draw(inferred)()
-                    val encoder = Codec.EncoderVideoH264("$id-vod", drawn)
+                    val encoder = Codec.EncoderVideoH264("$id-vod", null, drawn)
                     Output(encoder, encoder()).use {
                         var context: Output.Context? = null
                         context = it.addFmp4StreamBlocking { buf, size ->
@@ -80,18 +80,24 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                             coroutineScope {
                                 when (AppConfig.instance.source.type) {
                                     AppConfig.SourceType.CAMERA -> {
+                                        val name = CompletableDeferred<String>()
                                         val decoded = InputCamera.open(config.source)()
                                         val (main, side) = ForkImage(decoded)()
                                         scope.launch {
-                                            val encoder = Codec.EncoderVideoH265(config.id, side)
+                                            val encoder = Codec.EncoderVideoH265(config.id, name, side)
                                             Output(encoder, encoder()).use {
-                                                it.addFmp4Blocking(config.id)
+                                                it.addFmp4Blocking(config.id, name)
                                                 it.invoke()
                                             }
                                         }.also {
                                             val inferred = Inference(config.id, main)()
-                                            val drawn = Draw(inferred)()
-                                            val encoder = Codec.EncoderVideoH264(config.id, drawn)
+                                            val (forked, dumped) = ForkLabel(inferred)()
+                                            scope.launch {
+                                                val filePath = "${config.id}/${name.await()}.txt"
+                                                Detections.dumpStrings(dumped, filePath)
+                                            }
+                                            val drawn = Draw(forked)()
+                                            val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
                                                 it.invoke()
@@ -100,19 +106,25 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                     }
 
                                     AppConfig.SourceType.VIDEO -> {
+                                        val name = CompletableDeferred<String>()
                                         val inputRtsp = InputRtsp(config.source)
                                         val decoded = Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
                                         val (main, side) = ForkImage(decoded)()
                                         scope.launch {
-                                            val encoder = Codec.EncoderVideoH265(config.id, side)
+                                            val encoder = Codec.EncoderVideoH265(config.id, name, side)
                                             Output(encoder, encoder()).use {
-                                                it.addFmp4Blocking(config.id)
+                                                it.addFmp4Blocking(config.id, name)
                                                 it.invoke()
                                             }
                                         }.also {
                                             val inferred = Inference(config.id, main)()
-                                            val drawn = Draw(inferred)()
-                                            val encoder = Codec.EncoderVideoH264(config.id, drawn)
+                                            val (forked, dumped) = ForkLabel(inferred)()
+                                            scope.launch {
+                                                val filePath = "${config.id}/${name.await()}.txt"
+                                                Detections.dumpStrings(dumped, filePath)
+                                            }
+                                            val drawn = Draw(forked)()
+                                            val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
                                                 it.invoke()
@@ -121,18 +133,24 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                     }
 
                                     AppConfig.SourceType.VIDEO_KEEP -> {
+                                        val name = CompletableDeferred<String>()
                                         val inputRtsp = InputRtsp(config.source)
                                         val (main, side) = ForkPacket(inputRtsp())()
                                         scope.launch {
-                                            Output(EncoderNoop(inputRtsp), side).use {
-                                                it.addFmp4Blocking(config.id)
+                                            Output(EncoderNoop(inputRtsp, name), side).use {
+                                                it.addFmp4Blocking(config.id, name)
                                                 it.invoke()
                                             }
                                         }.also {
                                             val decoded = Codec.DecoderVideo(id, inputRtsp, main)()
                                             val inferred = Inference(config.id, decoded)()
-                                            val drawn = Draw(inferred)()
-                                            val encoder = Codec.EncoderVideoH264(config.id, drawn)
+                                            val (forked, dumped) = ForkLabel(inferred)()
+                                            scope.launch {
+                                                val filePath = "${config.id}/${name.await()}.txt"
+                                                Detections.dumpStrings(dumped, filePath)
+                                            }
+                                            val drawn = Draw(forked)()
+                                            val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
                                                 it.invoke()

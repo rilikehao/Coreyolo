@@ -8,6 +8,7 @@ extern "C" {
 #include <QNetworkReply>
 #include <QTcpServer>
 #include <QThread>
+#include <QTimeZone>
 #include <QUrlQuery>
 
 #include "image.h"
@@ -25,6 +26,7 @@ namespace {
 double ParseTime(const QString& s) {
     if (s.isEmpty()) return INFINITY;
     auto t = QDateTime::fromString(s, Qt::ISODateWithMs);
+    t.setTimeZone(QTimeZone(+8 * 3600));
     return t.toMSecsSinceEpoch() / 1000.0;
 }
 
@@ -205,6 +207,15 @@ void StopHttpServer(HttpServerThread* thread) {
     thread->data_.quit();
     thread->data_.wait();
     delete thread;
+}
+
+struct TimeString ToTimeString(double instant) {
+    auto t = QDateTime::fromMSecsSinceEpoch(round(instant * 1000.0));
+    t.setTimeZone(QTimeZone(+8 * 3600));
+    TimeString s;
+    auto data = t.toString(Qt::ISODateWithMs).toUtf8().constData();
+    strncpy(s.data_, data, sizeof(s));
+    return s;
 }
 
 }  // extern

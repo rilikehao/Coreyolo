@@ -7,8 +7,8 @@ import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
+import platform.native.ToTimeString
 import platform.posix.S_IRWXU
 import platform.posix.mkdir
 import kotlin.time.ExperimentalTime
@@ -30,7 +30,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     ) : AutoCloseable {
         var stopped = false
 
-        abstract fun initPb(timestamp0: Instant)
+        abstract suspend fun initPb()
         abstract fun closeConnection()
     }
 
@@ -46,11 +46,12 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             avformat_free_context(formatContext)
         }
 
-        override fun initPb(timestamp0: Instant) = Unit
+        override suspend fun initPb() = Unit
         override fun closeConnection() = Unit
     }
 
-    class ContextFmp4(val id: String) : Context(options, initFormatContext(), null) {
+    class ContextFmp4(val id: String, val name: CompletableDeferred<String>) :
+        Context(options, initFormatContext(), null) {
         companion object {
             val options = arrayOf(
                 "movflags" to "frag_keyframe+empty_moov+default_base_moof",
@@ -69,11 +70,11 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             avformat_free_context(formatContext)
         }
 
-        override fun initPb(timestamp0: Instant) {
+        override suspend fun initPb() {
             mkdir(id, S_IRWXU.toUInt())
-            val time = timestamp0.toLocalDateTime(timeZone)
+            val mp4 = "$id/${name.await()}.mp4"
             formatContext.pointed.pb = cPointer {
-                avio_open(it, "$id/${time}.mp4", AVIO_FLAG_WRITE).check("avio_open")
+                avio_open(it, mp4, AVIO_FLAG_WRITE).check("avio_open")
             }
         }
 
@@ -117,7 +118,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             avformat_free_context(formatContext)
         }
 
-        override fun initPb(timestamp0: Instant) = Unit
+        override suspend fun initPb() = Unit
 
         override fun closeConnection() {
             if (formatContext.pointed.pb == null) return
@@ -131,8 +132,8 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
     fun addRtsp(url: String) =
         ContextRtsp(url).also { CoroutineScope(main).launch { contexts.add(it) } }
 
-    suspend fun addFmp4Blocking(id: String) =
-        ContextFmp4(id).also { withContext(main) { contexts.add(it) } }
+    suspend fun addFmp4Blocking(id: String, name: CompletableDeferred<String>) =
+        ContextFmp4(id, name).also { withContext(main) { contexts.add(it) } }
 
     suspend fun addFmp4StreamBlocking(write: (CPointer<UByteVar>?, Int) -> Int) =
         ContextFmp4Stream(write).also { withContext(main) { contexts.add(it) } }
@@ -155,7 +156,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                     if (context.stream == null) {
                         encoder.startTimeRealtime().let {
                             context.formatContext.pointed.start_time_realtime = it
-                            context.initPb(Instant.fromEpochMilliseconds(it + (packet?.pointed?.pts ?: 0) / 90))
+                            context.initPb()
                         }
                         context.stream = encoder.initStream(context.formatContext.pointed)
                         withOptions(*context.options) {
