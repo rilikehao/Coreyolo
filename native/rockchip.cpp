@@ -87,6 +87,8 @@ void QueryModelInfo(Session* s) {
 
 }  // namespace
 
+extern "C" {
+
 Infer* CreateInfer(InferConfig* config) {
     auto infer = new Infer;
     InitNames(infer->names_, config->path_description_);
@@ -175,3 +177,9 @@ int SizeDetections(InferTask* task) { return task->detections_.size(); }
 Detection* PtrDetections(InferTask* task) {
     return task->detections_.data();
 }
+
+void AddDetection(InferTask* task, Detection* detection) {
+    task->detections_.emplace_back(*detection);
+}
+
+}  // extern
