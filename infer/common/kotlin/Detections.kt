@@ -3,6 +3,7 @@ package common
 import cnames.structs.Infer
 import cnames.structs.InferTask
 import common.StringFormat.toString
+import common.Utils.check
 import common.Utils.toInstant
 import common.Utils.toTimeString
 import kotlinx.cinterop.*
@@ -12,16 +13,14 @@ import kotlinx.coroutines.channels.getOrElse
 import kotlinx.coroutines.flow.*
 import platform.native.*
 import platform.posix.*
-import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object Detections {
     fun dump(timestamp: Instant, task: CPointer<InferTask>): String {
-        return Array(SizeDetections(task) + 1) { i ->
-            if (i == 0) return@Array timestamp.toTimeString()
-            PtrDetections(task)!![i - 1].let {
+        return Array(SizeDetections(task)) { i ->
+            PtrDetections(task)!![i].let {
                 val score = it.score_.toDouble().toString(6)
                 val name = it.name_!!.toKString()
                 val x0 = it.bound_.x0_
@@ -30,13 +29,12 @@ object Detections {
                 val y1 = it.bound_.y1_
                 "$score,$name,$x0,$x1,$y0,$y1"
             }
-        }.joinToString(";")
+        }.joinToString(";").let { "${timestamp.toTimeString()};$it" }
     }
 
     fun load(infer: CPointer<Infer>, s: String): CPointer<InferTask> {
         val task = CreateInferTask()!!
         s.split(';').forEachIndexed { i, si ->
-            if (i == 0) return@forEachIndexed
             val split = si.split(',')
             cValue<Detection> {
                 score_ = split[0].toFloat()
@@ -77,7 +75,7 @@ object Detections {
                 closedir(dir)
             }
         }.also { it.sort() }.asFlow().transform { name ->
-            val file = fopen(name, "r")
+            val file = fopen("$inputPath/$name", "r").check("fopen")
             fun readUntil(stop: Char): String {
                 val s = StringBuilder()
                 while (true) {
@@ -91,28 +89,32 @@ object Detections {
                 val timestamp = readUntil(';')
                 if (timestamp.isEmpty()) break
                 val detections = readUntil('\n')
-                emit(Pair(timestamp.toInstant(), { load(infer, detections) }))
+                emit(Pair(EpochMsFromTimeString(timestamp), { load(infer, detections) }))
             }
         }
 
     fun CoroutineScope.mux(
         images: Flow<Command.CommandImage>,
-        labels: Flow<Pair<Instant, () -> CPointer<InferTask>>>
+        labels: Flow<Pair<Long, () -> CPointer<InferTask>>>
     ): Flow<Command> {
         val ch = labels.produceIn(this)
+        var timestamp = 0L
+        var loadTask: () -> CPointer<InferTask> = { throw Error("") }
         return images.map { commandImage ->
-            while (true) {
-                val (timestamp, loadTask) = ch.tryReceive().getOrElse {
-                    Pair(Clock.System.now(), { throw Error("") })
-                }
-                if (timestamp < commandImage.timestamp) continue
-                if (timestamp == commandImage.timestamp) {
-                    val task = loadTask()
-                    SetImage(task, commandImage.data)
-                    return@map Command.CommandLabel(timestamp, task)
-                }
-                break
+            println("image: ${commandImage.timestamp}")
+            val epochMs = commandImage.timestamp.toEpochMilliseconds()
+            while (timestamp < epochMs) {
+                ch.receiveCatching().getOrElse {
+                    Pair(Long.MAX_VALUE, { throw Error("") })
+                }.let { (t, l) -> timestamp = t; loadTask = l }
+                println("label: ${Instant.fromEpochMilliseconds(timestamp)}")
             }
+            if (timestamp == epochMs) {
+                val task = loadTask()
+                SetImage(task, commandImage.data)
+                return@map Command.CommandLabel(commandImage.timestamp, task)
+            }
+            println("raw")
             return@map commandImage
         }.onCompletion {
             ch.consumeEach {}

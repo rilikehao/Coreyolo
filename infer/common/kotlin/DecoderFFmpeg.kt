@@ -33,7 +33,7 @@ open class DecoderFFmpeg(
             emit(null)
         }.transform { packet ->
             try {
-                if (codecCtx == null) {
+                if (codecCtx == null && packet != null) {
                     val codecId = input.getStream().codecpar!!.pointed.codec_id
                     val name = avcodec_find_decoder(codecId)!!.pointed.name!!.toKString()
                     val codec = avcodec_find_decoder_by_name(changeName(name)).check("avcodec_find_decoder")
@@ -42,6 +42,7 @@ open class DecoderFFmpeg(
                     device.bind(codecCtx!!.pointed)
                     avcodec_open2(codecCtx, codec, null).check("avcodec_open2")
                 }
+                if (codecCtx == null) return@transform
                 avcodec_send_packet(codecCtx, packet).check("avcodec_send_packet")
                 while (avcodec_receive_frame(codecCtx, frame) == 0) {
                     val base = input.getStream().time_base
@@ -61,6 +62,6 @@ open class DecoderFFmpeg(
             av_frame_free(cValuesOf(frame))
             toRGBImage.close()
             device.close()
-        }.buffer(Channel.UNLIMITED)
+        }
     }
 }

@@ -6,6 +6,8 @@ import co.touchlab.kermit.Logger
 import common.Detections.mux
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.buffer
 import platform.native.HttpServer
 import platform.native.SendData
 import platform.native.StopHttpServer
@@ -50,6 +52,8 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                         val inputFmp4 = InputFmp4(id, begin, end, fast)
                         val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
                         val inferred = scope.mux(decoded, Detections.loadAll(Inference.infer, id))
+                            .let { SpeedLimiter(it, inputFmp4.speed)() }
+                            .buffer(Channel.UNLIMITED)
                         val drawn = Draw(inferred, false)()
                         val encoder = Codec.EncoderVideoH264("$id-vod", null, drawn)
                         Output(encoder, encoder()).use {
@@ -111,6 +115,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         val name = CompletableDeferred<String>()
                                         val inputRtsp = InputRtsp(config.source)
                                         val decoded = Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
+                                            .buffer(Channel.UNLIMITED)
                                         val (main, side) = ForkImage(decoded)()
                                         scope.launch {
                                             val encoder = Codec.EncoderVideoH265(config.id, name, side)
@@ -145,6 +150,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                             }
                                         }.also {
                                             val decoded = Codec.DecoderVideo(id, inputRtsp, main)()
+                                                .buffer(Channel.UNLIMITED)
                                             val inferred = Inference(config.id, decoded)()
                                             val (forked, dumped) = ForkLabel(inferred)()
                                             scope.launch {
