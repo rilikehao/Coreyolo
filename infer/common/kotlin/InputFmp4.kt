@@ -2,24 +2,21 @@ package common
 
 import common.Utils.cPointer
 import common.Utils.check
-import common.Utils.timeZone
 import kotlinx.cinterop.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.toInstant
-import kotlinx.datetime.toLocalDateTime
 import platform.ffmpeg.*
+import platform.native.FromTimeString
+import platform.native.ToTimeString
 import platform.posix.closedir
 import platform.posix.opendir
 import platform.posix.readdir
 import kotlin.math.roundToLong
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Boolean) : Input,
@@ -34,8 +31,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
     override fun getFormatCtx() = formatContext
 
     override suspend fun invoke(): Flow<CPointer<AVPacket>?> {
-        val startInstant = Instant.fromEpochMilliseconds((begin * 1000).toLong())
-        val startCursor = startInstant.toLocalDateTime(timeZone).toString()
+        val startCursor = ToTimeString(begin).useContents { data_.toKString() }
         return SegmentWalker(id, startCursor)()
             .flatMapConcat { filename -> FrameReader(filename)() }
             .let { SmartFilter()(it) }
@@ -200,8 +196,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
             return false // 未发现任何参考 Slice
         }
 
-        fun parseTime(name: String) =
-            LocalDateTime.parse(name.removeSuffix(".mp4")).toInstant(timeZone).toEpochMilliseconds() / 1000.0
+        fun parseTime(name: String) = FromTimeString(name.removeSuffix(".mp4"))
     }
 
     inner class SmartFilter {

@@ -218,4 +218,6 @@ struct TimeString ToTimeString(double instant) {
     return s;
 }
 
+double FromTimeString(const char* s) { return ParseTime(s); }
+
 }  // extern

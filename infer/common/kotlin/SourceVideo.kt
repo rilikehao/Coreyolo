@@ -8,6 +8,8 @@ import kotlinx.coroutines.*
 import platform.native.HttpServer
 import platform.native.SendData
 import platform.native.StopHttpServer
+import platform.posix.S_IRWXU
+import platform.posix.mkdir
 
 @OptIn(ExperimentalForeignApi::class)
 object SourceVideo : AutoCloseable, suspend () -> Unit {
@@ -74,6 +76,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
         })
         Inference.use {
             AppConfig.instance.streams.mapIndexed { id, config ->
+                mkdir(config.id, S_IRWXU.toUInt())
                 scope.launch {
                     while (true) {
                         try {

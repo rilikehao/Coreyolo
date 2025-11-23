@@ -88,9 +88,10 @@ struct HttpServerThread* HttpServer(int port, struct Subscribe sub);
 void StopHttpServer(struct HttpServerThread* thread);
 
 struct TimeString {
-    char data_[24];
+    char data_[80];
 };
 
 struct TimeString ToTimeString(double instant);
+double FromTimeString(const char* s);
 
 #endif  // NATIVE_H

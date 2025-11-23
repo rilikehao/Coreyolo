@@ -62,6 +62,7 @@ open class EncoderFFmpeg(
             if (inputFrames++ == 0L) {
                 timestamp0 = commandImage.timestamp
                 val name = ToTimeString(timestamp0.toEpochMilliseconds() / 1000.0).useContents { data_.toKString() }
+                println(name)
                 suggestedName?.complete(name)
             }
             Logger.i {

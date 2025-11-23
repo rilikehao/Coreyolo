@@ -71,7 +71,6 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         }
 
         override suspend fun initPb() {
-            mkdir(id, S_IRWXU.toUInt())
             val mp4 = "$id/${name.await()}.mp4"
             formatContext.pointed.pb = cPointer {
                 avio_open(it, mp4, AVIO_FLAG_WRITE).check("avio_open")
