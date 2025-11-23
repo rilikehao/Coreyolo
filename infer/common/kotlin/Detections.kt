@@ -4,7 +4,6 @@ import cnames.structs.Infer
 import cnames.structs.InferTask
 import common.StringFormat.toString
 import common.Utils.check
-import common.Utils.toInstant
 import common.Utils.toTimeString
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CoroutineScope
@@ -34,7 +33,7 @@ object Detections {
 
     fun load(infer: CPointer<Infer>, s: String): CPointer<InferTask> {
         val task = CreateInferTask()!!
-        s.split(';').forEachIndexed { i, si ->
+        if (s.isNotEmpty()) s.split(';').forEach { si ->
             val split = si.split(',')
             cValue<Detection> {
                 score_ = split[0].toFloat()
