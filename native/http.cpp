@@ -23,11 +23,11 @@ struct HttpServerThread {
 
 namespace {
 
-double ParseTime(const QString& s) {
-    if (s.isEmpty()) return INFINITY;
+int64_t EpochMs(const QString& s) {
+    if (s.isEmpty()) return LONG_LONG_MAX;
     auto t = QDateTime::fromString(s, Qt::ISODateWithMs);
     t.setTimeZone(QTimeZone(+8 * 3600));
-    return t.toMSecsSinceEpoch() / 1000.0;
+    return t.toMSecsSinceEpoch();
 }
 
 void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
@@ -38,8 +38,8 @@ void AcceptConnection(QTcpServer* tcpServer, Subscribe sub) {
             auto split = req.split(' ');
             auto query = QUrlQuery(QUrl::fromEncoded(split[1]));
             auto stream = query.queryItemValue("stream").toUtf8();
-            auto begin = ParseTime(query.queryItemValue("begin"));
-            auto end = ParseTime(query.queryItemValue("end"));
+            auto begin = EpochMs(query.queryItemValue("begin"));
+            auto end = EpochMs(query.queryItemValue("end"));
             auto fast = query.queryItemValue("fast") == "1";
             QByteArray headers =
                 "HTTP/1.1 200 OK\r\n"
@@ -209,15 +209,17 @@ void StopHttpServer(HttpServerThread* thread) {
     delete thread;
 }
 
-struct TimeString ToTimeString(double instant) {
-    auto t = QDateTime::fromMSecsSinceEpoch(round(instant * 1000.0));
+struct TimeString EpochMsToTimeString(int64_t input) {
+    auto t = QDateTime::fromMSecsSinceEpoch(input);
     t.setTimeZone(QTimeZone(+8 * 3600));
-    TimeString s;
+    TimeString output;
     auto data = t.toString(Qt::ISODateWithMs).toUtf8().constData();
-    strncpy(s.data_, data, sizeof(s));
-    return s;
+    strncpy(output.data_, data, sizeof(output));
+    return output;
 }
 
-double FromTimeString(const char* s) { return ParseTime(s); }
+int64_t EpochMsFromTimeString(const char* input) {
+    return EpochMs(input);
+}
 
 }  // extern

@@ -1,16 +1,14 @@
 package common
 
 import common.Utils.check
+import common.Utils.toTimeString
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.toKString
-import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.flow
 import platform.ffmpeg.*
-import platform.native.ToTimeString
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
@@ -27,7 +25,6 @@ class EncoderNoop(val inputRtsp: InputRtsp, suggestedName: CompletableDeferred<S
     override fun invoke() = flow<CPointer<AVPacket>?> {}
 
     init {
-        val name = ToTimeString(startTimeRealtime() / 1000.0).useContents { data_.toKString() }
-        suggestedName?.complete(name)
+        suggestedName?.complete(startTimeRealtime().toTimeString())
     }
 }

@@ -14,10 +14,10 @@ import platform.native.SetImage
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class Draw(val input: Flow<Command>) : suspend () -> Flow<Command.CommandImage> {
+class Draw(val input: Flow<Command>, val enableHttp: Boolean) : suspend () -> Flow<Command.CommandImage> {
     override suspend fun invoke(): Flow<Command.CommandImage> {
         var taskLast: CPointer<InferTask>? = null
-        val draw = DrawScript(AppConfig.instance.paths.drawScript)
+        val draw = DrawScript(AppConfig.instance.paths.drawScript, enableHttp)
         return input.map { command ->
             when (command) {
                 is Command.CommandLabel -> {

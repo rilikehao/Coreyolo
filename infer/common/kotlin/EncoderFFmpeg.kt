@@ -4,6 +4,7 @@ import FromRGBImage
 import co.touchlab.kermit.Logger
 import common.StringFormat.toString
 import common.Utils.check
+import common.Utils.toTimeString
 import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CompletableDeferred
@@ -13,7 +14,6 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.transform
 import platform.ffmpeg.*
 import platform.native.DestroyImage
-import platform.native.ToTimeString
 import kotlin.math.max
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -61,7 +61,7 @@ open class EncoderFFmpeg(
         return input.map { commandImage ->
             if (inputFrames++ == 0L) {
                 timestamp0 = commandImage.timestamp
-                val name = ToTimeString(timestamp0.toEpochMilliseconds() / 1000.0).useContents { data_.toKString() }
+                val name = timestamp0.toTimeString()
                 println(name)
                 suggestedName?.complete(name)
             }

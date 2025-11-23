@@ -2,17 +2,12 @@ package common
 
 import common.Utils.cPointer
 import common.Utils.check
-import common.Utils.timeZone
 import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import platform.ffmpeg.*
-import platform.native.ToTimeString
-import platform.posix.S_IRWXU
-import platform.posix.mkdir
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoCloseable, suspend () -> Unit {

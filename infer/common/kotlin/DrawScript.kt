@@ -9,7 +9,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class)
-class DrawScript(path: String) : AutoCloseable {
+class DrawScript(path: String, val enableHttp: Boolean) : AutoCloseable {
     val state = luaL_newstate()!!.also { luaL_openlibs(it) }
 
     init {
@@ -92,11 +92,23 @@ class DrawScript(path: String) : AutoCloseable {
         lua_setglobal(state, "HttpGet")
 
         lua_pushlightuserdata(state, image)
-        lua_pushcclosure(state, staticCFunction { state ->
-            val url = luaL_checklstring(state, 1, null)
-            val frame = lua_touserdata(state, LUA_REGISTRYINDEX - 1)!!.reinterpret<Image>()
-            HttpPost(url, frame); 0
-        }, 1)
+        lua_pushcclosure(
+            state,
+            if (enableHttp) {
+                staticCFunction { state ->
+                    val url = luaL_checklstring(state, 1, null)
+                    val frame = lua_touserdata(state, LUA_REGISTRYINDEX - 1)!!.reinterpret<Image>()
+                    HttpPost(url, frame)
+                    return@staticCFunction 0
+                }
+            } else {
+                staticCFunction { state ->
+                    luaL_checklstring(state, 1, null)
+                    lua_touserdata(state, LUA_REGISTRYINDEX - 1)!!.reinterpret<Image>()
+                    return@staticCFunction 0
+                }
+            }, 1
+        )
         lua_setglobal(state, "HttpPost")
         lua_settop(state, -1)
     }

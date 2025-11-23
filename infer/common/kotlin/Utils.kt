@@ -8,10 +8,18 @@ import platform.ffmpeg.AV_ERROR_MAX_STRING_SIZE
 import platform.ffmpeg.av_dict_free
 import platform.ffmpeg.av_dict_set
 import platform.ffmpeg.av_make_error_string
+import platform.native.EpochMsFromTimeString
+import platform.native.EpochMsToTimeString
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object Utils {
     val timeZone = FixedOffsetTimeZone(UtcOffset(hours = 8))
+
+    fun Long.toTimeString() = EpochMsToTimeString(this).useContents { data_.toKString() }
+    fun Instant.toTimeString() = toEpochMilliseconds().toTimeString()
+    fun String.toInstant() = Instant.fromEpochMilliseconds(EpochMsFromTimeString(this))
 
     fun Int.check(api: String) {
         if (this < 0) {

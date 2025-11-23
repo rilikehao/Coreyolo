@@ -9,7 +9,7 @@ object AppConfig {
     
     @Serializable
     enum class SourceType {
-        IMAGE, CAMERA, VIDEO, VIDEO_KEEP,
+        IMAGE, CAMERA, VIDEO_RECODE, VIDEO_KEEP,
     }
 
     @Serializable

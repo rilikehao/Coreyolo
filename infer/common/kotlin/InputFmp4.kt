@@ -2,6 +2,8 @@ package common
 
 import common.Utils.cPointer
 import common.Utils.check
+import common.Utils.toTimeString
+import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -9,8 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
 import platform.ffmpeg.*
-import platform.native.FromTimeString
-import platform.native.ToTimeString
+import platform.native.EpochMsFromTimeString
 import platform.posix.closedir
 import platform.posix.opendir
 import platform.posix.readdir
@@ -19,7 +20,7 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
-class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Boolean) : Input,
+class InputFmp4(val id: String, val begin: Long, val end: Long, val fast: Boolean) : Input,
     suspend () -> Flow<CPointer<AVPacket>?> {
 
     val speed = if (fast) 3.0 else 1.0
@@ -31,8 +32,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
     override fun getFormatCtx() = formatContext
 
     override suspend fun invoke(): Flow<CPointer<AVPacket>?> {
-        val startCursor = ToTimeString(begin).useContents { data_.toKString() }
-        return SegmentWalker(id, startCursor)()
+        return SegmentWalker(id, begin.toTimeString())()
             .flatMapConcat { filename -> FrameReader(filename)() }
             .let { SmartFilter()(it) }
             .let { SpeedLimiter()(it) }
@@ -86,11 +86,16 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
             val maxDebt = -1.0
 
             val filePath = "$id/$filename"
-            val fileStartTime = parseTime(filename)
+            val fileStartTime = EpochMsFromTimeString(filename.removeSuffix(".mp4"))
             val pkt = av_packet_alloc() ?: return@flow
             val formatCtx = cPointer { ptr ->
-                avformat_open_input(ptr, filePath, null, null).check("avformat_open_input")
-            }.also { formatContext = it.pointed }
+                withOptions("probesize" to "32", "analyzeduration" to "0") {
+                    avformat_open_input(ptr, filePath, null, it).check("avformat_open_input")
+                }
+            }.also {
+                formatContext = it.pointed
+                it.pointed.pb!!.pointed.seekable = 0
+            }
 
             try {
                 avformat_find_stream_info(formatCtx, null).check("avformat_find_stream_info")
@@ -131,7 +136,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
                         }
 
                         if (shouldEmit) {
-                            val offsetTicks = (fileStartTime / timeBase).roundToLong() - pts0
+                            val offsetTicks = fileStartTime * tb.den / tb.num / 1000
                             pkt.pointed.pts += offsetTicks
                             pkt.pointed.dts += offsetTicks
                             pkt.pointed.time_base.num = tb.num
@@ -195,8 +200,6 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
             }
             return false // 未发现任何参考 Slice
         }
-
-        fun parseTime(name: String) = FromTimeString(name.removeSuffix(".mp4"))
     }
 
     inner class SmartFilter {
@@ -211,7 +214,7 @@ class InputFmp4(val id: String, val begin: Double, val end: Double, val fast: Bo
                         val timeBase = ptr.time_base.let { it.num.toDouble() / it.den.toDouble() }
                         val currentTime = ptr.pts * timeBase
                         val isKeyFrame = (ptr.flags and AV_PKT_FLAG_KEY) != 0
-                        if (!end.isInfinite() && end <= currentTime) throw FlowStopException()
+                        if (end <= currentTime) throw FlowStopException()
                         if (begin <= currentTime && isKeyFrame) hasStarted = true
                         if (hasStarted) emit(pkt)
                     }

@@ -79,7 +79,7 @@ bool SendData(struct TcpSocket* socket, const char* data, int size);
 
 struct Subscribe {
     void (*func_)(const char* stream, struct TcpSocket*, void*,  //
-                  double begin, double end, bool fast);
+                  int64_t begin, int64_t end, bool fast);
     void* opaque_;
 };
 
@@ -91,7 +91,7 @@ struct TimeString {
     char data_[80];
 };
 
-struct TimeString ToTimeString(double instant);
-double FromTimeString(const char* s);
+struct TimeString EpochMsToTimeString(int64_t input);
+int64_t EpochMsFromTimeString(const char* input);
 
 #endif  // NATIVE_H

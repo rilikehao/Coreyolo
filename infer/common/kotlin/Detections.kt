@@ -3,23 +3,24 @@ package common
 import cnames.structs.Infer
 import cnames.structs.InferTask
 import common.StringFormat.toString
-import common.Utils.timeZone
+import common.Utils.toInstant
+import common.Utils.toTimeString
 import kotlinx.cinterop.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.channels.getOrElse
+import kotlinx.coroutines.flow.*
 import platform.native.*
 import platform.posix.*
+import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object Detections {
     fun dump(timestamp: Instant, task: CPointer<InferTask>): String {
-        return Array(SizeDetections(task)) { i ->
-            if (i == 0) {
-                return@Array ToTimeString(timestamp.toEpochMilliseconds() / 1000.0).useContents { data_.toKString() }
-            }
+        return Array(SizeDetections(task) + 1) { i ->
+            if (i == 0) return@Array timestamp.toTimeString()
             PtrDetections(task)!![i - 1].let {
                 val score = it.score_.toDouble().toString(6)
                 val name = it.name_!!.toKString()
@@ -62,38 +63,59 @@ object Detections {
         }
     }
 
-    fun loadAll(infer: CPointer<Infer>, inputPath: String): MutableMap<String, () -> CPointer<InferTask>> {
-        val file = fopen(inputPath, "r")
-        fun readUntil(stop: Char): String {
-            val s = StringBuilder()
-            while (true) {
-                val ch = fgetc(file)
-                if (ch == -1 || ch == stop.code) break
-                s.append(ch.toChar())
-            }
-            return s.toString()
-        }
-
-        val m = mutableMapOf<String, () -> CPointer<InferTask>>()
-        while (true) {
-            val timestamp = readUntil(';')
-            if (timestamp.isEmpty()) break
-            val detections = readUntil('\n')
-            m[timestamp] = { load(infer, detections) }
-        }
-        return m
-    }
-
-    fun MutableMap<String, () -> CPointer<InferTask>>.loadLabels(input: Flow<Command.CommandImage>): Flow<Command> {
-        return input.map { commandImage ->
-            when (val f = this[commandImage.timestamp.toLocalDateTime(timeZone).toString()]) {
-                null -> commandImage
-                else -> {
-                    val task = f()
-                    SetImage(task, commandImage.data)
-                    Command.CommandLabel(commandImage.timestamp, task)
+    fun loadAll(infer: CPointer<Infer>, inputPath: String) =
+        mutableListOf<String>().also {
+            val dir = opendir(inputPath) ?: return@also
+            try {
+                while (true) {
+                    val entry = readdir(dir) ?: break
+                    val name = entry.pointed.d_name.toKString()
+                    if (name == "." || name == ".." || !name.endsWith(".txt")) continue
+                    it.add(name)
                 }
+            } finally {
+                closedir(dir)
             }
+        }.also { it.sort() }.asFlow().transform { name ->
+            val file = fopen(name, "r")
+            fun readUntil(stop: Char): String {
+                val s = StringBuilder()
+                while (true) {
+                    val ch = fgetc(file)
+                    if (ch == -1 || ch == stop.code) break
+                    s.append(ch.toChar())
+                }
+                return s.toString()
+            }
+            while (true) {
+                val timestamp = readUntil(';')
+                if (timestamp.isEmpty()) break
+                val detections = readUntil('\n')
+                emit(Pair(timestamp.toInstant(), { load(infer, detections) }))
+            }
+        }
+
+    fun CoroutineScope.mux(
+        images: Flow<Command.CommandImage>,
+        labels: Flow<Pair<Instant, () -> CPointer<InferTask>>>
+    ): Flow<Command> {
+        val ch = labels.produceIn(this)
+        return images.map { commandImage ->
+            while (true) {
+                val (timestamp, loadTask) = ch.tryReceive().getOrElse {
+                    Pair(Clock.System.now(), { throw Error("") })
+                }
+                if (timestamp < commandImage.timestamp) continue
+                if (timestamp == commandImage.timestamp) {
+                    val task = loadTask()
+                    SetImage(task, commandImage.data)
+                    return@map Command.CommandLabel(timestamp, task)
+                }
+                break
+            }
+            return@map commandImage
+        }.onCompletion {
+            ch.consumeEach {}
         }
     }
 }

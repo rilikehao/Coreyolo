@@ -3,6 +3,7 @@ package common
 import Codec
 import cnames.structs.TcpSocket
 import co.touchlab.kermit.Logger
+import common.Detections.mux
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import platform.native.HttpServer
@@ -10,8 +11,9 @@ import platform.native.SendData
 import platform.native.StopHttpServer
 import platform.posix.S_IRWXU
 import platform.posix.mkdir
+import kotlin.time.ExperimentalTime
 
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object SourceVideo : AutoCloseable, suspend () -> Unit {
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
     val mainContext = newSingleThreadContext("OutputRtsp")
@@ -21,60 +23,57 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
     override suspend fun invoke() {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val outputs = mutableMapOf<String, Output>()
-        val data = StableRef.create { stream: CPointer<ByteVar>,
-                                      socket: CPointer<TcpSocket>,
-                                      begin: Double,
-                                      end: Double,
-                                      fast: Boolean ->
-            val id = stream.toKStringFromUtf8()
-            if (begin.isInfinite()) {
-                CoroutineScope(mainContext).launch {
-                    when (val output = outputs[id]) {
-                        null -> SendData(socket, null, 0)
-                        else -> {
-                            var context: Output.Context? = null
-                            context = output.addFmp4Stream { buf, size ->
-                                if (context!!.stream != null) {
-                                    if (!SendData(socket, buf?.reinterpret(), size)) {
-                                        context!!.stream = null
-                                        output.remove(context!!)
-                                    }
-                                }; size
+        Inference.use {
+            val data = StableRef.create { stream: CPointer<ByteVar>, socket: CPointer<TcpSocket>,
+                                          begin: Long, end: Long, fast: Boolean ->
+                val id = stream.toKStringFromUtf8()
+                if (begin == Long.MAX_VALUE) {
+                    CoroutineScope(mainContext).launch {
+                        when (val output = outputs[id]) {
+                            null -> SendData(socket, null, 0)
+                            else -> {
+                                var context: Output.Context? = null
+                                context = output.addFmp4Stream { buf, size ->
+                                    if (context!!.stream != null) {
+                                        if (!SendData(socket, buf?.reinterpret(), size)) {
+                                            context!!.stream = null
+                                            output.remove(context!!)
+                                        }
+                                    }; size
+                                }
                             }
                         }
                     }
-                }
-            } else {
-                var vod: Job? = null
-                vod = scope.launch {
-                    val inputFmp4 = InputFmp4(id, begin, end, fast)
-                    val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
-                    val inferred = Inference("$id-vod", decoded)()
-                    val drawn = Draw(inferred)()
-                    val encoder = Codec.EncoderVideoH264("$id-vod", null, drawn)
-                    Output(encoder, encoder()).use {
-                        var context: Output.Context? = null
-                        context = it.addFmp4StreamBlocking { buf, size ->
-                            if (!context!!.stopped) {
-                                if (!SendData(socket, buf?.reinterpret(), size)) {
-                                    context!!.stopped = true
-                                    it.remove(context!!).invokeOnCompletion { vod!!.cancel() }
-                                }
-                            }; size
+                } else {
+                    var vod: Job? = null
+                    vod = scope.launch {
+                        val inputFmp4 = InputFmp4(id, begin, end, fast)
+                        val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
+                        val inferred = scope.mux(decoded, Detections.loadAll(Inference.infer, id))
+                        val drawn = Draw(inferred, false)()
+                        val encoder = Codec.EncoderVideoH264("$id-vod", null, drawn)
+                        Output(encoder, encoder()).use {
+                            var context: Output.Context? = null
+                            context = it.addFmp4StreamBlocking { buf, size ->
+                                if (!context!!.stopped) {
+                                    if (!SendData(socket, buf?.reinterpret(), size)) {
+                                        context!!.stopped = true
+                                        it.remove(context!!).invokeOnCompletion { vod!!.cancel() }
+                                    }
+                                }; size
+                            }
+                            it.invoke()
                         }
-                        it.invoke()
                     }
                 }
             }
-        }
-        val serverThread = HttpServer(60000, cValue {
-            func_ = staticCFunction { stream, socket, rawData, begin, end, fast ->
-                rawData!!.asStableRef<(CPointer<ByteVar>, CPointer<TcpSocket>, Double, Double, Boolean) -> Unit>()
-                    .get()(stream!!, socket!!, begin, end, fast)
-            }
-            opaque_ = data.asCPointer()
-        })
-        Inference.use {
+            val serverThread = HttpServer(60000, cValue {
+                func_ = staticCFunction { stream, socket, rawData, begin, end, fast ->
+                    rawData!!.asStableRef<(CPointer<ByteVar>, CPointer<TcpSocket>, Long, Long, Boolean) -> Unit>()
+                        .get()(stream!!, socket!!, begin, end, fast)
+                }
+                opaque_ = data.asCPointer()
+            })
             AppConfig.instance.streams.mapIndexed { id, config ->
                 mkdir(config.id, S_IRWXU.toUInt())
                 scope.launch {
@@ -99,7 +98,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                                 val filePath = "${config.id}/${name.await()}.txt"
                                                 Detections.dumpStrings(dumped, filePath)
                                             }
-                                            val drawn = Draw(forked)()
+                                            val drawn = Draw(forked, true)()
                                             val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
@@ -108,7 +107,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         }.join()
                                     }
 
-                                    AppConfig.SourceType.VIDEO -> {
+                                    AppConfig.SourceType.VIDEO_RECODE -> {
                                         val name = CompletableDeferred<String>()
                                         val inputRtsp = InputRtsp(config.source)
                                         val decoded = Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
@@ -126,7 +125,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                                 val filePath = "${config.id}/${name.await()}.txt"
                                                 Detections.dumpStrings(dumped, filePath)
                                             }
-                                            val drawn = Draw(forked)()
+                                            val drawn = Draw(forked, true)()
                                             val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
@@ -152,7 +151,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                                 val filePath = "${config.id}/${name.await()}.txt"
                                                 Detections.dumpStrings(dumped, filePath)
                                             }
-                                            val drawn = Draw(forked)()
+                                            val drawn = Draw(forked, true)()
                                             val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
@@ -171,8 +170,8 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                     }
                 }
             }.joinAll()
+            StopHttpServer(serverThread)
+            data.dispose()
         }
-        StopHttpServer(serverThread)
-        data.dispose()
     }
 }

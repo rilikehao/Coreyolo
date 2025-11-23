@@ -1,5 +1,5 @@
 [source]
-type = "VIDEO"
+type = "VIDEO_RECODE"
 
 [paths]
 model = "assets/best.rk3576"
