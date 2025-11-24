@@ -8,13 +8,17 @@ import kotlinx.cinterop.toCStringArray
 import kotlinx.coroutines.runBlocking
 import platform.native.Main
 import platform.posix.exit
+import kotlin.native.runtime.NativeRuntimeApi
 
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, NativeRuntimeApi::class)
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
         println("Usage: YoloInfer <config-file.toml>")
         return exit(1)
     }
+
+    kotlin.native.runtime.GC.maxHeapBytes = 2 * 1024 * 1024 * 1024
+    kotlin.native.runtime.GC.pauseOnTargetHeapOverflow = false
 
     ActorLogWriter.use { logWriter ->
         Logger.setLogWriters(logWriter)
