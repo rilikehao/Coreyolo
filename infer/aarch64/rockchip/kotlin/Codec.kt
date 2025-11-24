@@ -27,6 +27,7 @@ object Codec {
             id, name, input, "hevc_rkmpp", AV_PIX_FMT_RGB24, arrayOf(
                 "rc_mode" to "CQP",
                 "qp_init" to AppConfig.instance.processing.qH265.toString(1),
+                "b_strategy" to "0",
             ), maxBFrames = 2
         )
 }

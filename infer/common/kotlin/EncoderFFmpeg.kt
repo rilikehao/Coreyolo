@@ -34,6 +34,11 @@ open class EncoderFFmpeg(
     val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
     val codecCtx = avcodec_alloc_context3(codec)!!.apply {
         pointed.flags = pointed.flags or AV_CODEC_FLAG_GLOBAL_HEADER
+        if (maxBFrames == 0) {
+            pointed.flags = pointed.flags or AV_CODEC_FLAG_LOW_DELAY
+        } else {
+            pointed.flags = pointed.flags and AV_CODEC_FLAG_LOW_DELAY.inv()
+        }
         pointed.codec_type = AVMEDIA_TYPE_VIDEO
         pointed.pix_fmt = format
         pointed.time_base.num = 1
