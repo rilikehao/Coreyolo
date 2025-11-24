@@ -144,7 +144,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         val inputRtsp = InputRtsp(config.source)
                                         val (main, side) = ForkPacket(inputRtsp())()
                                         scope.launch {
-                                            Output(EncoderNoop(inputRtsp, name), side).use {
+                                            Output(EncoderNoop(inputRtsp), side).use {
                                                 it.addFmp4Blocking(config.id, name)
                                                 it.invoke()
                                             }
@@ -158,7 +158,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                                 Detections.dumpStrings(dumped, filePath)
                                             }
                                             val drawn = Draw(forked, true)()
-                                            val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
+                                            val encoder = Codec.EncoderVideoH264(config.id, name, drawn)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs[config.id] = it }
                                                 it.invoke()

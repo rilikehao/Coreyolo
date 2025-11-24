@@ -12,7 +12,7 @@ import platform.ffmpeg.*
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
-class EncoderNoop(val inputRtsp: InputRtsp, suggestedName: CompletableDeferred<String>?) : Encoder {
+class EncoderNoop(val inputRtsp: InputRtsp) : Encoder {
     val codec = avcodec_find_encoder_by_name("libx264").check("avcodec_find_encoder_by_name")
 
     override fun startTimeRealtime() = inputRtsp.formatCtx.start_time_realtime
@@ -23,8 +23,4 @@ class EncoderNoop(val inputRtsp: InputRtsp, suggestedName: CompletableDeferred<S
         }
 
     override fun invoke() = flow<CPointer<AVPacket>?> {}
-
-    init {
-        suggestedName?.complete(startTimeRealtime().toTimeString())
-    }
 }

@@ -149,11 +149,11 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                 contexts.forEach { context ->
                     if (context.stopped) return@forEach
                     if (context.stream == null) {
+                        context.stream = encoder.initStream(context.formatContext.pointed)
                         encoder.startTimeRealtime().let {
                             context.formatContext.pointed.start_time_realtime = it
                             context.initPb()
                         }
-                        context.stream = encoder.initStream(context.formatContext.pointed)
                         withOptions(*context.options) {
                             avformat_write_header(context.formatContext, it).check("avformat_write_header")
                         }
