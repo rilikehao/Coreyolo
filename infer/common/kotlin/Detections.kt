@@ -4,6 +4,7 @@ import cnames.structs.Infer
 import cnames.structs.InferTask
 import common.StringFormat.toString
 import common.Utils.check
+import common.Utils.roundToEpochMs
 import common.Utils.toTimeString
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +13,7 @@ import kotlinx.coroutines.channels.getOrElse
 import kotlinx.coroutines.flow.*
 import platform.native.*
 import platform.posix.*
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -101,7 +103,7 @@ object Detections {
         var loadTask: () -> CPointer<InferTask> = { throw Error("") }
         return images.map { commandImage ->
             println("image: ${commandImage.timestamp}")
-            val epochMs = commandImage.timestamp.toEpochMilliseconds()
+            val epochMs = commandImage.timestamp.roundToEpochMs()
             while (timestamp < epochMs) {
                 ch.receiveCatching().getOrElse {
                     Pair(Long.MAX_VALUE, { throw Error("") })

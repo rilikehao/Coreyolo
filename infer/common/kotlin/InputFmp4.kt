@@ -198,13 +198,13 @@ class InputFmp4(val id: String, val begin: Long, val end: Long, val fast: Boolea
             var hasStarted = false
             try {
                 upstream.collect { pkt ->
+                    val ptr = pkt!!.pointed
+                    val currentEpochMs = ptr.time_base.let { 1000 * ptr.pts * it.num / it.den }
                     if (hasStarted) {
+                        if (end <= currentEpochMs) throw FlowStopException()
                         emit(pkt)
                     } else {
-                        val ptr = pkt!!.pointed
-                        val currentEpochMs = ptr.time_base.let { 1000 * ptr.pts * it.num / it.den }
                         val isKeyFrame = (ptr.flags and AV_PKT_FLAG_KEY) != 0
-                        if (end <= currentEpochMs) throw FlowStopException()
                         if (begin <= currentEpochMs && isKeyFrame) hasStarted = true
                         if (hasStarted) emit(pkt)
                     }

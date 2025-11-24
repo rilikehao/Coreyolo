@@ -4,6 +4,7 @@ import FromRGBImage
 import co.touchlab.kermit.Logger
 import common.StringFormat.toString
 import common.Utils.check
+import common.Utils.roundToEpochMs
 import common.Utils.toTimeString
 import common.Utils.withOptions
 import kotlinx.cinterop.*
@@ -43,7 +44,7 @@ open class EncoderFFmpeg(
 
     lateinit var timestamp0: Instant
 
-    override fun startTimeRealtime() = timestamp0.toEpochMilliseconds()
+    override fun startTimeRealtime() = timestamp0.roundToEpochMs()
 
     override fun initStream(formatContext: AVFormatContext) =
         avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {

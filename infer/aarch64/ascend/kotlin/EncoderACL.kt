@@ -98,7 +98,7 @@
 //                    aclvencSetFrameConfigForceIFrame(config, keyFrame.toUByte())
 //                    suspend fun run(input: CPointer<acldvppPicDesc>, output: CPointer<acldvppStreamDesc>) {
 //                        aclvencDestroyFrameConfig(config)
-//                        val pts = timestamp.toEpochMilliseconds() * 90
+//                        val pts = timestamp.roundToEpochMs() * 90
 //                        val dev = acldvppGetPicDescData(input)
 //                        val streamSize = acldvppGetStreamDescSize(output)
 //                        val streamDev = acldvppGetStreamDescData(output)

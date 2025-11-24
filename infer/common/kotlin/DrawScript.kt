@@ -2,6 +2,7 @@ package common
 
 import cnames.structs.Image
 import cnames.structs.InferTask
+import common.Utils.roundToEpochMs
 import kotlinx.cinterop.*
 import platform.lua.*
 import platform.native.*
@@ -31,7 +32,7 @@ class DrawScript(path: String, val enableHttp: Boolean) : AutoCloseable {
             lua_settop(state, -2)
             return
         }
-        lua_pushnumber(state, pts.toEpochMilliseconds().toDouble() / 1000.0)  // Push pts as first parameter
+        lua_pushnumber(state, pts.roundToEpochMs().toDouble() / 1000.0)  // Push pts as first parameter
         lua_createtable(state, 0, 0)  // Create detections table as second parameter
         for (i in 0..<SizeDetections(task)) {
             lua_pushinteger(state, i.toLong() + 1)  // Key (index)

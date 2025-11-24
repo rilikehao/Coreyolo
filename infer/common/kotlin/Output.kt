@@ -147,6 +147,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
             withContext(main) {
                 val toWrite = av_packet_alloc()!!
                 contexts.forEach { context ->
+                    if (context.stopped) return@forEach
                     if (context.stream == null) {
                         encoder.startTimeRealtime().let {
                             context.formatContext.pointed.start_time_realtime = it
@@ -173,6 +174,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
         }
         withContext(main) {
             contexts.forEach { context ->
+                if (context.stopped) return@forEach
                 if (context.stream != null) {
                     av_write_frame(context.formatContext, null).check("av_write_frame")
                     av_write_trailer(context.formatContext)
