@@ -36,7 +36,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                             else -> {
                                 var context: Output.Context? = null
                                 context = output.addFmp4Stream { buf, size ->
-                                    if (context!!.stream != null) {
+                                    if (!context!!.stopped) {
                                         if (!SendData(socket, buf?.reinterpret(), size)) {
                                             context!!.stopped = true
                                             output.remove(context!!)
