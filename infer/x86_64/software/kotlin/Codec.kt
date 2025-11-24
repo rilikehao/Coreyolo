@@ -29,6 +29,6 @@ object Codec {
                 "preset" to "veryfast",
                 "qp" to AppConfig.instance.processing.qH265.toString(1),
                 "x265-params" to "repeat-headers=1",
-            )
+            ), maxBFrames = 2
         )
 }

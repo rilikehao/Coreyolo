@@ -25,5 +25,5 @@ object Codec {
         )
 
     class EncoderVideoH265(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
-        common.EncoderFFmpeg(id, name, input, "libx265", AV_PIX_FMT_NONE, arrayOf())
+        common.EncoderFFmpeg(id, name, input, "libx265", AV_PIX_FMT_NONE, arrayOf(), maxBFrames = 2)
 }
