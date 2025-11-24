@@ -10,6 +10,7 @@ extern "C" {
 #include <QThread>
 #include <QTimeZone>
 #include <QUrlQuery>
+#include <csignal>
 
 #include "image.h"
 
@@ -187,6 +188,7 @@ bool SendData(TcpSocket* socket, const char* data, int size) {
 }
 
 HttpServerThread* HttpServer(int port, Subscribe sub) {
+    signal(SIGPIPE, SIG_IGN);
     auto thread = new HttpServerThread;
     auto worker = new QObject;
     worker->moveToThread(&thread->data_);
