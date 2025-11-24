@@ -102,20 +102,17 @@ object Detections {
         var timestamp = 0L
         var loadTask: () -> CPointer<InferTask> = { throw Error("") }
         return images.map { commandImage ->
-            println("image: ${commandImage.timestamp}")
             val epochMs = commandImage.timestamp.roundToEpochMs()
             while (timestamp < epochMs) {
                 ch.receiveCatching().getOrElse {
                     Pair(Long.MAX_VALUE, { throw Error("") })
                 }.let { (t, l) -> timestamp = t; loadTask = l }
-                println("label: ${Instant.fromEpochMilliseconds(timestamp)}")
             }
             if (timestamp == epochMs) {
                 val task = loadTask()
                 SetImage(task, commandImage.data)
                 return@map Command.CommandLabel(commandImage.timestamp, task)
             }
-            println("raw")
             return@map commandImage
         }.onCompletion {
             ch.consumeEach {}
