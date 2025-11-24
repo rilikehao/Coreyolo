@@ -5,6 +5,7 @@ import ToRGBImage
 import common.Utils.check
 import kotlinx.cinterop.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.onCompletion
@@ -20,7 +21,6 @@ open class DecoderFFmpeg(
     val input: Input,
     val packets: Flow<CPointer<AVPacket>?>,
     val changeName: (String) -> String,
-    val emitNullWhenFinished: Boolean = true,
 ) : Decoder {
     var codecCtx: CPointer<AVCodecContext>? = null
 
@@ -31,7 +31,7 @@ open class DecoderFFmpeg(
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
         return packets.onCompletion {
-            if (emitNullWhenFinished) emit(null)
+            emit(null)
         }.transform { packet ->
             try {
                 if (codecCtx == null && packet != null) {
@@ -59,9 +59,11 @@ open class DecoderFFmpeg(
                 if (packet != null) av_packet_unref(packet)
             }
         }.onCompletion {
-            if (codecCtx != null) avcodec_free_context(cValuesOf(codecCtx))
             av_frame_free(cValuesOf(frame))
             toRGBImage.close()
+            delay(1000)
+            if (codecCtx != null) avcodec_free_context(cValuesOf(codecCtx))
+            delay(1000)
             device.close()
         }
     }

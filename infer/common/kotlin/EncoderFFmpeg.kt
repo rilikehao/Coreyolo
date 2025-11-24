@@ -9,6 +9,7 @@ import common.Utils.toTimeString
 import common.Utils.withOptions
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
@@ -29,7 +30,6 @@ open class EncoderFFmpeg(
     name: String,
     format: Int,
     val options: Array<Pair<String, String>>,
-    val emitNullWhenFinished: Boolean = true,
 ) : Encoder {
     val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
     val codecCtx = avcodec_alloc_context3(codec)!!.apply {
@@ -77,7 +77,7 @@ open class EncoderFFmpeg(
             DestroyImage(commandImage.data)
             frame as CPointer<AVFrame>?
         }.onCompletion {
-            if (emitNullWhenFinished) emit(null)
+            emit(null)
         }.transform { frame ->
             if (codecCtx.pointed.width == 0 && frame != null) {
                 codecCtx.pointed.width = frame.pointed.width
@@ -92,8 +92,9 @@ open class EncoderFFmpeg(
         }.onCompletion {
             av_packet_free(cValuesOf(packet))
             av_frame_free(cValuesOf(frame))
-            avcodec_free_context(cValuesOf(codecCtx))
             fromRGBImage.close()
+            delay(1000)
+            avcodec_free_context(cValuesOf(codecCtx))
         }
     }
 }
