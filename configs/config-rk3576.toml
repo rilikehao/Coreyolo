@@ -2,7 +2,7 @@
 type = "VIDEO_RECODE"
 
 [paths]
-model = "assets/best.rk3576"
+model = "assets/bestM.rk3576"
 description = "assets/coco.txt"
 drawScript = "lua/example.lua"
 
@@ -16,10 +16,6 @@ source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
 
 [[streams]]
 id = "default-02"
-source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
-
-[[streams]]
-id = "default-03"
 source = "rtsp://192.168.1.102:8554/2025/2025.mp4"
 
 [processing]

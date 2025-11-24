@@ -42,8 +42,8 @@ object AppConfig {
     data class ProcessingConfig(
         val npuThreads: Int,
         val cpuThreads: Int,
-        val qH264: Double = 23.0,
-        val qH265: Double = 30.0,
+        val qH264: Double = 24.0,
+        val qH265: Double = 31.0,
         val fpsYolo: Double = 90000.0,
         val fpsDecode: Double = 90000.0,
         val mute: Boolean = false,

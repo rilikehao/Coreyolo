@@ -84,7 +84,7 @@ def get_images_from_txt(label_file):
             image_names.append(line.split(' ')[0].strip())
     return image_names
 
-def prepare_image_input(images, height=384, width=640):
+def prepare_image_input(images, height=320, width=576):
     input_array = np.zeros((len(images), 3, height, width), np.float32)
 
     imgs = np.zeros((len(images), 3, height, width), np.float32)

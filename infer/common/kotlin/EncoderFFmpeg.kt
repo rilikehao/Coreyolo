@@ -39,7 +39,7 @@ open class EncoderFFmpeg(
         pointed.time_base.num = 1
         pointed.time_base.den = 90000
         pointed.max_b_frames = 0
-        pointed.gop_size = 8
+        pointed.gop_size = 12
     }
 
     lateinit var timestamp0: Instant
