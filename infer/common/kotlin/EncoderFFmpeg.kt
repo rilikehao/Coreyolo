@@ -39,7 +39,6 @@ open class EncoderFFmpeg(
         pointed.time_base.num = 1
         pointed.time_base.den = 90000
         pointed.max_b_frames = maxBFrames
-        pointed.has_b_frames = 1
         pointed.gop_size = 25
     }
 
