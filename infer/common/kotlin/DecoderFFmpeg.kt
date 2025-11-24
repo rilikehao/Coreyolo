@@ -20,6 +20,7 @@ open class DecoderFFmpeg(
     val input: Input,
     val packets: Flow<CPointer<AVPacket>?>,
     val changeName: (String) -> String,
+    val emitNullWhenFinished: Boolean = true,
 ) : Decoder {
     var codecCtx: CPointer<AVCodecContext>? = null
 
@@ -30,7 +31,7 @@ open class DecoderFFmpeg(
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
         return packets.onCompletion {
-            emit(null)
+            if (emitNullWhenFinished) emit(null)
         }.transform { packet ->
             try {
                 if (codecCtx == null && packet != null) {

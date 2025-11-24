@@ -19,7 +19,7 @@ import kotlin.time.ExperimentalTime
 class InputFmp4(val id: String, val begin: Long, val end: Long, val fast: Boolean) : Input,
     suspend () -> Flow<CPointer<AVPacket>?> {
 
-    val speed = if (fast) 3.0 else 1.0
+    val speed = if (fast) 4.0 else 1.0
 
     lateinit var stream: AVStream
     lateinit var formatContext: AVFormatContext
@@ -70,14 +70,6 @@ class InputFmp4(val id: String, val begin: Long, val end: Long, val fast: Boolea
 
     inner class FrameReader(private val filename: String) {
         operator fun invoke() = flow {
-            // === 丢帧算法变量 (积分累加器模型) ===
-            var credits = 0.0
-            val earnPerFrame = 1.0 / speed
-            val costPerFrame = 1.0
-            // 债务下限：最多允许欠 1 帧的债。防止因连续参考帧导致积分过低，
-            // 导致后续非参考帧长时间无法发送 (不均匀问题)
-            val maxDebt = -1.0
-
             val filePath = "$id/$filename"
             val fileStartTime = EpochMsFromTimeString(filename.removeSuffix(".mp4"))
             val pkt = av_packet_alloc() ?: return@flow
@@ -94,39 +86,13 @@ class InputFmp4(val id: String, val begin: Long, val end: Long, val fast: Boolea
                 stream = formatCtx.pointed.streams!![vidIdx]!!.pointed
                 val tb = stream.time_base
 
-                var pts0 : Long? = null
+                var pts0: Long? = null
                 while (av_read_frame(formatCtx, pkt) >= 0) {
                     if (pkt.pointed.stream_index == vidIdx) {
                         // 1. 必须先锁定时间锚点 (防止时间吞噬)
                         if (pts0 == null) pts0 = pkt.pointed.pts
 
-                        var shouldEmit = false
-
-                        // 2. 积分计算
-                        credits += earnPerFrame // 每输入一帧，赚取配额
-
-                        if (!fast) {
-                            shouldEmit = true
-                        } else {
-                            // 3. HEVC 参考帧判断 (强制保留)
-                            if (isReference(pkt)) {
-                                shouldEmit = true
-                                credits -= costPerFrame
-                                // 债务宽恕：如果欠债太多，强行拉回 maxDebt，既往不咎
-                                if (credits < maxDebt) credits = maxDebt
-                            } else {
-                                // 4. 非参考帧 (仅在积分充足时发送)
-                                if (credits >= 0.0) {
-                                    shouldEmit = true
-                                    credits -= costPerFrame
-                                } else {
-                                    shouldEmit = false
-                                    // 丢弃时不扣积分，保留配额给下一帧
-                                }
-                            }
-                        }
-
-                        if (shouldEmit) {
+                        if (!fast || (pkt.pointed.flags.and(AV_PKT_FLAG_KEY) != 0)) {
                             val offsetTicks = fileStartTime * tb.den / tb.num / 1000
                             pkt.pointed.pts += offsetTicks - pts0
                             pkt.pointed.dts += offsetTicks - pts0
@@ -141,55 +107,6 @@ class InputFmp4(val id: String, val begin: Long, val end: Long, val fast: Boolea
                 av_packet_free(cValuesOf(pkt))
                 avformat_close_input(cValuesOf(formatCtx))
             }
-        }
-
-        /**
-         * 兼容 H.264 和 H.265 的参考帧检测
-         */
-        fun isReference(pkt: CPointer<AVPacket>): Boolean {
-            val ptr = pkt.pointed
-            val data = ptr.data ?: return false
-            val size = ptr.size
-
-            // 获取 Codec ID 以区分逻辑
-            val codecId = stream.codecpar!!.pointed.codec_id
-            val isHevc = (codecId == AV_CODEC_ID_HEVC)
-
-            var offset = 0
-            while (offset + 4 < size) {
-                // 读取 NALU 长度 (Big Endian)
-                val len = ((data[offset].toInt() and 0xFF) shl 24) or
-                        ((data[offset + 1].toInt() and 0xFF) shl 16) or
-                        ((data[offset + 2].toInt() and 0xFF) shl 8) or
-                        (data[offset + 3].toInt() and 0xFF)
-                offset += 4
-                if (offset >= size) break
-
-                val headerByte = data[offset].toInt() and 0xFF
-
-                if (isHevc) {
-                    // === H.265 (HEVC) 逻辑 ===
-                    // Header: F(1) Type(6) LayerId(6) TID(3)
-                    val nalType = (headerByte shr 1) and 0x3F
-
-                    // 32-34: VPS/SPS/PPS, 16-23: IRAP -> 必须保留
-                    if (nalType in 32..34 || nalType in 16..23) return true
-                    // 0-15: VCL, 奇数为参考(_R)
-                    if (nalType < 16 && (nalType % 2 != 0)) return true
-
-                } else {
-                    // === H.264 (AVC) 逻辑 ===
-                    // Header: F(1) NRI(2) Type(5)
-                    val nri = (headerByte shr 5) and 0x03
-
-                    // 只要 NRI != 0，就是参考帧 (包括 I/P/Ref-B/SPS/PPS)
-                    // 这是 H.264 标准中最快速的判断方式
-                    if (nri != 0) return true
-                }
-
-                offset += len
-            }
-            return false // 未发现任何参考 Slice
         }
     }
 

@@ -29,22 +29,17 @@ open class EncoderFFmpeg(
     name: String,
     format: Int,
     val options: Array<Pair<String, String>>,
-    maxBFrames: Int,
+    val emitNullWhenFinished: Boolean = true,
 ) : Encoder {
     val codec = avcodec_find_encoder_by_name(name).check("avcodec_find_encoder_by_name")
     val codecCtx = avcodec_alloc_context3(codec)!!.apply {
         pointed.flags = pointed.flags or AV_CODEC_FLAG_GLOBAL_HEADER
-        if (maxBFrames == 0) {
-            pointed.flags = pointed.flags or AV_CODEC_FLAG_LOW_DELAY
-        } else {
-            pointed.flags = pointed.flags and AV_CODEC_FLAG_LOW_DELAY.inv()
-        }
         pointed.codec_type = AVMEDIA_TYPE_VIDEO
         pointed.pix_fmt = format
         pointed.time_base.num = 1
         pointed.time_base.den = 90000
-        pointed.max_b_frames = maxBFrames
-        pointed.gop_size = 25
+        pointed.max_b_frames = 0
+        pointed.gop_size = 8
     }
 
     lateinit var timestamp0: Instant
@@ -81,7 +76,9 @@ open class EncoderFFmpeg(
             fromRGBImage(frame.pointed, commandImage.data)
             DestroyImage(commandImage.data)
             frame as CPointer<AVFrame>?
-        }.onCompletion { emit(null) }.transform { frame ->
+        }.onCompletion {
+            if (emitNullWhenFinished) emit(null)
+        }.transform { frame ->
             if (codecCtx.pointed.width == 0 && frame != null) {
                 codecCtx.pointed.width = frame.pointed.width
                 codecCtx.pointed.height = frame.pointed.height

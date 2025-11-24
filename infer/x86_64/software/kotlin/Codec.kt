@@ -20,7 +20,7 @@ object Codec {
                 "fflags" to "nobuffer",
                 "preset" to "veryfast",
                 "qp" to AppConfig.instance.processing.qH264.toString(1),
-            ), maxBFrames = 0
+            )
         )
 
     class EncoderVideoH265(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
@@ -29,6 +29,6 @@ object Codec {
                 "preset" to "veryfast",
                 "qp" to AppConfig.instance.processing.qH265.toString(1),
                 "x265-params" to "repeat-headers=1",
-            ), maxBFrames = 2
+            )
         )
 }

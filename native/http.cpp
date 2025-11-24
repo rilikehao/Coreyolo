@@ -23,10 +23,13 @@ struct HttpServerThread {
 
 namespace {
 
+#include <QDateTime>
+#include <QTimeZone>
+#include <climits>
+
 int64_t EpochMs(const QString& s) {
-    if (s.isEmpty()) return LONG_LONG_MAX;
     auto t = QDateTime::fromString(s, Qt::ISODateWithMs);
-    t.setTimeZone(QTimeZone(+8 * 3600));
+    if (!t.isValid()) return LONG_LONG_MAX;
     return t.toMSecsSinceEpoch();
 }
 
@@ -211,7 +214,6 @@ void StopHttpServer(HttpServerThread* thread) {
 
 struct TimeString EpochMsToTimeString(int64_t input) {
     auto t = QDateTime::fromMSecsSinceEpoch(input);
-    t.setTimeZone(QTimeZone(+8 * 3600));
     TimeString output;
     auto data = t.toString(Qt::ISODateWithMs).toUtf8().constData();
     strncpy(output.data_, data, sizeof(output));

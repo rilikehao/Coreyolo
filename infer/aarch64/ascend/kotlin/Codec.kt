@@ -21,9 +21,9 @@ object Codec {
                 "fflags" to "nobuffer",
                 "preset" to "superfast",
                 "qp" to AppConfig.instance.processing.qH264.toString(1),
-            ), maxBFrames = 0
+            )
         )
 
     class EncoderVideoH265(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
-        common.EncoderFFmpeg(id, name, input, "libx265", AV_PIX_FMT_NONE, arrayOf(), maxBFrames = 2)
+        common.EncoderFFmpeg(id, name, input, "libx265", AV_PIX_FMT_NONE, arrayOf())
 }

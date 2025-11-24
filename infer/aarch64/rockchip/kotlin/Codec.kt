@@ -12,14 +12,14 @@ import platform.ffmpeg.AV_PIX_FMT_RGB24
 @OptIn(ExperimentalForeignApi::class)
 object Codec {
     class DecoderVideo(id: Int, input: Input, packets: Flow<CPointer<AVPacket>?>) :
-        common.DecoderFFmpeg(input, packets, { "${it}_rkmpp" })
+        common.DecoderFFmpeg(input, packets, { "${it}_rkmpp" }, emitNullWhenFinished = false)
 
     class EncoderVideoH264(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
         common.EncoderFFmpeg(
             id, name, input, "h264_rkmpp", AV_PIX_FMT_RGB24, arrayOf(
                 "rc_mode" to "CQP",
                 "qp_init" to AppConfig.instance.processing.qH264.toString(1),
-            ), maxBFrames = 0
+            ), emitNullWhenFinished = false,
         )
 
     class EncoderVideoH265(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
@@ -28,6 +28,6 @@ object Codec {
                 "rc_mode" to "CQP",
                 "qp_init" to AppConfig.instance.processing.qH265.toString(1),
                 "b_strategy" to "0",
-            ), maxBFrames = 2
+            ), emitNullWhenFinished = false,
         )
 }
