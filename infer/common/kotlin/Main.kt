@@ -17,7 +17,7 @@ fun main(args: Array<String>) {
         return exit(1)
     }
 
-    kotlin.native.runtime.GC.maxHeapBytes = 2 * 1024 * 1024 * 1024
+    kotlin.native.runtime.GC.maxHeapBytes = 2L * 1024L * 1024L * 1024L
     kotlin.native.runtime.GC.pauseOnTargetHeapOverflow = false
 
     ActorLogWriter.use { logWriter ->
