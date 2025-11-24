@@ -16,7 +16,7 @@ import kotlin.time.ExperimentalTime
 class ForkPacket(val input: Flow<CPointer<AVPacket>?>) :
         () -> Pair<Flow<CPointer<AVPacket>?>, Flow<CPointer<AVPacket>?>> {
     override fun invoke(): Pair<Flow<CPointer<AVPacket>?>, Flow<CPointer<AVPacket>?>> {
-        val dump = Channel<CPointer<AVPacket>?>(1)
+        val dump = Channel<CPointer<AVPacket>?>(16)
         val main = input.onEach { packet ->
             av_packet_alloc()!!.let {
                 av_packet_ref(it, packet)

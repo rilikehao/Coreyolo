@@ -14,6 +14,7 @@ import platform.native.StopHttpServer
 import platform.posix.S_IRWXU
 import platform.posix.mkdir
 import kotlin.time.ExperimentalTime
+import EncoderVideoH264Fast
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object SourceVideo : AutoCloseable, suspend () -> Unit {
@@ -55,7 +56,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                             .let { SpeedLimiter(it, inputFmp4.speed)() }
                             .buffer(Channel.UNLIMITED)
                         val drawn = Draw(inferred, false)()
-                        val encoder = Codec.EncoderVideoH264("$id-vod", null, drawn)
+                        val encoder = EncoderVideoH264Fast("$id-vod", null, drawn)
                         Output(encoder, encoder()).use {
                             var context: Output.Context? = null
                             context = it.addFmp4StreamBlocking { buf, size ->

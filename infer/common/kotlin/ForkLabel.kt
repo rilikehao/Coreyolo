@@ -11,7 +11,7 @@ import kotlin.time.ExperimentalTime
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 class ForkLabel(val input: Flow<Command>) : () -> Pair<Flow<Command>, Flow<String>> {
     override fun invoke(): Pair<Flow<Command>, Flow<String>> {
-        val dump = Channel<String>(1)
+        val dump = Channel<String>(16)
         val main = input.onEach {
             if (it is Command.CommandLabel) dump.send(Detections.dump(it.timestamp, it.data))
         }.onCompletion { dump.close() }

@@ -34,44 +34,50 @@ open class DecoderACL(
     }
 
     override suspend fun invoke(): Flow<Command.CommandImage> {
-        val codecpar = input.getStream().codecpar!!
-        val width = codecpar.pointed.width
-        val height = codecpar.pointed.height
-        val decodeType = when (avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()) {
-            "h264" -> H264_HIGH_LEVEL
-            "hevc" -> H265_MAIN_LEVEL
-            else -> throw Error("不支持的格式")
-        }
+        var width = 0
+        var height = 0
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
-        val swsCtx = sws_getContext(
-            width, height, AV_PIX_FMT_NV12,
-            width, height, AV_PIX_FMT_RGB24,
-            SWS_BILINEAR.toInt(), null, null, null,
-        )
+        var swsCtx: CPointer<SwsContext>? = null
         val acl = SessionACL(0)
         var channel: CPointer<aclvdecChannelDesc>? = null
-        withContext(acl.main) {
-            acl.setContext()
-            channel = aclvdecCreateChannelDesc()
-            aclvdecSetChannelDescChannelId(channel, id.toUInt())
-            aclvdecSetChannelDescThreadId(channel, acl.threadId.await())
-            aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, rawData ->
-                rawData!!.asStableRef<(
-                    CPointer<acldvppStreamDesc>, CPointer<acldvppPicDesc>,
-                ) -> Unit>().let { ref ->
-                    ref.get().also { ref.dispose() }(input!!, output!!)
-                }
-            })
-            aclvdecSetChannelDescEnType(channel, decodeType)
-            aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
-            aclvdecCreateChannel(channel)
-            acl.channelReady.complete(Unit)
-        }
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
         return callbackFlow {
             packets.collect { packet ->
+                if (swsCtx == null) {
+                    val codecpar = input.getStream().codecpar!!
+                    width = codecpar.pointed.width
+                    height = codecpar.pointed.height
+                    val decodeType =
+                        when (avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()) {
+                            "h264" -> H264_HIGH_LEVEL
+                            "hevc" -> H265_MAIN_LEVEL
+                            else -> throw Error("不支持的格式")
+                        }
+                    swsCtx = sws_getContext(
+                        width, height, AV_PIX_FMT_NV12,
+                        width, height, AV_PIX_FMT_RGB24,
+                        SWS_BILINEAR.toInt(), null, null, null,
+                    )
+                    withContext(acl.main) {
+                        acl.setContext()
+                        channel = aclvdecCreateChannelDesc()
+                        aclvdecSetChannelDescChannelId(channel, id.toUInt())
+                        aclvdecSetChannelDescThreadId(channel, acl.threadId.await())
+                        aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, rawData ->
+                            rawData!!.asStableRef<(
+                                CPointer<acldvppStreamDesc>, CPointer<acldvppPicDesc>,
+                            ) -> Unit>().let { ref ->
+                                ref.get().also { ref.dispose() }(input!!, output!!)
+                            }
+                        })
+                        aclvdecSetChannelDescEnType(channel, decodeType)
+                        aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
+                        aclvdecCreateChannel(channel)
+                        acl.channelReady.complete(Unit)
+                    }
+                }
                 val base = input.getStream().time_base
                 val pts = packet!!.pointed.pts.toDouble() * base.num / base.den
                 val start = Instant.fromEpochMilliseconds(input.getFormatCtx().start_time_realtime / 1000L)
