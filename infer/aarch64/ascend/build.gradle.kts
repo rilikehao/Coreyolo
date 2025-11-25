@@ -31,7 +31,7 @@ kotlin {
                         defFile(project.file("def/$cpuName/$cinteropName.def"))
                     }
                 }
-                listOf("ffmpeg", "native", "acl").forEach { cinteropName ->
+                listOf("ffmpeg", "native").forEach { cinteropName ->
                     create(cinteropName) {
                         defFile(project.file("def/$cinteropName.def"))
                     }

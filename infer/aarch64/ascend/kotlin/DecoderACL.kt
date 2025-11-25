@@ -1,31 +1,25 @@
-import cnames.structs.acldvppPicDesc
-import cnames.structs.acldvppStreamDesc
-import cnames.structs.aclvdecChannelDesc
+import cnames.structs.DecoderProcess
 import common.Command
 import common.Decoder
 import common.Input
-import common.Utils.cPointer
-import common.Utils.checkEq0
 import kotlinx.cinterop.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import platform.acl.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.transform
 import platform.ffmpeg.*
-import platform.native.Bits
-import platform.native.BytesPerLine
-import platform.native.CreateImageRGB24
+import platform.native.*
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class, ExperimentalCoroutinesApi::class)
 open class DecoderACL(
-    val id: Int,
+    val device: Int,
     val input: Input,
     val packets: Flow<CPointer<AVPacket>?>,
 ) : Decoder {
@@ -38,126 +32,73 @@ open class DecoderACL(
         var height = 0
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
+        val decoderProcess = CompletableDeferred<CPointer<DecoderProcess>>()
         var swsCtx: CPointer<SwsContext>? = null
-        val acl = SessionACL(0)
-        var channel: CPointer<aclvdecChannelDesc>? = null
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
-        return callbackFlow {
-            packets.collect { packet ->
-                if (swsCtx == null) {
-                    val codecpar = input.getStream().codecpar!!
-                    width = codecpar.pointed.width
-                    height = codecpar.pointed.height
-                    val decodeType =
-                        when (avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()) {
-                            "h264" -> H264_HIGH_LEVEL
-                            "hevc" -> H265_MAIN_LEVEL
-                            else -> throw Error("不支持的格式")
-                        }
-                    swsCtx = sws_getContext(
-                        width, height, AV_PIX_FMT_NV12,
-                        width, height, AV_PIX_FMT_RGB24,
-                        SWS_BILINEAR.toInt(), null, null, null,
-                    )
-                    withContext(acl.main) {
-                        acl.setContext()
-                        channel = aclvdecCreateChannelDesc()
-                        aclvdecSetChannelDescChannelId(channel, id.toUInt())
-                        aclvdecSetChannelDescThreadId(channel, acl.threadId.await())
-                        aclvdecSetChannelDescCallback(channel, staticCFunction { input, output, rawData ->
-                            rawData!!.asStableRef<(
-                                CPointer<acldvppStreamDesc>, CPointer<acldvppPicDesc>,
-                            ) -> Unit>().let { ref ->
-                                ref.get().also { ref.dispose() }(input!!, output!!)
-                            }
-                        })
-                        aclvdecSetChannelDescEnType(channel, decodeType)
-                        aclvdecSetChannelDescOutPicFormat(channel, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
-                        aclvdecCreateChannel(channel)
-                        acl.channelReady.complete(Unit)
-                    }
-                }
-                val base = input.getStream().time_base
-                val pts = packet!!.pointed.pts.toDouble() * base.num / base.den
+        return packets.onCompletion { emit(null) }.transform { packet ->
+            if (swsCtx == null) {
+                val codecpar = input.getStream().codecpar!!
+                width = codecpar.pointed.width
+                height = codecpar.pointed.height
+                val decodeType =
+                    avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()
+                decoderProcess.complete(StartDecoder(device, decodeType, width, height)!!)
+                swsCtx = sws_getContext(
+                    width, height, AV_PIX_FMT_NV12,
+                    width, height, AV_PIX_FMT_RGB24,
+                    SWS_BILINEAR.toInt(), null, null, null,
+                )
+            }
+            if (packet != null) {
+                val tb = input.getStream().time_base
                 val start = Instant.fromEpochMilliseconds(input.getFormatCtx().start_time_realtime / 1000L)
-                val timestamp = start + pts.seconds
+                val timestamp = start + (1000 * packet.pointed.pts * tb.num / tb.den).milliseconds
                 if (inputFrames == 0L) timestamp0 = timestamp
                 val keep = inputFrames <= Decoder.maxFrames(timestamp - timestamp0)
                 if (keep) ++inputFrames
-                suspend fun run(input: CPointer<acldvppStreamDesc>, output: CPointer<acldvppPicDesc>) {
-                    val dev = acldvppGetStreamDescData(input)!!
-                    val frameDev = acldvppGetPicDescData(output)!!
-                    val frameSize = acldvppGetPicDescSize(output)
-                    if (keep) {
-                        val image = memScoped {
-                            val swFrameDev = allocArray<UByteVar>(frameSize.toInt())
-                            aclrtMemcpy(
-                                swFrameDev, frameSize.toULong(),
-                                frameDev, frameSize.toULong(),
-                                acl.downloadMode(),
-                            ).checkEq0("aclrtMemcpy")
-                            CreateImageRGB24(width, height)!!.also { image ->
-                                sws_scale(
-                                    swsCtx,
-                                    cValuesOf(
-                                        swFrameDev,
-                                        swFrameDev + height * width
-                                    ),
-                                    cValuesOf(width, width),
-                                    0, height,
-                                    cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
-                                )
-                            }
-                        }
-                        send(Command.CommandImage(timestamp, image))
-                    }
-                    acldvppFree(frameDev).checkEq0("acldvppFree")
-                    acldvppFree(dev).checkEq0("acldvppFree")
-                    acldvppDestroyPicDesc(output).checkEq0("acldvppDestroyPicDesc")
-                    acldvppDestroyStreamDesc(input).checkEq0("acldvppDestroyStreamDesc")
-                }
-
-                val runACL = { input: CPointer<acldvppStreamDesc>, output: CPointer<acldvppPicDesc> ->
-                    runBlocking { withContext(acl.main) { acl.setContext(); run(input, output) } }
-                }
-                val data = StableRef.create(runACL).asCPointer()
-                withContext(acl.main) {
-                    acl.setContext()
-                    val size = packet.pointed.size.toULong()
-                    val dev = cPointer<CPointed> { acldvppMalloc(it.reinterpret(), size).checkEq0("acldvppMalloc") }
-                    aclrtMemcpy(dev, size, packet.pointed.data, size, acl.uploadMode()).checkEq0("aclrtMemcpy")
-                    val streamDesc = acldvppCreateStreamDesc()
-                    acldvppSetStreamDescData(streamDesc, dev)
-                    acldvppSetStreamDescSize(streamDesc, size.toUInt())
-                    val picSize = (wStride(width) * hStride(height) * 3 / 2).toULong()  // NV12
-                    val picDev = cPointer<CPointed> {
-                        acldvppMalloc(it.reinterpret(), picSize).checkEq0("acldvppMalloc")
-                    }
-                    val picDesc = acldvppCreatePicDesc()
-                    acldvppSetPicDescData(picDesc, picDev)
-                    acldvppSetPicDescFormat(picDesc, PIXEL_FORMAT_YUV_SEMIPLANAR_420)
-                    acldvppSetPicDescWidth(picDesc, width.toUInt())
-                    acldvppSetPicDescHeight(picDesc, height.toUInt())
-                    acldvppSetPicDescWidthStride(picDesc, wStride(width).toUInt())
-                    acldvppSetPicDescHeightStride(picDesc, hStride(height).toUInt())
-                    acldvppSetPicDescSize(picDesc, picSize.toUInt())
-                    aclvdecSendFrame(channel, streamDesc, picDesc, null, data)
-                }
+                DecoderW(decoderProcess.await(), cValue {
+                    timestamp_ = timestamp.toEpochMilliseconds()
+                    data_ = packet.pointed.data!!.reinterpret()
+                    size_ = packet.pointed.size.toLong()
+                })
                 av_packet_unref(packet)
+            } else {
+                DecoderW(decoderProcess.await(), cValue {
+                    timestamp_ = 0
+                    data_ = null
+                    size_ = 0
+                })
             }
-            withContext(acl.main) {
-                acl.setContext()
-                val streamDesc = acldvppCreateStreamDesc()
-                acldvppSetStreamDescEos(streamDesc, 1U)
-                aclvdecSendFrame(channel, streamDesc, null, null, null)
-                aclvdecDestroyChannel(channel)
-                aclvdecDestroyChannelDesc(channel)
+            memScoped {
+                val io = alloc<DecoderIO>()
+                while (DecoderR(decoderProcess.await(), io.ptr)) {
+                    if (io.timestamp_ == 0L) break
+                    val timestamp = Instant.fromEpochMilliseconds(io.timestamp_)
+                    try {
+                        CreateImageRGB24(width, height)!!.also { image ->
+                            sws_scale(
+                                swsCtx,
+                                cValuesOf(
+                                    io.data_!!.reinterpret(),
+                                    io.data_!!.reinterpret<UByteVar>() + height * width
+                                ),
+                                cValuesOf(width, width),
+                                0, height,
+                                cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
+                            )
+                        }.let { emit(Command.CommandImage(timestamp, it)) }
+                    } finally {
+                        DestroyDecoderIO(io.ptr)
+                        io.timestamp_ = 0L
+                    }
+                }
             }
-            acl.close()
-            sws_freeContext(swsCtx)
-            close()
-            awaitClose()
+        }.onCompletion {
+            if (swsCtx != null) {
+                sws_freeContext(swsCtx)
+                StopDecoder(decoderProcess.await())
+            }
         }.transform { frame ->
             reorder.add(frame)
             while (REORDER_SIZE < reorder.size) emit(pop())

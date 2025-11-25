@@ -1,7 +1,11 @@
+#define ENABLE_DVPP_INTERFACE
+
 #include <acl/acl.h>
 #include <acl/ops/acl_dvpp.h>
 
+#include <QCoreApplication>
 #include <QDataStream>
+#include <QDebug>
 #include <QFile>
 #include <QThread>
 #include <stdexcept>
@@ -12,32 +16,55 @@ int width, height, wstride, hstride;
 QFile outFile;
 std::unique_ptr<QDataStream> out;
 
-void process(QObject& callbackWorker) {
+void process(QObject* callbackWorker) {
+    qDebug() << "callback";
     if (ACL_SUCCESS != aclrtProcessReport(-1)) {
         throw std::runtime_error("aclrtProcessReport");
     }
     QMetaObject::invokeMethod(
-        &callbackWorker, process, Qt::QueuedConnection);
+        callbackWorker, [=] { process(callbackWorker); },
+        Qt::QueuedConnection);
 }
 
 void callback(acldvppStreamDesc* input, acldvppPicDesc* output,
               void* data) {
-    auto streamDev = acldvppGetStreamDescData(input);
-    if (ACL_SUCCESS != acldvppFree(streamDev)) {
-        throw std::runtime_error("acldvppFree");
+    qDebug() << "run callback";
+    if (!data) {
+        (*out) << qint64(0);
+        out->writeBytes(nullptr, 0);
+    } else {
+        auto streamDev = acldvppGetStreamDescData(input);
+        if (ACL_SUCCESS != acldvppFree(streamDev)) {
+            throw std::runtime_error("acldvppFree");
+        }
+        if (ACL_SUCCESS != acldvppDestroyStreamDesc(input)) {
+            throw std::runtime_error("acldvppFree");
+        }
+        auto picDev = acldvppGetPicDescData(output);
+        auto picSize = acldvppGetPicDescSize(output);
+        QByteArray pic(picSize, Qt::Initialization::Uninitialized);
+        if (ACL_SUCCESS !=  //
+            aclrtMemcpy(
+                pic.data(), picSize, picDev, picSize, download)) {
+            throw std::runtime_error("aclrtMemcpy");
+        }
+        if (ACL_SUCCESS != acldvppFree(picDev)) {
+            throw std::runtime_error("acldvppFree");
+        }
+        if (ACL_SUCCESS != acldvppDestroyPicDesc(output)) {
+            throw std::runtime_error("acldvppFree");
+        }
+        auto timestamp = static_cast<qint64*>(data);
+        qDebug() << "pre-put" << (*timestamp);
+        (*out) << (*timestamp);
+        out->writeBytes(pic.constData(), pic.size());
+        qDebug() << "put" << (*timestamp);
+        delete timestamp;
     }
-    auto picDev = acldvppGetPicDescData(output);
-    auto picSize = acldvppGetPicDescSize(output);
-    QByteArray pic(picSize, Qt::Initialization::Uninitialized);
-    if (ACL_SUCCESS !=
-        aclrtMemcpy(pic.data(), picSize, picDev, picSize, download)) {
-        throw std::runtime_error("aclrtMemcpy");
-    }
-    auto timestamp = *static_cast<qint64*>(data);
-    (*out) << timestamp << pic;
 }
 
 int main(int argc, char** argv) {
+    QCoreApplication app(argc, argv);
     int device = strtol(argv[1], nullptr, 10);
     acldvppStreamFormat decodeType;
     if (strcmp(argv[2], "h264") == 0) decodeType = H264_HIGH_LEVEL;
@@ -113,23 +140,35 @@ int main(int argc, char** argv) {
         throw std::runtime_error("aclvdecCreateChannel");
     }
     QMetaObject::invokeMethod(
-        &callbackWorker, process, Qt::QueuedConnection);
+        &callbackWorker, [&] { process(&callbackWorker); },
+        Qt::QueuedConnection);
     QFile inFile;
-    inFile.open(stdin, QIODevice::ReadOnly);
+    if (!inFile.open(stdin, QIODevice::ReadOnly)) {
+        throw std::runtime_error("inFile.open");
+    }
     QDataStream in(&inFile);
-    outFile.open(stdout, QIODevice::WriteOnly);
+    if (!outFile.open(stdout, QIODevice::WriteOnly)) {
+        throw std::runtime_error("outFile.open");
+    }
     out = std::make_unique<QDataStream>(&outFile);
     while (true) {
         auto timestamp = new qint64;
-        QByteArray stream;
-        in >> *timestamp >> stream;
+        char* stream;
+        qint64 streamSize;
+        qDebug() << "pre-start";
+        qDebug() << "post-start";
+        in >> *timestamp;
+        if (*timestamp == 0) break;
+        qDebug() << *timestamp;
+        in.readBytes(stream, streamSize);
+        qDebug() << "get" << *timestamp;
         void *streamDev, *picDev;
-        if (ACL_SUCCESS != acldvppMalloc(&streamDev, stream.size())) {
+        if (ACL_SUCCESS != acldvppMalloc(&streamDev, streamSize)) {
             throw std::runtime_error("acldvppMalloc");
         }
-        if (ACL_SUCCESS !=                         //
-            aclrtMemcpy(streamDev, stream.size(),  //
-                        stream.data(), stream.size(), upload)) {
+        if (ACL_SUCCESS !=                      //
+            aclrtMemcpy(streamDev, streamSize,  //
+                        stream, streamSize, upload)) {
             throw std::runtime_error("aclrtMemcpy");
         }
         auto streamDesc = acldvppCreateStreamDesc();
@@ -141,7 +180,7 @@ int main(int argc, char** argv) {
             throw std::runtime_error("acldvppSetStreamDescData");
         }
         if (ACL_SUCCESS !=
-            acldvppSetStreamDescSize(streamDesc, stream.size())) {
+            acldvppSetStreamDescSize(streamDesc, streamSize)) {
             throw std::runtime_error("acldvppSetStreamDescSize");
         }
         int picSize = wstride * hstride / 2 * 3;  // NV12
@@ -177,11 +216,14 @@ int main(int argc, char** argv) {
             acldvppSetPicDescHeightStride(picDesc, hstride)) {
             throw std::runtime_error("acldvppSetPicDescHeightStride");
         }
+        qDebug() << "pre-send";
         if (ACL_SUCCESS !=  //
             aclvdecSendFrame(
                 channel, streamDesc, picDesc, nullptr, timestamp)) {
             throw std::runtime_error("aclvdecSendFrame");
         }
+        qDebug() << "post-send";
+        delete[] stream;
     }
     auto streamDesc = acldvppCreateStreamDesc();
     if (!streamDesc) {

@@ -10,7 +10,8 @@
             "includePath": [
                 "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/local/nnrt/latest/include",
                 "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6",
-                "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6/QtCore"
+                "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6/QtCore",
+                "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6/QtGui"
             ]
         }
     ],

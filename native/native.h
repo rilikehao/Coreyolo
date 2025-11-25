@@ -94,4 +94,20 @@ struct TimeString {
 struct TimeString EpochMsToTimeString(int64_t input);
 int64_t EpochMsFromTimeString(const char* input);
 
+struct DecoderProcess;
+
+struct DecoderProcess* StartDecoder(  //
+    int device, const char* decodeType, int width, int height);
+
+void StopDecoder(struct DecoderProcess* process);
+
+struct DecoderIO {
+    int64_t timestamp_, size_;
+    char* data_;
+};
+
+void DestroyDecoderIO(struct DecoderIO* io);
+bool DecoderR(struct DecoderProcess* process, struct DecoderIO* io);
+void DecoderW(struct DecoderProcess* process, struct DecoderIO* io);
+
 #endif  // NATIVE_H

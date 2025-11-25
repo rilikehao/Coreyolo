@@ -68,6 +68,9 @@ bool QueryModelInfo(Session* s) {
 extern "C" {
 
 Infer* CreateInfer(InferConfig* config) {
+    if (ACL_SUCCESS != aclInit(nullptr)) {
+        throw std::runtime_error("aclInit");
+    }
     auto infer = new Infer;
     InitNames(infer->names_, config->path_description_);
 
@@ -177,6 +180,10 @@ void DestroyInfer(Infer* infer) {
     }
 
     delete infer;
+
+    if (ACL_SUCCESS != aclFinalize()) {
+        throw std::runtime_error("aclFinalize");
+    }
 }
 
 struct InferTask* CreateInferTask() { return new InferTask; }

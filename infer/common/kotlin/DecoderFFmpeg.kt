@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.transform
 import platform.ffmpeg.*
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -46,10 +47,9 @@ open class DecoderFFmpeg(
                 if (codecCtx == null) return@transform
                 avcodec_send_packet(codecCtx, packet).check("avcodec_send_packet")
                 while (avcodec_receive_frame(codecCtx, frame) == 0) {
-                    val base = input.getStream().time_base
-                    val pts = frame.pointed.pts.toDouble() * base.num / base.den
+                    val tb = input.getStream().time_base
                     val start = Instant.fromEpochMilliseconds(input.getFormatCtx().start_time_realtime / 1000L)
-                    val timestamp = start + pts.seconds
+                    val timestamp = start + (1000 * frame.pointed.pts * tb.num / tb.den).milliseconds
                     if (inputFrames == 0L) timestamp0 = timestamp
                     if (Decoder.maxFrames(timestamp - timestamp0) < inputFrames) continue
                     ++inputFrames
