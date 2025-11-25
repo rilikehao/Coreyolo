@@ -9,7 +9,8 @@ extern "C" {
 
 struct DecoderProcess {
     QProcess data_;
-    std::unique_ptr<QDataStream> stream_;
+    std::unique_ptr<QDataStream> in_, out_;
+    bool canRead_ = false;
 };
 
 struct DecoderProcess* StartDecoder(  //
@@ -35,7 +36,8 @@ struct DecoderProcess* StartDecoder(  //
         QProcess::ForwardedErrorChannel);
     process->data_.start(ld, args);
     process->data_.waitForStarted(-1);
-    process->stream_ = std::make_unique<QDataStream>(&process->data_);
+    process->in_ = std::make_unique<QDataStream>(&process->data_);
+    process->out_ = std::make_unique<QDataStream>(&process->data_);
     return process;
 }
 
@@ -46,19 +48,20 @@ void StopDecoder(struct DecoderProcess* process) {
 
 void DestroyDecoderIO(struct DecoderIO* io) { delete[] io->data_; }
 
-bool DecoderR(struct DecoderProcess* process, struct DecoderIO* io) {
+void DecoderR(struct DecoderProcess* process, struct DecoderIO* io) {
+    if (!process->canRead_) process->data_.waitForReadyRead();
     auto timestamp = reinterpret_cast<qint64*>(&io->timestamp_);
     auto size = reinterpret_cast<qint64*>(&io->size_);
-    process->stream_->startTransaction();
-    (*process->stream_) >> (*timestamp);
-    process->stream_->readBytes(io->data_, *size);
+    process->in_->startTransaction();
+    (*process->in_) >> (*timestamp);
+    process->in_->readBytes(io->data_, *size);
     qDebug() << "read" << (*timestamp);
-    return process->stream_->commitTransaction();
+    process->canRead_ = process->in_->commitTransaction();
 }
 
 void DecoderW(struct DecoderProcess* process, struct DecoderIO* io) {
-    (*process->stream_) << qint64(io->timestamp_);
-    process->stream_->writeBytes(io->data_, io->size_);
+    (*process->out_) << qint64(io->timestamp_);
+    process->out_->writeBytes(io->data_, io->size_);
     process->data_.waitForBytesWritten(-1);
     qDebug() << "write" << io->timestamp_;
 }
