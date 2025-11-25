@@ -1,4 +1,4 @@
-import common.Utils.check
+import common.Utils.checkEq0
 import platform.acl.aclFinalize
 import platform.acl.aclInit
 
@@ -14,7 +14,7 @@ fun hStride(h: Int) = (h + 1) / 2 * 2
 
 @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 fun main(args: Array<String>) {
-    aclInit(null).check("aclInit")
+    aclInit(null).checkEq0("aclInit")
     common.main(args)
-    aclFinalize().check("aclFinalize")
+    aclFinalize().checkEq0("aclFinalize")
 }
