@@ -2,14 +2,16 @@
     "configurations": [
         {
             "name": "Linux",
-            "includePath": [
-                "${workspaceFolder}/../**"
-            ],
             "defines": [],
-            "compilerPath": "/usr/bin/gcc",
-            "cStandard": "c17",
-            "cppStandard": "gnu++17",
-            "intelliSenseMode": "linux-gcc-x64"
+            "compilerPath": "/usr/bin/aarch64-linux-gnu-g++",
+            "cStandard": "gnu23",
+            "cppStandard": "gnu++26",
+            "intelliSenseMode": "linux-gcc-arm64",
+            "includePath": [
+                "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/local/nnrt/latest/include",
+                "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6",
+                "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6/QtCore"
+            ]
         }
     ],
     "version": 4
