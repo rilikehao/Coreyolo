@@ -24,7 +24,7 @@ struct DecoderProcess {
 extern "C" {
 
 struct DecoderProcess* StartDecoder(  //
-    int device, const char* decodeType, int width, int height) {
+    int device, int id, const char* decodeType, int width, int height) {
     ::signal(SIGPIPE, SIG_IGN);
     QString appPath = QGuiApplication::applicationDirPath();
     QDir dir(appPath);
@@ -45,6 +45,7 @@ struct DecoderProcess* StartDecoder(  //
     addArg(libraryPath.join(":"));
     addArg(dir.absoluteFilePath("../usr/local/ascend/bin/dec"));
     addArg(QString::number(device));
+    addArg(QString::number(id));
     addArg(QString::fromUtf8(decodeType));
     addArg(QString::number(width));
     addArg(QString::number(height));

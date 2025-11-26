@@ -69,11 +69,12 @@ void Callback(acldvppStreamDesc* input, acldvppPicDesc* output,
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     int device = strtol(argv[1], nullptr, 10);
+    int id = strtol(argv[2], nullptr, 10);
     acldvppStreamFormat decodeType;
-    if (strcmp(argv[2], "h264") == 0) decodeType = H264_HIGH_LEVEL;
-    if (strcmp(argv[2], "hevc") == 0) decodeType = H265_MAIN_LEVEL;
-    width = strtol(argv[3], nullptr, 10);
-    height = strtol(argv[4], nullptr, 10);
+    if (strcmp(argv[3], "h264") == 0) decodeType = H264_HIGH_LEVEL;
+    if (strcmp(argv[3], "hevc") == 0) decodeType = H265_MAIN_LEVEL;
+    width = strtol(argv[4], nullptr, 10);
+    height = strtol(argv[5], nullptr, 10);
     wstride = (width + 15) / 16 * 16;
     hstride = (height + 1) / 2 * 2;
     if (ACL_SUCCESS != aclInit(nullptr)) {
@@ -132,7 +133,7 @@ int main(int argc, char** argv) {
         Qt::BlockingQueuedConnection);
     channel = aclvdecCreateChannelDesc();
     if (!channel) throw std::runtime_error("aclvdecCreateChannelDesc");
-    if (ACL_SUCCESS != aclvdecSetChannelDescChannelId(channel, 0)) {
+    if (ACL_SUCCESS != aclvdecSetChannelDescChannelId(channel, id)) {
         throw std::runtime_error("aclvdecSetChannelDescChannelId");
     }
     if (ACL_SUCCESS !=

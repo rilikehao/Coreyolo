@@ -3,7 +3,6 @@ package common
 import co.touchlab.kermit.Logger
 import common.StringFormat.toString
 import kotlinx.cinterop.*
-import kotlinx.cinterop.ptr
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow

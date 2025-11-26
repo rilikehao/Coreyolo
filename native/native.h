@@ -97,7 +97,7 @@ int64_t EpochMsFromTimeString(const char* input);
 struct DecoderProcess;
 
 struct DecoderProcess* StartDecoder(  //
-    int device, const char* decodeType, int width, int height);
+    int device, int id, const char* decodeType, int width, int height);
 
 void StopDecoder(struct DecoderProcess* process);
 

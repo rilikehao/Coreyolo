@@ -24,6 +24,8 @@ open class DecoderACL(
 ) : Decoder {
     companion object {
         const val REORDER_SIZE = 5
+        const val ID_SIZE = 16
+        val availableIds = Channel<Int>(capacity = ID_SIZE).apply { repeat(ID_SIZE) { trySend(it) } }
     }
 
     override suspend fun invoke(): Flow<Command.CommandImage> {
@@ -35,6 +37,7 @@ open class DecoderACL(
         var swsCtx: CPointer<SwsContext>? = null
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
+        val id = availableIds.receive()
         return flow {
             coroutineScope {
                 launch {
@@ -45,7 +48,7 @@ open class DecoderACL(
                             height = codecpar.pointed.height
                             val decodeType =
                                 avcodec_find_decoder(codecpar.pointed.codec_id)!!.pointed.name!!.toKString()
-                            decoderProcess.complete(StartDecoder(device, decodeType, width, height)!!)
+                            decoderProcess.complete(StartDecoder(device, id, decodeType, width, height)!!)
                             swsCtx = sws_getContext(
                                 width, height, AV_PIX_FMT_NV12,
                                 width, height, AV_PIX_FMT_RGB24,
@@ -100,6 +103,7 @@ open class DecoderACL(
             if (swsCtx != null) {
                 sws_freeContext(swsCtx)
                 StopDecoder(decoderProcess.await())
+                availableIds.trySend(id)
             }
         }.transform { frame ->
             reorder.add(frame)

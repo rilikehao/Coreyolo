@@ -1,6 +1,7 @@
 package common
 
 import Codec
+import EncoderVideoH264Fast
 import cnames.structs.TcpSocket
 import co.touchlab.kermit.Logger
 import common.Detections.mux
@@ -14,7 +15,6 @@ import platform.native.StopHttpServer
 import platform.posix.S_IRWXU
 import platform.posix.mkdir
 import kotlin.time.ExperimentalTime
-import EncoderVideoH264Fast
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object SourceVideo : AutoCloseable, suspend () -> Unit {

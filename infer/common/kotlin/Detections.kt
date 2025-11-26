@@ -13,7 +13,6 @@ import kotlinx.coroutines.channels.getOrElse
 import kotlinx.coroutines.flow.*
 import platform.native.*
 import platform.posix.*
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
