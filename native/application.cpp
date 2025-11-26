@@ -4,9 +4,12 @@ extern "C" {
 
 #include <QGuiApplication>
 
+#include "launcher.h"
+
 extern "C" {
 
 void Main(int argc, char** argv, Func exec) {
+    InitProcessLauncher();
     QGuiApplication app(argc, argv);
     exec();
 }

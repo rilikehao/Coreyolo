@@ -11,7 +11,7 @@ import platform.ffmpeg.AV_PIX_FMT_RGB24
 
 @OptIn(ExperimentalForeignApi::class)
 object Codec {
-    class DecoderVideo(id: Int, input: Input, packets: Flow<CPointer<AVPacket>?>) :
+    class DecoderVideo(input: Input, packets: Flow<CPointer<AVPacket>?>) :
         common.DecoderFFmpeg(input, packets, { "${it}_rkmpp" })
 
     class EncoderVideoH264(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :

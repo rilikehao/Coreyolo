@@ -12,8 +12,7 @@ import platform.ffmpeg.AV_PIX_FMT_YUV420P
 
 @OptIn(ExperimentalForeignApi::class)
 object Codec {
-    class DecoderVideo(id: Int, input: Input, packets: Flow<CPointer<AVPacket>?>) :
-        DecoderACL(id, input, packets)
+    class DecoderVideo(input: Input, packets: Flow<CPointer<AVPacket>?>) : DecoderACL(0, input, packets)
 
     class EncoderVideoH264(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
         common.EncoderFFmpeg(

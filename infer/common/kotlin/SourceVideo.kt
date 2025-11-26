@@ -51,7 +51,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                     var vod: Job? = null
                     vod = scope.launch {
                         val inputFmp4 = InputFmp4(id, begin, end, fast)
-                        val decoded = Codec.DecoderVideo(1, inputFmp4, inputFmp4())()
+                        val decoded = Codec.DecoderVideo(inputFmp4, inputFmp4())()
                         val inferred = scope.mux(decoded, Detections.loadAll(Inference.infer, id))
                             .let { SpeedLimiter(it, inputFmp4.speed)() }
                             .buffer(Channel.UNLIMITED)
@@ -115,7 +115,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                     AppConfig.SourceType.VIDEO_RECODE -> {
                                         val name = CompletableDeferred<String>()
                                         val inputRtsp = InputRtsp(config.source)
-                                        val decoded = Codec.DecoderVideo(id, inputRtsp, inputRtsp())()
+                                        val decoded = Codec.DecoderVideo(inputRtsp, inputRtsp())()
                                             .buffer(Channel.UNLIMITED)
                                         val (main, side) = ForkImage(decoded)()
                                         scope.launch {
@@ -150,7 +150,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                                 it.invoke()
                                             }
                                         }.also {
-                                            val decoded = Codec.DecoderVideo(id, inputRtsp, main)()
+                                            val decoded = Codec.DecoderVideo(inputRtsp, main)()
                                                 .buffer(Channel.UNLIMITED)
                                             val inferred = Inference(config.id, decoded)()
                                             val (forked, dumped) = ForkLabel(inferred)()

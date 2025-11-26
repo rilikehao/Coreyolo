@@ -4,7 +4,6 @@
 #include <acl/ops/acl_dvpp.h>
 
 #include <QCoreApplication>
-#include <QDataStream>
 #include <QDebug>
 #include <QFile>
 #include <QThread>
@@ -16,28 +15,21 @@ aclrtMemcpyKind upload, download;
 int width, height, wstride, hstride;
 aclvdecChannelDesc* channel;
 
-QFile inFile, outFile;
-
 QObject aclWorker, callbackWorker;
 
 void Process() {
-    qDebug() << "callback";
-    if (ACL_SUCCESS != aclrtProcessReport(1000)) {
-        qDebug("aclrtProcessReport");
-    }
+    aclrtProcessReport(1000);
     QMetaObject::invokeMethod(
         &callbackWorker, [] { Process(); }, Qt::QueuedConnection);
 }
 
 void Callback(acldvppStreamDesc* input, acldvppPicDesc* output,
               void* data) {
-    qDebug() << "run callback";
     QByteArray pic;
     if (!data) {
         int64_t timestamp = 0, size = 0;
-        Write(stdout, &timestamp);
-        Write(stdout, &size);
-        Flush(stdout);
+        Write(STDOUT_FILENO, &timestamp);
+        Write(STDOUT_FILENO, &size);
     } else {
         QMetaObject::invokeMethod(
             &aclWorker,
@@ -66,13 +58,10 @@ void Callback(acldvppStreamDesc* input, acldvppPicDesc* output,
             },
             Qt::BlockingQueuedConnection);
         auto timestamp = static_cast<qint64*>(data);
-        qDebug() << "pre-put" << (*timestamp);
         int64_t size = pic.size();
-        Write(stdout, timestamp);
-        Write(stdout, &size);
-        Write(stdout, pic.data(), size);
-        Flush(stdout);
-        qDebug() << "put" << (*timestamp);
+        Write(STDOUT_FILENO, timestamp);
+        Write(STDOUT_FILENO, &size);
+        Write(STDOUT_FILENO, pic.data(), size);
         delete timestamp;
     }
 }
@@ -168,23 +157,14 @@ int main(int argc, char** argv) {
     }
     QMetaObject::invokeMethod(
         &callbackWorker, [&] { Process(); }, Qt::QueuedConnection);
-    if (!inFile.open(stdin, QIODevice::ReadOnly)) {
-        throw std::runtime_error("inFile.open");
-    }
-    if (!outFile.open(stdout, QIODevice::WriteOnly)) {
-        throw std::runtime_error("outFile.open");
-    }
-    outFile.moveToThread(&callbackThread);
     while (true) {
         auto timestamp = new qint64;
         QByteArray stream;
-        qDebug() << "start";
         int64_t size;
-        Read(stdin, timestamp);
-        Read(stdin, &size);
+        Read(STDIN_FILENO, timestamp);
+        Read(STDIN_FILENO, &size);
         stream.resizeForOverwrite(size);
-        Read(stdin, stream.data(), size);
-        qDebug() << "get" << *timestamp;
+        Read(STDIN_FILENO, stream.data(), size);
         if (*timestamp == 0) break;
         acldvppStreamDesc* streamDesc;
         acldvppPicDesc* picDesc;
@@ -257,13 +237,11 @@ int main(int argc, char** argv) {
                 }
             },
             Qt::BlockingQueuedConnection);
-        qDebug() << "pre-send";
         if (ACL_SUCCESS !=  //
             aclvdecSendFrame(
                 channel, streamDesc, picDesc, nullptr, timestamp)) {
             throw std::runtime_error("aclvdecSendFrame");
         }
-        qDebug() << "post-send";
     }
     QMetaObject::invokeMethod(
         &aclWorker,

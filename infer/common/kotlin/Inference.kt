@@ -3,6 +3,7 @@ package common
 import co.touchlab.kermit.Logger
 import common.StringFormat.toString
 import kotlinx.cinterop.*
+import kotlinx.cinterop.ptr
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -20,12 +21,14 @@ import kotlin.time.TimeSource
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 class Inference(val id: String, val input: Flow<Command.CommandImage>) : () -> Flow<Command> {
     companion object : AutoCloseable {
-        val infer = memScoped {
-            val config = alloc<InferConfig>()
-            config.path_model_ = AppConfig.instance.paths.model.cstr.ptr
-            config.path_description_ = AppConfig.instance.paths.description.cstr.ptr
-            config.threads_ = AppConfig.instance.processing.npuThreads
-            CreateInfer(config.ptr)!!
+        val infer by lazy {
+            memScoped {
+                val config = alloc<InferConfig>()
+                config.path_model_ = AppConfig.instance.paths.model.cstr.ptr
+                config.path_description_ = AppConfig.instance.paths.description.cstr.ptr
+                config.threads_ = AppConfig.instance.processing.npuThreads
+                CreateInfer(config.ptr)!!
+            }
         }
 
         val detect0Manager = Manager(AppConfig.instance.processing.npuThreads)
