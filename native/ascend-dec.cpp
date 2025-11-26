@@ -20,23 +20,24 @@ QFile inFile, outFile;
 
 QObject aclWorker, callbackWorker;
 
-void process() {
+void Process() {
     qDebug() << "callback";
     if (ACL_SUCCESS != aclrtProcessReport(1000)) {
         qDebug("aclrtProcessReport");
     }
     QMetaObject::invokeMethod(
-        &callbackWorker, [] { process(); }, Qt::QueuedConnection);
+        &callbackWorker, [] { Process(); }, Qt::QueuedConnection);
 }
 
-void callback(acldvppStreamDesc* input, acldvppPicDesc* output,
+void Callback(acldvppStreamDesc* input, acldvppPicDesc* output,
               void* data) {
     qDebug() << "run callback";
     QByteArray pic;
     if (!data) {
         int64_t timestamp = 0, size = 0;
-        Write(outFile, &timestamp);
-        Write(outFile, &size);
+        Write(stdout, &timestamp);
+        Write(stdout, &size);
+        Flush(stdout);
     } else {
         QMetaObject::invokeMethod(
             &aclWorker,
@@ -67,9 +68,10 @@ void callback(acldvppStreamDesc* input, acldvppPicDesc* output,
         auto timestamp = static_cast<qint64*>(data);
         qDebug() << "pre-put" << (*timestamp);
         int64_t size = pic.size();
-        Write(outFile, timestamp);
-        Write(outFile, &size);
-        Write(outFile, pic.data(), size);
+        Write(stdout, timestamp);
+        Write(stdout, &size);
+        Write(stdout, pic.data(), size);
+        Flush(stdout);
         qDebug() << "put" << (*timestamp);
         delete timestamp;
     }
@@ -149,7 +151,7 @@ int main(int argc, char** argv) {
         throw std::runtime_error("aclvdecSetChannelDescThreadId");
     }
     if (ACL_SUCCESS !=
-        aclvdecSetChannelDescCallback(channel, callback)) {
+        aclvdecSetChannelDescCallback(channel, Callback)) {
         throw std::runtime_error("aclvdecSetChannelDescCallback");
     }
     if (ACL_SUCCESS !=
@@ -165,7 +167,7 @@ int main(int argc, char** argv) {
         throw std::runtime_error("aclvdecCreateChannel");
     }
     QMetaObject::invokeMethod(
-        &callbackWorker, [&] { process(); }, Qt::QueuedConnection);
+        &callbackWorker, [&] { Process(); }, Qt::QueuedConnection);
     if (!inFile.open(stdin, QIODevice::ReadOnly)) {
         throw std::runtime_error("inFile.open");
     }
@@ -178,10 +180,10 @@ int main(int argc, char** argv) {
         QByteArray stream;
         qDebug() << "start";
         int64_t size;
-        Read(inFile, timestamp);
-        Read(inFile, &size);
+        Read(stdin, timestamp);
+        Read(stdin, &size);
         stream.resizeForOverwrite(size);
-        Read(inFile, stream.data(), size);
+        Read(stdin, stream.data(), size);
         qDebug() << "get" << *timestamp;
         if (*timestamp == 0) break;
         acldvppStreamDesc* streamDesc;
