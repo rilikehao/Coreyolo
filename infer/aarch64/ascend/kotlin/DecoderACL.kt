@@ -1,7 +1,9 @@
 import cnames.structs.DecoderProcess
+import co.touchlab.kermit.Logger
 import common.Command
 import common.Decoder
 import common.Input
+import common.Utils.toTimeString
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -102,6 +104,7 @@ open class DecoderACL(
                 StopDecoder(decoderProcess.await())
             }
         }.transform { frame ->
+            Logger.i { frame.timestamp.toTimeString() }
             reorder.add(frame)
             while (REORDER_SIZE < reorder.size) emit(pop())
         }.onCompletion {

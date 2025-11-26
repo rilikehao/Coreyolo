@@ -10,7 +10,6 @@ extern "C" {
 struct DecoderProcess {
     QProcess data_;
     std::unique_ptr<QDataStream> in_, out_;
-    bool canRead_ = false;
 };
 
 struct DecoderProcess* StartDecoder(  //
@@ -49,14 +48,19 @@ void StopDecoder(struct DecoderProcess* process) {
 void DestroyDecoderIO(struct DecoderIO* io) { delete[] io->data_; }
 
 void DecoderR(struct DecoderProcess* process, struct DecoderIO* io) {
-    if (!process->canRead_) process->data_.waitForReadyRead();
-    auto timestamp = reinterpret_cast<qint64*>(&io->timestamp_);
-    auto size = reinterpret_cast<qint64*>(&io->size_);
-    process->in_->startTransaction();
-    (*process->in_) >> (*timestamp);
-    process->in_->readBytes(io->data_, *size);
-    qDebug() << "read" << (*timestamp);
-    process->canRead_ = process->in_->commitTransaction();
+    while (true) {
+        auto timestamp = reinterpret_cast<qint64*>(&io->timestamp_);
+        auto size = reinterpret_cast<qint64*>(&io->size_);
+        process->in_->startTransaction();
+        (*process->in_) >> (*timestamp);
+        process->in_->readBytes(io->data_, *size);
+        qDebug() << "read" << (*timestamp);
+        if (process->in_->commitTransaction()) {
+            return;
+        } else {
+            process->data_.waitForReadyRead();
+        }
+    }
 }
 
 void DecoderW(struct DecoderProcess* process, struct DecoderIO* io) {
