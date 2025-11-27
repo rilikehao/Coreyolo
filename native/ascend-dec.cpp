@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
         if (ACL_SUCCESS !=  //
             aclvdecSendFrame(
                 channel, streamDesc, picDesc, nullptr, timestamp)) {
-            throw std::runtime_error("aclvdecSendFrame");
+            qDebug() << "aclvdecSendFrame";
         }
     }
     QMetaObject::invokeMethod(
