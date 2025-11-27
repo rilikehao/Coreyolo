@@ -79,7 +79,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                 }
                 opaque_ = data.asCPointer()
             })
-            AppConfig.instance.streams.mapIndexed { id, config ->
+            AppConfig.instance.streams.map { config ->
                 mkdir(config.id, S_IRWXU.toUInt())
                 scope.launch {
                     while (true) {

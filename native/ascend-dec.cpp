@@ -1,5 +1,3 @@
-#define ENABLE_DVPP_INTERFACE
-
 #include <acl/acl.h>
 #include <acl/ops/acl_dvpp.h>
 

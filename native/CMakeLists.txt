@@ -15,7 +15,7 @@ if(PLATFORM STREQUAL "rockchip")
     set(PLATFORM_SRC rockchip.cpp)
 elseif(PLATFORM STREQUAL "ascend")
     set(PLATFORM_LIBS ascendcl)
-    set(PLATFORM_SRC ascend.cpp ascend-dec-client.cpp ascend-enc-client.cpp launcher.cpp)
+    set(PLATFORM_SRC ascend.cpp ascend-dec-client.cpp ascend-enc-client.cpp)
 
     add_executable(dec ascend-dec.cpp)
     target_link_libraries(dec PRIVATE ascendcl acl_dvpp Qt6::Core)
@@ -43,6 +43,7 @@ add_library(Native SHARED
     http.cpp
     image.cpp
     inference.cpp
+    launcher.cpp
     ${PLATFORM_SRC}
 )
 

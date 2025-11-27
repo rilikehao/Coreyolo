@@ -18,8 +18,8 @@ object Codec {
         common.EncoderFFmpeg(
             id, name, input, "libx264", AV_PIX_FMT_YUV420P, arrayOf(
                 "fflags" to "nobuffer",
-                "preset" to "superfast",
-                "qp" to (AppConfig.instance.processing.qH264 - 1.5).toString(1),
+                "preset" to "ultrafast",
+                "qp" to (AppConfig.instance.processing.qH264 - 4.0).toString(1),
             )
         )
 
