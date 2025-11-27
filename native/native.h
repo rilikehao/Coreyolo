@@ -120,10 +120,11 @@ void StopEncoder(struct EncoderProcess* process);
 struct EncoderIO {
     int64_t timestamp_, size_;
     char* data_;
+    bool is_key_frame_;
 };
 
-void DestroyEncoderIO(struct EncoderIO* io);
-void EncoderR(struct EncoderProcess* process, struct EncoderIO* io);
+void EncoderR0(struct EncoderProcess* process, struct EncoderIO* io);
+void EncoderR1(struct EncoderProcess* process, struct EncoderIO* io);
 void EncoderW(struct EncoderProcess* process, struct EncoderIO* io);
 
 #endif  // NATIVE_H

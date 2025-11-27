@@ -8,7 +8,7 @@ import platform.ffmpeg.AVPacket
 import platform.ffmpeg.AVStream
 
 @OptIn(ExperimentalForeignApi::class)
-interface Encoder : () -> Flow<CPointer<AVPacket>?> {
+interface Encoder : suspend () -> Flow<CPointer<AVPacket>?> {
     fun initStream(formatContext: AVFormatContext): CPointer<AVStream>
     fun startTimeRealtime(): Long
 }

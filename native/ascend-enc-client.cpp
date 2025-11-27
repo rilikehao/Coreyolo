@@ -89,21 +89,19 @@ void StopEncoder(struct EncoderProcess* process) {
     delete process;
 }
 
-void DestroyEncoderIO(struct EncoderIO* io) {
-    if (!io) return;
-    delete[] io->data_;
-    io->data_ = nullptr;
+void EncoderR0(struct EncoderProcess* process, struct EncoderIO* io) {
+    Read(process->from_encoder_, &io->timestamp_);
+    Read(process->from_encoder_, &io->is_key_frame_);
+    Read(process->from_encoder_, &io->size_);
 }
 
-void EncoderR(struct EncoderProcess* process, struct EncoderIO* io) {
-    Read(process->from_encoder_, &io->timestamp_);
-    Read(process->from_encoder_, &io->size_);
-    io->data_ = new char[io->size_];
+void EncoderR1(struct EncoderProcess* process, struct EncoderIO* io) {
     Read(process->from_encoder_, io->data_, io->size_);
 }
 
 void EncoderW(struct EncoderProcess* process, struct EncoderIO* io) {
     Write(process->to_encoder_, &io->timestamp_);
+    Write(process->to_encoder_, &io->is_key_frame_);
     Write(process->to_encoder_, &io->size_);
     Write(process->to_encoder_, io->data_, io->size_);
 }

@@ -51,7 +51,7 @@ open class EncoderFFmpeg(
             avcodec_parameters_from_context(it.pointed.codecpar, codecCtx)
         }
 
-    override fun invoke(): Flow<CPointer<AVPacket>?> {
+    override suspend fun invoke(): Flow<CPointer<AVPacket>?> {
         val fromRGBImage = FromRGBImage()
         val frame = av_frame_alloc()!!
         val packet = av_packet_alloc()!!

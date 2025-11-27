@@ -22,13 +22,18 @@ void Process() {
         &callbackWorker, [] { Process(); }, Qt::QueuedConnection);
 }
 
-void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
-              void* data) {
-    auto timestamp = static_cast<qint64*>(data);
+struct Data {
+    int64_t timestamp_;
+    bool is_key_frame_;
+};
 
+void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
+              void* rawData) {
+    auto data = static_cast<Data*>(rawData);
     if (!data) {
         int64_t timestamp = 0, size = 0;
-        Write(STDOUT_FILENO, &timestamp);
+        Write(STDOUT_FILENO, &data->timestamp_);
+        Write(STDOUT_FILENO, &data->is_key_frame_);
         Write(STDOUT_FILENO, &size);
     } else {
         QMetaObject::invokeMethod(
@@ -58,13 +63,13 @@ void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
                     throw std::runtime_error(
                         "acldvppDestroyStreamDesc");
                 }
-
-                Write(STDOUT_FILENO, timestamp);
+                Write(STDOUT_FILENO, &data->timestamp_);
+                Write(STDOUT_FILENO, &data->is_key_frame_);
                 Write(STDOUT_FILENO, &streamSize);
                 Write(STDOUT_FILENO, encodedStream.data(), streamSize);
             },
             Qt::BlockingQueuedConnection);
-        delete timestamp;
+        delete data;
     }
 }
 
@@ -73,8 +78,15 @@ int main(int argc, char** argv) {
     int device = strtol(argv[1], nullptr, 10);
     int id = strtol(argv[2], nullptr, 10);
     acldvppStreamFormat encodeType;
-    if (strcmp(argv[3], "h264") == 0) encodeType = H264_HIGH_LEVEL;
-    if (strcmp(argv[3], "hevc") == 0) encodeType = H265_MAIN_LEVEL;
+    int bitRate;
+    if (strcmp(argv[3], "h264") == 0) {
+        encodeType = H264_HIGH_LEVEL;
+        bitRate = 1500;
+    }
+    if (strcmp(argv[3], "hevc") == 0) {
+        encodeType = H265_MAIN_LEVEL;
+        bitRate = 750;
+    }
     width = strtol(argv[4], nullptr, 10);
     height = strtol(argv[5], nullptr, 10);
     wstride = (width + 15) / 16 * 16;
@@ -163,12 +175,12 @@ int main(int argc, char** argv) {
         throw std::runtime_error("aclvencSetChannelDescPicHeight");
     }
     if (ACL_SUCCESS !=
-        aclvencSetChannelDescKeyFrameInterval(channel, 30)) {
+        aclvencSetChannelDescKeyFrameInterval(channel, 65536)) {
         throw std::runtime_error(
             "aclvencSetChannelDescKeyFrameInterval");
     }
     if (ACL_SUCCESS !=
-        aclvencSetChannelDescMaxBitRate(channel, 2000000)) {
+        aclvencSetChannelDescMaxBitRate(channel, bitRate)) {
         throw std::runtime_error("aclvencSetChannelDescMaxBitRate");
     }
     if (ACL_SUCCESS != aclvencSetChannelDescRcMode(channel, 1)) {
@@ -184,15 +196,16 @@ int main(int argc, char** argv) {
     int picSize = wstride * hstride / 2 * 3;  // NV12
 
     while (true) {
-        auto timestamp = new qint64;
+        auto data = new Data;
         QByteArray frame;
         int64_t size;
-        Read(STDIN_FILENO, timestamp);
+        Read(STDIN_FILENO, &data->timestamp_);
+        Read(STDIN_FILENO, &data->is_key_frame_);
         Read(STDIN_FILENO, &size);
         frame.resizeForOverwrite(size);
         Read(STDIN_FILENO, frame.data(), size);
 
-        if (*timestamp == 0) break;
+        if (data->timestamp_ == 0) break;
 
         acldvppPicDesc* picDesc;
         QMetaObject::invokeMethod(
@@ -249,10 +262,9 @@ int main(int argc, char** argv) {
         if (!config)
             throw std::runtime_error("aclvencCreateFrameConfig");
         aclvencSetFrameConfigEos(config, 0);
-
+        aclvencSetFrameConfigForceIFrame(config, data->is_key_frame_);
         if (ACL_SUCCESS !=  //
-            aclvencSendFrame(
-                channel, picDesc, nullptr, config, timestamp)) {
+            aclvencSendFrame(channel, picDesc, nullptr, config, data)) {
             throw std::runtime_error("aclvencSendFrame");
         }
         aclvencDestroyFrameConfig(config);
