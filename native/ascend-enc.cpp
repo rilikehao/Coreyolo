@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
         aclvencSetFrameConfigForceIFrame(config, data->is_key_frame_);
         if (ACL_SUCCESS !=  //
             aclvencSendFrame(channel, picDesc, nullptr, config, data)) {
-            throw std::runtime_error("aclvencSendFrame");
+            qDebug() << "aclvencSendFrame";
         }
         aclvencDestroyFrameConfig(config);
     }

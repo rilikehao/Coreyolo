@@ -3,7 +3,6 @@ import co.touchlab.kermit.Logger
 import common.Command
 import common.Encoder
 import common.StringFormat.toString
-import common.Utils.cPointer
 import common.Utils.check
 import common.Utils.roundToEpochMs
 import common.Utils.toTimeString
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import platform.ffmpeg.*
 import platform.native.*
+import platform.posix.memcpy
 import kotlin.math.max
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -35,7 +35,7 @@ open class EncoderACL(
     private var swsCtx: CPointer<SwsContext>? = null
     private var width = 0
     private var height = 0
-    private var bsfContext: CPointer<AVBSFContext>? = null
+    private var codecpar: CPointer<AVCodecParameters>? = null
     private var codec: CPointer<AVCodec>? = null
 
     lateinit var timestamp0: Instant
@@ -44,7 +44,7 @@ open class EncoderACL(
 
     override fun initStream(formatContext: AVFormatContext): CPointer<AVStream> {
         return avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
-            avcodec_parameters_copy(it.pointed.codecpar, bsfContext!!.pointed.par_out)
+            avcodec_parameters_copy(it.pointed.codecpar, codecpar)
         }
     }
 
@@ -82,8 +82,6 @@ open class EncoderACL(
                             val delayMs = max(0L, delayed.inWholeMilliseconds)
                             "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
                         }
-                        val image = commandImage.data
-                        val timestamp = commandImage.timestamp
                         val wstride = (width + 15) / 16 * 16
                         val hstride = (height + 1) / 2 * 2
                         val nv12Size = wstride * hstride * 3 / 2
@@ -91,19 +89,20 @@ open class EncoderACL(
                             val nv12 = allocArray<UByteVar>(nv12Size)
                             sws_scale(
                                 swsCtx,
-                                cValuesOf(Bits(image)),
-                                cValuesOf(BytesPerLine(image)),
+                                cValuesOf(Bits(commandImage.data)),
+                                cValuesOf(BytesPerLine(commandImage.data)),
                                 0, height,
                                 cValuesOf(nv12, nv12 + wstride * hstride),
                                 cValuesOf(wstride, wstride),
                             )
                             EncoderW(encoderProcess.await(), cValue {
-                                timestamp_ = timestamp.toEpochMilliseconds()
+                                timestamp_ = commandImage.timestamp.toEpochMilliseconds()
                                 is_key_frame_ = inputFrames % 12L == 0L
                                 size_ = nv12Size.toLong()
                                 data_ = nv12.reinterpret()
                             })
                         }
+                        DestroyImage(commandImage.data)
                         ++inputFrames
                     }
                     EncoderW(encoderProcess.await(), cValue {
@@ -122,30 +121,25 @@ open class EncoderACL(
                         av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
                         io.data_ = packet.pointed.data!!.reinterpret()
                         EncoderR1(encoderProcess.await(), io.ptr)
-                        // ================== [DEBUG START] ==================
-                        // 仅打印前几帧，或者关键帧，防止日志爆炸
-                        if (outputFrames < 5 || io.is_key_frame_) {
-                            val dataPtr = packet.pointed.data
-                            val dataSize = io.size_.toInt()
-                            val checkLen = kotlin.math.min(dataSize, 8) // 查看前 8 字节
-
-                            val hexStr = StringBuilder()
-                            for (i in 0 until checkLen) {
-                                val byteVal = dataPtr!![i].toUByte().toInt()
-                                // 格式化为 16 进制字符串 (如 00, 01, A5)
-                                if (byteVal < 16) hexStr.append("0")
-                                hexStr.append(byteVal.toString(16).uppercase()).append(" ")
-                            }
-
-                            println(">>> [DEBUG ACL Packet] KeyFrame=${io.is_key_frame_} Size=$dataSize | Hex: $hexStr")
-                        }
-                        // ================== [DEBUG END] ==================
                         if (io.is_key_frame_) {
                             packet.pointed.flags = packet.pointed.flags.or(AV_PKT_FLAG_KEY)
                         }
                         Instant.fromEpochMilliseconds(io.timestamp_)
                     }
-                    if (bsfContext == null) setupBSF(packet)
+                    if (codecpar == null) {
+                        codecpar = avcodec_parameters_alloc().also {
+                            it!!.pointed.codec_type = AVMEDIA_TYPE_VIDEO
+                            it.pointed.codec_id = codec!!.pointed.id
+                            it.pointed.codec_tag = 0U
+                            it.pointed.width = width
+                            it.pointed.height = height
+                            it.pointed.format = AV_PIX_FMT_YUV420P
+                            val extradata = av_malloc(packet.pointed.size.toULong())!!
+                            memcpy(extradata, packet.pointed.data, packet.pointed.size.toULong())
+                            it.pointed.extradata = extradata.reinterpret()
+                            it.pointed.extradata_size = packet.pointed.size
+                        }
+                    }
                     val pts = (timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
                     packet.pointed.pts = pts
                     packet.pointed.dts = pts
@@ -154,29 +148,8 @@ open class EncoderACL(
             }
         }.onCompletion {
             if (swsCtx != null) sws_freeContext(swsCtx)
-            if (bsfContext != null) av_bsf_free(cValuesOf(bsfContext))
+            if (codecpar != null) av_free(codecpar!!.pointed.extradata)
             StopEncoder(encoderProcess.getCompleted())
         }
-    }
-
-    private fun setupBSF(packet: CPointer<AVPacket>) {
-        val bsf = av_bsf_get_by_name("extract_extradata")
-            ?: throw Error("av_bsf_get_by_name failed")
-        bsfContext = cPointer { av_bsf_alloc(bsf, it).check("av_bsf_alloc") }
-        bsfContext!!.pointed.par_in!!.pointed.let {
-            it.codec_type = AVMEDIA_TYPE_VIDEO
-            it.codec_id = codec!!.pointed.id
-            it.codec_tag = 0U
-            it.width = width
-            it.height = height
-            it.format = AV_PIX_FMT_YUV420P
-        }
-        av_bsf_init(bsfContext).check("av_bsf_init")
-        av_bsf_send_packet(bsfContext, packet).check("av_bsf_send_packet")
-        val outputPacket = av_packet_alloc()!!
-        av_bsf_receive_packet(bsfContext, outputPacket).check("av_bsf_receive_packet")
-        println("BSF Receive! Extradata Size: ${bsfContext!!.pointed.par_out!!.pointed.extradata_size}")
-        av_packet_move_ref(packet, outputPacket)
-        av_packet_free(cValuesOf(outputPacket))
     }
 }
