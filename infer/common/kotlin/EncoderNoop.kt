@@ -20,5 +20,5 @@ class EncoderNoop(val inputRtsp: InputRtsp) : Encoder {
             avcodec_parameters_copy(it.pointed.codecpar, inputRtsp.stream.codecpar)
         }
 
-    override fun invoke() = flow<CPointer<AVPacket>?> {}
+    override suspend fun invoke() = flow<CPointer<AVPacket>?> {}
 }

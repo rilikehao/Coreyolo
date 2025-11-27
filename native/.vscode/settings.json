@@ -77,6 +77,7 @@
         "valarray": "cpp",
         "variant": "cpp",
         "csignal": "cpp",
-        "qeventloop": "cpp"
+        "qeventloop": "cpp",
+        "qcoreapplication": "cpp"
     }
 }

@@ -30,7 +30,7 @@ void SendCommand(int sock, const std::vector<std::string>& args, int fd_stdin, i
     msg.msg_iovlen = 1;
 
     union {
-        char buf[CMSG_SPACE(2 * sizeof(int))];
+        char buf[CMSG_SPACE(3 * sizeof(int))];
         struct cmsghdr align;
     } u;
 
@@ -40,11 +40,12 @@ void SendCommand(int sock, const std::vector<std::string>& args, int fd_stdin, i
     struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(2 * sizeof(int));
+    cmsg->cmsg_len = CMSG_LEN(3 * sizeof(int));
 
     int *fds = (int *)CMSG_DATA(cmsg);
     fds[0] = fd_stdin;
     fds[1] = fd_stdout;
+    fds[2] = STDERR_FILENO;
 
     if (sendmsg(sock, &msg, 0) < 0) {
         perror("Send launcher command failed");
@@ -64,7 +65,7 @@ void RunLauncherLoop(int sock) {
         msg.msg_iovlen = 1;
 
         union {
-            char buf[CMSG_SPACE(2 * sizeof(int))];
+            char buf[CMSG_SPACE(3 * sizeof(int))];
             struct cmsghdr align;
         } u;
         msg.msg_control = u.buf;
@@ -74,10 +75,11 @@ void RunLauncherLoop(int sock) {
         if (n <= 0) break;
 
         struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
-        if (!cmsg || cmsg->cmsg_len != CMSG_LEN(2 * sizeof(int))) continue;
+        if (!cmsg || cmsg->cmsg_len != CMSG_LEN(3 * sizeof(int))) continue;
         int *fds = (int *)CMSG_DATA(cmsg);
         int child_stdin = fds[0];
         int child_stdout = fds[1];
+        int child_stderr = fds[2];
 
         char* p = buffer;
         int argc = *(int*)p;
@@ -94,9 +96,11 @@ void RunLauncherLoop(int sock) {
         if (pid == 0) {
             if (dup2(child_stdin, STDIN_FILENO) == -1) _exit(1);
             if (dup2(child_stdout, STDOUT_FILENO) == -1) _exit(1);
+            if (dup2(child_stderr, STDERR_FILENO) == -1) _exit(1);
 
             close(child_stdin);
             close(child_stdout);
+            close(child_stderr);
             close(sock);
 
             execv(argv[0], argv.data());
@@ -106,6 +110,7 @@ void RunLauncherLoop(int sock) {
 
         close(child_stdin);
         close(child_stdout);
+        close(child_stderr);
 
         int pid_reply = pid;
         write(sock, &pid_reply, sizeof(int));

@@ -10,7 +10,6 @@ import common.Utils.toTimeString
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -31,17 +30,11 @@ open class EncoderACL(
     val input: Flow<Command.CommandImage>,
     val encodeType: String,
 ) : Encoder {
-    companion object {
-        const val ID_SIZE = 16
-        val availableIds = Channel<Int>(capacity = ID_SIZE).apply { repeat(ID_SIZE) { trySend(it) } }
-    }
-
     val encoderProcess = CompletableDeferred<CPointer<EncoderProcess>>()
 
     private var swsCtx: CPointer<SwsContext>? = null
     private var width = 0
     private var height = 0
-    private var videoStream: CPointer<AVStream>? = null
     private var bsfContext: CPointer<AVBSFContext>? = null
     private var codec: CPointer<AVCodec>? = null
 
@@ -50,8 +43,9 @@ open class EncoderACL(
     override fun startTimeRealtime() = timestamp0.roundToEpochMs()
 
     override fun initStream(formatContext: AVFormatContext): CPointer<AVStream> {
+        formatContext.oformat!!.pointed.flags = formatContext.oformat!!.pointed.flags.or(AVFMT_GLOBALHEADER)
         return avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
-            avcodec_parameters_copy(videoStream!!.pointed.codecpar, bsfContext!!.pointed.par_out)
+            avcodec_parameters_copy(it.pointed.codecpar, bsfContext!!.pointed.par_out)
         }
     }
 
@@ -59,19 +53,18 @@ open class EncoderACL(
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
-        val id = availableIds.receive()
 
         return flow {
             coroutineScope {
                 launch {
                     input.collect { commandImage ->
-                        if (inputFrames++ == 0L) {
+                        if (inputFrames == 0L) {
                             timestamp0 = commandImage.timestamp
                             val name = timestamp0.toTimeString()
                             suggestedName?.complete(name)
                             width = GetWidth(commandImage.data)
                             height = GetHeight(commandImage.data)
-                            encoderProcess.complete(StartEncoder(0, id, encodeType, width, height)!!)
+                            encoderProcess.complete(StartEncoder(0, 0, encodeType, width, height)!!)
                             swsCtx = sws_getContext(
                                 width, height, AV_PIX_FMT_RGB24,
                                 width, height, AV_PIX_FMT_NV12,
@@ -112,6 +105,7 @@ open class EncoderACL(
                                 data_ = nv12.reinterpret()
                             })
                         }
+                        ++inputFrames
                     }
                     EncoderW(encoderProcess.await(), cValue {
                         timestamp_ = 0
@@ -129,6 +123,24 @@ open class EncoderACL(
                         av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
                         io.data_ = packet.pointed.data!!.reinterpret()
                         EncoderR1(encoderProcess.await(), io.ptr)
+                        // ================== [DEBUG START] ==================
+                        // 仅打印前几帧，或者关键帧，防止日志爆炸
+                        if (outputFrames < 5 || io.is_key_frame_) {
+                            val dataPtr = packet.pointed.data
+                            val dataSize = io.size_.toInt()
+                            val checkLen = kotlin.math.min(dataSize, 8) // 查看前 8 字节
+
+                            val hexStr = StringBuilder()
+                            for (i in 0 until checkLen) {
+                                val byteVal = dataPtr!![i].toUByte().toInt()
+                                // 格式化为 16 进制字符串 (如 00, 01, A5)
+                                if (byteVal < 16) hexStr.append("0")
+                                hexStr.append(byteVal.toString(16).uppercase()).append(" ")
+                            }
+
+                            println(">>> [DEBUG ACL Packet] KeyFrame=${io.is_key_frame_} Size=$dataSize | Hex: $hexStr")
+                        }
+                        // ================== [DEBUG END] ==================
                         if (io.is_key_frame_) {
                             packet.pointed.flags = packet.pointed.flags.or(AV_PKT_FLAG_KEY)
                         }
@@ -145,7 +157,6 @@ open class EncoderACL(
             if (swsCtx != null) sws_freeContext(swsCtx)
             if (bsfContext != null) av_bsf_free(cValuesOf(bsfContext))
             StopEncoder(encoderProcess.getCompleted())
-            availableIds.trySend(id)
         }
     }
 
@@ -165,6 +176,7 @@ open class EncoderACL(
         av_bsf_send_packet(bsfContext, packet).check("av_bsf_send_packet")
         val outputPacket = av_packet_alloc()!!
         av_bsf_receive_packet(bsfContext, outputPacket).check("av_bsf_receive_packet")
+        println("BSF Receive! Extradata Size: ${bsfContext!!.pointed.par_out!!.pointed.extradata_size}")
         av_packet_move_ref(packet, outputPacket)
         av_packet_free(cValuesOf(outputPacket))
     }

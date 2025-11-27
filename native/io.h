@@ -19,6 +19,10 @@ void Read(int fd, T* data, size_t size = sizeof(T)) {
             if (errno == EINTR) continue;
             std::string message("Read: ");
             message += std::strerror(errno);
+            message += " ";
+            message += std::to_string(fd);
+            message += " ";
+            message += std::to_string(size);
             throw std::runtime_error(message);
         }
         buffer += n;
@@ -36,6 +40,10 @@ void Write(int fd, const T* data, size_t size = sizeof(T)) {
             if (errno == EINTR) continue;
             std::string message("Write: ");
             message += std::strerror(errno);
+            message += " ";
+            message += std::to_string(fd);
+            message += " ";
+            message += std::to_string(size);
             throw std::runtime_error(message);
         }
         buffer += n;

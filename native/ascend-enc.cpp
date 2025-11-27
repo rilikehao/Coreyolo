@@ -1,4 +1,3 @@
-
 #include <acl/acl.h>
 #include <acl/ops/acl_dvpp.h>
 
@@ -32,10 +31,13 @@ void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
     auto data = static_cast<Data*>(rawData);
     if (!data) {
         int64_t timestamp = 0, size = 0;
-        Write(STDOUT_FILENO, &data->timestamp_);
-        Write(STDOUT_FILENO, &data->is_key_frame_);
+        bool isKeyFrame = false;
+        Write(STDOUT_FILENO, &timestamp);
+        Write(STDOUT_FILENO, &isKeyFrame);
         Write(STDOUT_FILENO, &size);
     } else {
+        QByteArray encodedStream;
+        int64_t streamSize;
         QMetaObject::invokeMethod(
             &aclWorker,
             [&] {
@@ -47,8 +49,7 @@ void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
                     throw std::runtime_error("acldvppDestroyPicDesc");
                 }
                 auto streamDev = acldvppGetStreamDescData(output);
-                auto streamSize = acldvppGetStreamDescSize(output);
-                QByteArray encodedStream;
+                streamSize = acldvppGetStreamDescSize(output);
                 encodedStream.resizeForOverwrite(streamSize);
                 if (ACL_SUCCESS !=  //
                     aclrtMemcpy(encodedStream.data(), streamSize,
@@ -56,19 +57,12 @@ void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
                     throw std::runtime_error(
                         "aclrtMemcpy encoded stream");
                 }
-                if (ACL_SUCCESS != acldvppFree(streamDev)) {
-                    throw std::runtime_error("acldvppFree");
-                }
-                if (ACL_SUCCESS != acldvppDestroyStreamDesc(output)) {
-                    throw std::runtime_error(
-                        "acldvppDestroyStreamDesc");
-                }
-                Write(STDOUT_FILENO, &data->timestamp_);
-                Write(STDOUT_FILENO, &data->is_key_frame_);
-                Write(STDOUT_FILENO, &streamSize);
-                Write(STDOUT_FILENO, encodedStream.data(), streamSize);
             },
             Qt::BlockingQueuedConnection);
+        Write(STDOUT_FILENO, &data->timestamp_);
+        Write(STDOUT_FILENO, &data->is_key_frame_);
+        Write(STDOUT_FILENO, &streamSize);
+        Write(STDOUT_FILENO, encodedStream.data(), streamSize);
         delete data;
     }
 }
