@@ -43,7 +43,6 @@ open class EncoderACL(
     override fun startTimeRealtime() = timestamp0.roundToEpochMs()
 
     override fun initStream(formatContext: AVFormatContext): CPointer<AVStream> {
-        formatContext.oformat!!.pointed.flags = formatContext.oformat!!.pointed.flags.or(AVFMT_GLOBALHEADER)
         return avformat_new_stream(formatContext.ptr, codec).check("avformat_new_stream").also {
             avcodec_parameters_copy(it.pointed.codecpar, bsfContext!!.pointed.par_out)
         }
