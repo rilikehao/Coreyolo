@@ -110,4 +110,20 @@ void DestroyDecoderIO(struct DecoderIO* io);
 void DecoderR(struct DecoderProcess* process, struct DecoderIO* io);
 void DecoderW(struct DecoderProcess* process, struct DecoderIO* io);
 
+struct EncoderProcess;
+
+struct EncoderProcess* StartEncoder(  //
+    int device, int id, const char* encodeType, int width, int height);
+
+void StopEncoder(struct EncoderProcess* process);
+
+struct EncoderIO {
+    int64_t timestamp_, size_;
+    char* data_;
+};
+
+void DestroyEncoderIO(struct EncoderIO* io);
+void EncoderR(struct EncoderProcess* process, struct EncoderIO* io);
+void EncoderW(struct EncoderProcess* process, struct EncoderIO* io);
+
 #endif  // NATIVE_H

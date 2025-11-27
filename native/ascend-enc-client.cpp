@@ -15,15 +15,15 @@ extern "C" {
 #include "io.h"
 #include "launcher.h"
 
-struct DecoderProcess {
+struct EncoderProcess {
     pid_t pid_;
-    int to_decoder_, from_decoder_;
+    int to_encoder_, from_encoder_;
 };
 
 extern "C" {
 
-struct DecoderProcess* StartDecoder(  //
-    int device, int id, const char* decodeType, int width, int height) {
+struct EncoderProcess* StartEncoder(  //
+    int device, int id, const char* encodeType, int width, int height) {
     ::signal(SIGPIPE, SIG_IGN);
     QString appPath = QGuiApplication::applicationDirPath();
     QDir dir(appPath);
@@ -42,10 +42,10 @@ struct DecoderProcess* StartDecoder(  //
     libraryPath.append(dir.absoluteFilePath("../usr/lib/libproxy"));
     libraryPath.append(dir.absoluteFilePath("../usr/local/lib"));
     addArg(libraryPath.join(":"));
-    addArg(dir.absoluteFilePath("../usr/local/ascend/bin/dec"));
+    addArg(dir.absoluteFilePath("../usr/local/ascend/bin/enc"));
     addArg(QString::number(device));
     addArg(QString::number(id));
-    addArg(QString::fromUtf8(decodeType));
+    addArg(QString::fromUtf8(encodeType));
     addArg(QString::number(width));
     addArg(QString::number(height));
 
@@ -62,25 +62,25 @@ struct DecoderProcess* StartDecoder(  //
     ::close(p_stdin[0]);
     ::close(p_stdout[1]);
 
-    DecoderProcess* process = new DecoderProcess;
+    EncoderProcess* process = new EncoderProcess;
     process->pid_ = pid;
 
     int flags0 = fcntl(p_stdout[0], F_GETFL);
     flags0 &= ~O_NONBLOCK;
     fcntl(p_stdout[0], F_SETFL, flags0);
-    process->from_decoder_ = p_stdout[0];
+    process->from_encoder_ = p_stdout[0];
 
     int flags1 = fcntl(p_stdin[1], F_GETFL);
     flags1 &= ~O_NONBLOCK;
     fcntl(p_stdin[1], F_SETFL, flags1);
-    process->to_decoder_ = p_stdin[1];
+    process->to_encoder_ = p_stdin[1];
 
     return process;
 }
 
-void StopDecoder(struct DecoderProcess* process) {
-    ::close(process->to_decoder_);
-    ::close(process->from_decoder_);
+void StopEncoder(struct EncoderProcess* process) {
+    ::close(process->to_encoder_);
+    ::close(process->from_encoder_);
 
     if (process->pid_ > 0) {
         ::kill(process->pid_, SIGTERM);
@@ -89,23 +89,23 @@ void StopDecoder(struct DecoderProcess* process) {
     delete process;
 }
 
-void DestroyDecoderIO(struct DecoderIO* io) {
+void DestroyEncoderIO(struct EncoderIO* io) {
     if (!io) return;
     delete[] io->data_;
     io->data_ = nullptr;
 }
 
-void DecoderR(struct DecoderProcess* process, struct DecoderIO* io) {
-    Read(process->from_decoder_, &io->timestamp_);
-    Read(process->from_decoder_, &io->size_);
+void EncoderR(struct EncoderProcess* process, struct EncoderIO* io) {
+    Read(process->from_encoder_, &io->timestamp_);
+    Read(process->from_encoder_, &io->size_);
     io->data_ = new char[io->size_];
-    Read(process->from_decoder_, io->data_, io->size_);
+    Read(process->from_encoder_, io->data_, io->size_);
 }
 
-void DecoderW(struct DecoderProcess* process, struct DecoderIO* io) {
-    Write(process->to_decoder_, &io->timestamp_);
-    Write(process->to_decoder_, &io->size_);
-    Write(process->to_decoder_, io->data_, io->size_);
+void EncoderW(struct EncoderProcess* process, struct EncoderIO* io) {
+    Write(process->to_encoder_, &io->timestamp_);
+    Write(process->to_encoder_, &io->size_);
+    Write(process->to_encoder_, io->data_, io->size_);
 }
 
 }  // extern
