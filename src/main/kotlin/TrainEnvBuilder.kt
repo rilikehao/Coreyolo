@@ -101,6 +101,8 @@ object TrainEnvBuilder {
                 }
             }
 
+            File("train/deps/$version").mkdirs()
+
             println("安装华为虚拟环境相关依赖...")
             ProcessBuilder(
                 "tar", "-xf", "Ascend-cann-amct_${version}_linux-x86_64.tar.gz", "-C", version,
@@ -141,7 +143,7 @@ object TrainEnvBuilder {
             val path = File("train/deps/${version}").absolutePath
             ProcessBuilder(
                 "bash", "-c",
-                "export PYTHONPATH=. && source bin/activate && $run --quiet --no-x11 --install --install-path=$path",
+                "export PYTHONPATH=. && source bin/activate && $run --quiet --nox11 --install --install-path=$path",
             ).directory(File(venvPath)).runCommand()
             ProcessBuilder("chmod", "-R", "+w", path).runCommand()
             ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
