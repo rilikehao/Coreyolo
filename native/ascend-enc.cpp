@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
             if (ACL_SUCCESS !=  //
                 aclvencSendFrame(
                     channel, nullptr, nullptr, config, nullptr)) {
-                throw std::runtime_error("aclvencSendFrame EOS");
+                qDebug() << "aclvencSendFrame EOS";
             }
             aclvencDestroyFrameConfig(config);
             QCoreApplication::instance()->quit();

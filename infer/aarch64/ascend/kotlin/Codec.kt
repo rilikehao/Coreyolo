@@ -24,7 +24,7 @@ object Codec {
         val data = when (AppConfig.instance.processing.vodSoftwareEncode) {
             false -> EncoderACL(id, name, input, "h264")
             true -> EncoderFFmpeg(
-                id, name, input, "h264", AV_PIX_FMT_YUV420P, arrayOf(
+                id, name, input, "libx264", AV_PIX_FMT_YUV420P, arrayOf(
                     "fflags" to "nobuffer",
                     "preset" to "superfast",
                     "qp" to (AppConfig.instance.processing.qH264 - 1.5).toString(1),
@@ -39,5 +39,5 @@ object Codec {
 
 
     class EncoderVideoH265(id: String, name: CompletableDeferred<String>?, input: Flow<Command.CommandImage>) :
-        EncoderACL(id, name, input, "h265")
+        EncoderACL(id, name, input, "hevc")
 }

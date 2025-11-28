@@ -52,6 +52,7 @@ open class EncoderACL(
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
+        val packet = av_packet_alloc()!!
 
         return flow {
             coroutineScope {
@@ -95,6 +96,14 @@ open class EncoderACL(
                                 cValuesOf(nv12, nv12 + wstride * hstride),
                                 cValuesOf(wstride, wstride),
                             )
+                            if (inputFrames == 0L) {
+                                EncoderW(encoderProcess.await(), cValue {
+                                    timestamp_ = -1
+                                    is_key_frame_ = true
+                                    size_ = nv12Size.toLong()
+                                    data_ = nv12.reinterpret()
+                                })
+                            }
                             EncoderW(encoderProcess.await(), cValue {
                                 timestamp_ = commandImage.timestamp.toEpochMilliseconds()
                                 is_key_frame_ = inputFrames % 12L == 0L
@@ -113,7 +122,6 @@ open class EncoderACL(
                     })
                 }
                 while (true) {
-                    val packet = av_packet_alloc()!!
                     val timestamp = memScoped {
                         val io = alloc<EncoderIO>().also { it.timestamp_ = 0L }
                         EncoderR0(encoderProcess.await(), io.ptr)
@@ -121,6 +129,10 @@ open class EncoderACL(
                         av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
                         io.data_ = packet.pointed.data!!.reinterpret()
                         EncoderR1(encoderProcess.await(), io.ptr)
+                        if (io.timestamp_ == -1L) {
+                            av_packet_unref(packet)
+                            continue
+                        }
                         if (io.is_key_frame_) {
                             packet.pointed.flags = packet.pointed.flags.or(AV_PKT_FLAG_KEY)
                         }
@@ -134,11 +146,8 @@ open class EncoderACL(
                             it.pointed.width = width
                             it.pointed.height = height
                             it.pointed.format = AV_PIX_FMT_YUV420P
-                            val extradata = av_malloc(packet.pointed.size.toULong())!!
-                            memcpy(extradata, packet.pointed.data, packet.pointed.size.toULong())
-                            it.pointed.extradata = extradata.reinterpret()
-                            it.pointed.extradata_size = packet.pointed.size
                         }
+                        setupExtraData(packet)
                     }
                     val pts = (timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
                     packet.pointed.pts = pts
@@ -150,6 +159,129 @@ open class EncoderACL(
             if (swsCtx != null) sws_freeContext(swsCtx)
             if (codecpar != null) av_free(codecpar!!.pointed.extradata)
             StopEncoder(encoderProcess.getCompleted())
+        }
+    }
+
+    private fun setupExtraData(packet: CPointer<AVPacket>) {
+        val data = packet.pointed.data ?: return
+        val size = packet.pointed.size
+        val codecId = codec!!.pointed.id
+
+        // 1. 初始化 BSF 结构 (如果需要的话，或者仅依靠 codecpar)
+
+        // 2. 深度扫描：遍历所有 NALU
+        var splitIndex = -1
+        var hasHeader = false // [新增] 标记是否找到了参数集
+        var i = 0
+
+        println(">>> analyzing first frame NALUs (size: $size)...")
+
+        while (i < size - 5) {
+            // 检测起始码前缀长度 (3字节 或 4字节)
+            var startCodeLen = 0
+            if (data[i] == 0.toUByte() && data[i+1] == 0.toUByte()) { // 注意：这里通常用 toByte() 比较方便，toUByte 也行
+                if (data[i+2] == 1.toUByte()) {
+                    startCodeLen = 3
+                } else if (data[i+2] == 0.toUByte() && data[i+3] == 1.toUByte()) {
+                    startCodeLen = 4
+                }
+            }
+
+            if (startCodeLen > 0) {
+                // 读取 NAL Header
+                val headerByte = data[i + startCodeLen].toInt()
+                var naluType = 0
+                var naluName = "UNKNOWN"
+                var isVCL = false
+
+                if (codecId == AV_CODEC_ID_HEVC) {
+                    // H.265
+                    naluType = (headerByte shr 1) and 0x3F
+                    isVCL = naluType < 32
+
+                    // [新增] 记录是否包含参数集
+                    if (naluType == 32 || naluType == 33 || naluType == 34) hasHeader = true
+
+                    naluName = when(naluType) {
+                        32 -> "VPS"
+                        33 -> "SPS"
+                        34 -> "PPS"
+                        35 -> "AUD"
+                        39, 40 -> "SEI"
+                        19, 20 -> "IDR"
+                        21 -> "CRA"
+                        else -> "Type($naluType)"
+                    }
+                } else {
+                    // H.264
+                    naluType = headerByte and 0x1F
+                    isVCL = naluType in 1..5
+
+                    // [新增] 记录是否包含参数集
+                    if (naluType == 7 || naluType == 8) hasHeader = true
+
+                    naluName = when(naluType) {
+                        7 -> "SPS"
+                        8 -> "PPS"
+                        6 -> "SEI"
+                        5 -> "IDR"
+                        1 -> "P/B Slice"
+                        else -> "Type($naluType)"
+                    }
+                }
+
+                println("  Offset $i: Found StartCode($startCodeLen) + $naluName")
+
+                // 如果找到了第一个视频切片 (VCL)，这就是分界线！
+                if (isVCL) {
+                    splitIndex = i
+                    println("  -> Split Point Found! Extradata ends at $splitIndex")
+                    break
+                }
+
+                i += startCodeLen
+            } else {
+                i++
+            }
+        }
+
+        // 3. 执行提取逻辑
+        if (splitIndex > 0) {
+            // --- 情况 A: 混合包 (Header + Data) ---
+            // 提取前面的 Header，保留后面的 Data
+            val extradataSize = splitIndex
+            val extradata = av_malloc(extradataSize.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
+            memcpy(extradata, data, extradataSize.toULong())
+
+            if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+            codecpar!!.pointed.extradata = extradata.reinterpret()
+            codecpar!!.pointed.extradata_size = extradataSize
+
+            println("Manual Extract: Success (Split)! Extradata Size: ${codecpar!!.pointed.extradata_size}")
+
+        } else if (hasHeader) {
+            // --- [新增] 情况 B: 纯 Header 包 (Header Only) ---
+            // 整个包都是 Extradata，没有图像数据
+            println("Manual Extract: Packet is pure Extradata (size: $size). Consuming entirely.")
+
+            val extradata = av_malloc(size.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
+            memcpy(extradata, data, size.toULong())
+
+            if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+            codecpar!!.pointed.extradata = extradata.reinterpret()
+            codecpar!!.pointed.extradata_size = size
+
+            println("Manual Extract: Success (Full)! Extradata Size: ${codecpar!!.pointed.extradata_size}")
+
+        } else {
+            // --- 情况 C: 既没找到 VCL 也没找到 Header (异常数据) ---
+            val hexStr = StringBuilder()
+            for (k in 0 until kotlin.math.min(size, 16)) {
+                val b = data[k].toInt()
+                if(b < 16) hexStr.append("0")
+                hexStr.append(b.toString(16).uppercase()).append(" ")
+            }
+            println("Manual Extract: FAILED. No VCL nor Header found. Header bytes: $hexStr")
         }
     }
 }

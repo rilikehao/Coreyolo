@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
             if (ACL_SUCCESS !=  //
                 aclvdecSendFrame(
                     channel, streamDesc, nullptr, nullptr, nullptr)) {
-                throw std::runtime_error("aclvdecSendFrame");
+                qDebug() << "aclvdecSendFrame";
             }
             QCoreApplication::instance()->quit();
         },
