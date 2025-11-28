@@ -168,37 +168,48 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../ultralytics && python ultralytics/engine/exporter.py"
         ).directory(File(VENV_PATH)).runCommand()
 
-        println("转换为 MNN 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
-        ).directory(File(VENV_PATH)).runCommand()
-
-        println("重命名量化模型...")
-        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
-
-        println("转换为 RKNN (RK3588) 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
-        ).directory(File(VENV_PATH)).runCommand()
-
-        println("转换为 RKNN (RK3576) 模型...")
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
-        ).directory(File(VENV_PATH)).runCommand()
-
-//        println("华为量化...")
+//        println("转换为 MNN 模型...")
 //        ProcessBuilder(
 //            "bash", "-c",
-//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend.py"
-//        ).apply {
-//            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-//        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
+//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
+//        ).directory(File(VENV_PATH)).runCommand()
 //
 //        println("重命名量化模型...")
-//        ProcessBuilder("mv", "../best.om", "../best.ascend310").directory(File(VENV_PATH)).runCommand()
+//        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
+//
+//        println("转换为 RKNN (RK3588) 模型...")
+//        ProcessBuilder(
+//            "bash", "-c",
+//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
+//        ).directory(File(VENV_PATH)).runCommand()
+//
+//        println("转换为 RKNN (RK3576) 模型...")
+//        ProcessBuilder(
+//            "bash", "-c",
+//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
+//        ).directory(File(VENV_PATH)).runCommand()
+
+        println("华为量化... (310)")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend_310.py"
+        ).apply {
+            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
+
+        println("重命名量化模型...")
+        ProcessBuilder("mv", "../best.om", "../best.ascend310").directory(File(VENV_PATH)).runCommand()
+
+        println("华为量化... (310P3)")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend_310P3.py"
+        ).apply {
+            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
+
+        println("重命名量化模型...")
+        ProcessBuilder("mv", "../best.om", "../best.ascend310P3").directory(File(VENV_PATH)).runCommand()
 
         listOf(
             "best.onnx", "best_deploy_model.onnx", "best_fake_quant_model.onnx", "best.mnn",
