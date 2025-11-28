@@ -6,7 +6,7 @@ import kotlinx.serialization.serializer
 
 object AppConfig {
     lateinit var instance: Configuration
-    
+
     @Serializable
     enum class SourceType {
         IMAGE, CAMERA, VIDEO_RECODE, VIDEO_KEEP,
@@ -47,6 +47,7 @@ object AppConfig {
         val fpsYolo: Double = 90000.0,
         val fpsDecode: Double = 90000.0,
         val mute: Boolean = false,
+        val vodSoftwareEncode: Boolean = false,
     )
 
     fun loadFromFile(configPath: String) {

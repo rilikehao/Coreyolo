@@ -1,5 +1,5 @@
 [source]
-type = "VIDEO_KEEP"
+type = "VIDEO_RECODE"
 
 [paths]
 model = "assets/bestL.ascend310"
@@ -16,3 +16,4 @@ cpuThreads = 8
 fpsDecode = 30.0
 fpsYolo = 30.0
 mute = false
+vodSoftwareEncode = true

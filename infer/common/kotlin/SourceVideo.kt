@@ -1,7 +1,7 @@
 package common
 
 import Codec
-import EncoderVideoH264Fast
+import EncoderVideoH264Vod
 import cnames.structs.TcpSocket
 import co.touchlab.kermit.Logger
 import common.Detections.mux
@@ -56,7 +56,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                             .let { SpeedLimiter(it, inputFmp4.speed)() }
                             .buffer(Channel.UNLIMITED)
                         val drawn = Draw(inferred, false)()
-                        val encoder = EncoderVideoH264Fast("$id-vod", null, drawn)
+                        val encoder = EncoderVideoH264Vod("$id-vod", null, drawn)
                         Output(encoder, encoder()).use {
                             var context: Output.Context? = null
                             context = it.addFmp4StreamBlocking { buf, size ->
