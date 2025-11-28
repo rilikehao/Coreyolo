@@ -84,7 +84,7 @@ object TrainEnvBuilder {
                 }
                 "8.0.0" -> {
                     venvPath = VENV_PATH_HUAWEI_8
-                    amctOnnxVersion = "0.7.4"
+                    amctOnnxVersion = "0.19.3"
                 }
                 else -> throw Error("版本不对")
             }
