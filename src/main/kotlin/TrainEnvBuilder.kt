@@ -25,19 +25,20 @@ object TrainEnvBuilder {
     }
 
     const val VENV_PATH = "train/env"
-    const val VENV_PATH_HUAWEI = "train/env-huawei"
+    const val VENV_PATH_HUAWEI_6 = "train/env-huawei-6"
+    const val VENV_PATH_HUAWEI_8 = "train/env-huawei-8"
 
     private fun createVenv() {
-        println("检查虚拟环境是否存在...")
-
-        if (File(VENV_PATH).exists() && File(VENV_PATH_HUAWEI).exists()) {
-            println("虚拟环境已存在, 使用现有虚拟环境")
-            return
-        }
-
         println("创建虚拟环境...")
-        ProcessBuilder("uv", "venv", File(VENV_PATH).absolutePath, "--python", "3.12").runCommand()
-        ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI).absolutePath, "--python", "3.9").runCommand()
+        if (!File(VENV_PATH).exists()) {
+            ProcessBuilder("uv", "venv", File(VENV_PATH).absolutePath, "--python", "3.12").runCommand()
+        }
+        if (!File(VENV_PATH_HUAWEI_6).exists()) {
+            ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI_6).absolutePath, "--python", "3.9").runCommand()
+        }
+        if (!File(VENV_PATH_HUAWEI_8).exists()) {
+            ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI_8).absolutePath, "--python", "3.9").runCommand()
+        }
         println("虚拟环境创建完成")
     }
 
@@ -73,64 +74,78 @@ object TrainEnvBuilder {
         println("下载华为依赖...")
         File("train/deps").mkdirs()
 
-        listOf(
-            "execstack",
-            "Ascend-cann-amct_6.0.1_linux-x86_64.tar.gz",
-            "Ascend-cann-toolkit_6.0.1_linux-x86_64.run",
-        ).forEach {
-            if (!File("train/deps/$it").exists()) {
-                ProcessBuilder(
-                    "curl", "-o", File("train/deps/$it").absolutePath,
-                    "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$it",
-                ).runCommand()
+        listOf("6.0.1", "8.0.0").forEach { version ->
+            val venvPath: String
+            val amctOnnxVersion: String
+            when(version) {
+                "6.0.1" -> {
+                    venvPath = VENV_PATH_HUAWEI_6
+                    amctOnnxVersion = "0.7.4"
+                }
+                "8.0.0" -> {
+                    venvPath = VENV_PATH_HUAWEI_8
+                    amctOnnxVersion = "0.7.4"
+                }
+                else -> throw Error("版本不对")
             }
+            listOf(
+                "execstack",
+                "Ascend-cann-amct_${version}_linux-x86_64.tar.gz",
+                "Ascend-cann-toolkit_${version}_linux-x86_64.run",
+            ).forEach {
+                if (!File("train/deps/$it").exists()) {
+                    ProcessBuilder(
+                        "curl", "-o", File("train/deps/$it").absolutePath,
+                        "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$it",
+                    ).runCommand()
+                }
+            }
+
+            println("安装华为虚拟环境相关依赖...")
+            ProcessBuilder(
+                "tar", "-xf", "Ascend-cann-amct_${version}_linux-x86_64.tar.gz", "-C", version,
+            ).directory(File("train/deps")).runCommand()
+
+            ProcessBuilder(
+                "uv", "pip", "install",
+                "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python", "pip", "decorator", "sympy",
+                "../deps/$version/amct/amct_onnx/amct_onnx-$amctOnnxVersion-py3-none-linux_x86_64.whl",
+                "--directory", File(venvPath).absolutePath,
+            ).runCommand()
+
+            ProcessBuilder(
+                "chmod", "+x", "execstack",
+            ).directory(File("train/deps")).runCommand()
+
+            ProcessBuilder(
+                "./execstack", "-c",
+                File("$venvPath/lib/python3.9/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-39-x86_64-linux-gnu.so").absolutePath,
+            ).directory(File("train/deps")).runCommand()
+
+            ProcessBuilder(
+                "tar", "-xf",
+                "amct_onnx_op.tar.gz",
+            ).directory(File("train/deps/$version/amct/amct_onnx")).runCommand()
+
+            ProcessBuilder(
+                "bin/python", "../deps/$version/amct/amct_onnx/amct_onnx_op/setup.py", "install",
+            ).directory(File(venvPath)).apply {
+                environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+            }.runCommand()
+
+            ProcessBuilder(
+                "chmod", "+x", "Ascend-cann-toolkit_${version}_linux-x86_64.run",
+            ).directory(File("train/deps")).runCommand()
+
+            val run = "../deps/Ascend-cann-toolkit_${version}_linux-x86_64.run"
+            val path = File("train/deps/${version}").absolutePath
+            ProcessBuilder(
+                "bash", "-c",
+                "export PYTHONPATH=. && source bin/activate && $run --quiet --no-x11 --install --install-path=$path",
+            ).directory(File(venvPath)).runCommand()
+            ProcessBuilder("chmod", "-R", "+w", path).runCommand()
+            ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
         }
-
-        println("安装华为虚拟环境相关依赖...")
-        ProcessBuilder(
-            "tar", "-xf", "Ascend-cann-amct_6.0.1_linux-x86_64.tar.gz"
-        ).directory(File("train/deps")).runCommand()
-
-        ProcessBuilder(
-            "uv", "pip", "install",
-            "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python", "pip", "decorator", "sympy",
-            "../deps/amct/amct_onnx/amct_onnx-0.7.4-py3-none-linux_x86_64.whl",
-            "--directory", File(VENV_PATH_HUAWEI).absolutePath,
-        ).runCommand()
-
-        ProcessBuilder(
-            "chmod", "+x", "execstack",
-        ).directory(File("train/deps")).runCommand()
-
-        ProcessBuilder(
-            "./execstack", "-c",
-            "../env-huawei/lib/python3.9/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-39-x86_64-linux-gnu.so",
-        ).directory(File("train/deps")).runCommand()
-
-        ProcessBuilder(
-            "tar", "-xf",
-            "amct_onnx_op.tar.gz",
-        ).directory(File("train/deps/amct/amct_onnx")).runCommand()
-
-        ProcessBuilder(
-            "bin/python", "../deps/amct/amct_onnx/amct_onnx_op/setup.py", "install",
-        ).directory(File(VENV_PATH_HUAWEI)).apply {
-            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-        }.runCommand()
-
-        ProcessBuilder(
-            "chmod", "+x", "Ascend-cann-toolkit_6.0.1_linux-x86_64.run",
-        ).directory(File("train/deps")).runCommand()
-
-        val run = "../deps/Ascend-cann-toolkit_6.0.1_linux-x86_64.run"
-        val path = File("train/deps").absolutePath
-        ProcessBuilder(
-            "bash", "-c",
-            "export PYTHONPATH=. && source bin/activate && $run --quiet --no-x11 --install --install-path=$path",
-        ).directory(File(VENV_PATH_HUAWEI)).runCommand()
-        ProcessBuilder("chmod", "-R", "+w", path).runCommand()
-        ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
-
         println("所有依赖安装完成")
     }
 
@@ -195,7 +210,7 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend_310.py"
         ).apply {
             environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
+        }.directory(File(VENV_PATH_HUAWEI_6)).runCommand()
 
         println("重命名量化模型...")
         ProcessBuilder("mv", "../best.om", "../best.ascend310").directory(File(VENV_PATH)).runCommand()
@@ -206,7 +221,7 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend_310P3.py"
         ).apply {
             environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
+        }.directory(File(VENV_PATH_HUAWEI_8)).runCommand()
 
         println("重命名量化模型...")
         ProcessBuilder("mv", "../best.om", "../best.ascend310P3").directory(File(VENV_PATH)).runCommand()
@@ -229,7 +244,8 @@ object TrainEnvBuilder {
         ).forEach { file -> File("train/$file").delete() }
 
         File(VENV_PATH).deleteRecursively()
-        File(VENV_PATH_HUAWEI).deleteRecursively()
+        File(VENV_PATH_HUAWEI_6).deleteRecursively()
+        File(VENV_PATH_HUAWEI_8).deleteRecursively()
 
         println("清理完成")
     }

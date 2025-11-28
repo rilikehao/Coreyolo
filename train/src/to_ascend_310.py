@@ -117,7 +117,7 @@ if __name__ == '__main__':
     image_count = prepare()
     info = get_onnx_input_info(str(TRAIN_PATH / "best.onnx"))
     command_list = [
-        str(TRAIN_PATH / "env-huawei/bin/amct_onnx"),
+        str(TRAIN_PATH / "env-huawei-6/bin/amct_onnx"),
         "calibration",
         "--model", str(TRAIN_PATH / "best.onnx"),
         "--save_path", str(TRAIN_PATH / "best"),
@@ -130,6 +130,5 @@ if __name__ == '__main__':
     command_list = [
         "bash",
         "to_ascend.sh",
-        "310",
     ]
     subprocess.run(command_list, check=True)

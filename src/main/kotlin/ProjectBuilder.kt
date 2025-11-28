@@ -176,27 +176,26 @@ object ProjectBuilder {
 
     fun buildACL() {
         File("aarch64").mkdirs()
-        listOf(
-            "Ascend-cann-nnrt_6.0.1_linux-aarch64.run",
-        ).forEach {
-            if (!File("aarch64/$it").exists()) {
+        listOf("6.0.1", "8.0.0").forEach { version ->
+            val run = "Ascend-cann-nnrt_${version}_linux-aarch64.run"
+            if (!File("aarch64/$run").exists()) {
                 ProcessBuilder(
-                    "curl", "-o", File("aarch64/$it").absolutePath,
-                    "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$it",
+                    "curl", "-o", File("aarch64/$run").absolutePath,
+                    "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$run",
                 ).runCommand()
             }
-            ProcessBuilder("chmod", "+x", File("aarch64/$it").absolutePath).runCommand()
+            ProcessBuilder("chmod", "+x", File("aarch64/$run").absolutePath).runCommand()
             ProcessBuilder(
-                "${File("aarch64/$it").absolutePath}",
-                "--quiet", "--nox11", "--install", "--install-path=${File("aarch64/root/usr/local").absolutePath}",
+                "${File("aarch64/$run").absolutePath}",
+                "--quiet", "--nox11", "--install", "--install-path=${File("aarch64/root/usr/local/$version").absolutePath}",
+            ).runCommand()
+            ProcessBuilder("chmod", "-R", "+w", File("aarch64/root/usr/local/$version/nnrt").absolutePath).runCommand()
+            ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
+            ProcessBuilder(
+                "curl", "-o", File("aarch64/root/usr/local/$version/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
+                "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/acl_dvpp.h",
             ).runCommand()
         }
-        ProcessBuilder("chmod", "-R", "+w", File("aarch64/root/usr/local/nnrt").absolutePath).runCommand()
-        ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
-        ProcessBuilder(
-            "curl", "-o", File("aarch64/root/usr/local/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
-            "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/acl_dvpp.h",
-        ).runCommand()
     }
 
     fun buildFFmpegRockchip() {
