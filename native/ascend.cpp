@@ -303,18 +303,28 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     // 计算输入数据大小 (NCHW 格式: N=1, C=3, H=h, W=w) -
     // 使用float类型存储归一化数据
     size_t input_size = static_cast<size_t>(h) * w * 3 * sizeof(float);
-    void* input_buffer = nullptr;
-    aclError ret = aclrtMalloc(
-        &input_buffer, input_size, ACL_MEM_MALLOC_NORMAL_ONLY);
+
+    // 1. Host 侧临时内存 (用于 CPU 处理 NCHW)
+    void* host_buffer = nullptr;
+    aclError ret = aclrtMallocHost(&host_buffer, input_size);
     if (ret != ACL_SUCCESS) {
-        qDebug("Failed to malloc input buffer, errorCode is %d", ret);
+        qDebug("Failed to malloc host buffer, errorCode is %d", ret);
         aclmdlDestroyDataset(input_dataset);
-        throw std::runtime_error("Failed to allocate input buffer");
+        throw std::runtime_error("Failed to allocate host buffer");
     }
 
-    // 将 HWC 格式转换为 NCHW 格式，并进行数据标准化
-    // HWC: [H][W][3] -> NCHW: [1][3][H][W]
-    auto* nchw_buffer = static_cast<float*>(input_buffer);
+    // 2. Device 侧内存 (用于模型推理输入)
+    void* device_buffer = nullptr;
+    ret = aclrtMalloc(&device_buffer, input_size, ACL_MEM_MALLOC_NORMAL_ONLY);
+    if (ret != ACL_SUCCESS) {
+        qDebug("Failed to malloc device buffer, errorCode is %d", ret);
+        aclrtFreeHost(host_buffer);
+        aclmdlDestroyDataset(input_dataset);
+        throw std::runtime_error("Failed to allocate device buffer");
+    }
+
+    // 3. 在 Host Buffer 上进行 NCHW 转换和归一化
+    auto* nchw_host_ptr = static_cast<float*>(host_buffer);
     size_t pixel_count = static_cast<size_t>(h) * w;
 
     // 分离 RGB 通道并按 NCHW 格式重新组织，同时进行0-1归一化
@@ -326,7 +336,8 @@ void Detect0(Infer* infer, InferTask* task, int no) {
             if (hwc_idx + 2 >=
                 static_cast<size_t>(scaled.sizeInBytes())) {
                 qDebug("Data index out of bounds: %zu", hwc_idx + 2);
-                aclrtFree(input_buffer);
+                aclrtFreeHost(host_buffer);
+                aclrtFree(device_buffer);
                 aclmdlDestroyDataset(input_dataset);
                 throw std::runtime_error("Data index out of bounds");
             }
@@ -338,22 +349,35 @@ void Detect0(Infer* infer, InferTask* task, int no) {
             size_t b_idx = 2 * pixel_count + y * w +
                            x;  // B 通道: 位置 (2*pixel_count + y*w + x)
 
-            // 将数据标准化到0-1范围并按NCHW格式存储
-            nchw_buffer[r_idx] = static_cast<float>(data[hwc_idx]) /
-                                 255.0f;  // R 分量归一化
-            nchw_buffer[g_idx] = static_cast<float>(data[hwc_idx + 1]) /
-                                 255.0f;  // G 分量归一化
-            nchw_buffer[b_idx] = static_cast<float>(data[hwc_idx + 2]) /
-                                 255.0f;  // B 分量归一化
+            // 将数据标准化到0-1范围并按NCHW格式存储 (写入 Host 内存)
+            nchw_host_ptr[r_idx] = static_cast<float>(data[hwc_idx]) /
+                                   255.0f;  // R 分量归一化
+            nchw_host_ptr[g_idx] = static_cast<float>(data[hwc_idx + 1]) /
+                                   255.0f;  // G 分量归一化
+            nchw_host_ptr[b_idx] = static_cast<float>(data[hwc_idx + 2]) /
+                                   255.0f;  // B 分量归一化
         }
     }
 
-    // 创建输入数据缓冲
+    // 4. 将数据拷贝到 Device (Host -> Device)
+    ret = aclrtMemcpy(device_buffer, input_size, host_buffer, input_size, ACL_MEMCPY_HOST_TO_DEVICE);
+    if (ret != ACL_SUCCESS) {
+        qDebug("aclrtMemcpy failed, errorCode is %d", ret);
+        aclrtFreeHost(host_buffer);
+        aclrtFree(device_buffer);
+        aclmdlDestroyDataset(input_dataset);
+        throw std::runtime_error("Failed to copy memory to device");
+    }
+
+    // 5. 释放 Host 临时内存 (数据已经拷过去了，不再需要)
+    aclrtFreeHost(host_buffer);
+
+    // 6. 创建输入数据缓冲 (使用 device_buffer)
     aclDataBuffer* input_buffer_desc =
-        aclCreateDataBuffer(input_buffer, input_size);
+        aclCreateDataBuffer(device_buffer, input_size);
     if (!input_buffer_desc) {
         qDebug("Failed to create input data buffer");
-        aclrtFree(input_buffer);
+        aclrtFree(device_buffer);
         aclmdlDestroyDataset(input_dataset);
         throw std::runtime_error("Failed to create input data buffer");
     }
@@ -364,7 +388,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         qDebug(
             "Failed to add input dataset buffer, errorCode is %d", ret);
         aclDestroyDataBuffer(input_buffer_desc);
-        aclrtFree(input_buffer);
+        aclrtFree(device_buffer);
         aclmdlDestroyDataset(input_dataset);
         throw std::runtime_error("Failed to add input dataset buffer");
     }
@@ -374,7 +398,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
     if (!output_dataset) {
         qDebug("Failed to create output dataset");
         aclDestroyDataBuffer(input_buffer_desc);
-        aclrtFree(input_buffer);
+        aclrtFree(device_buffer);
         aclmdlDestroyDataset(input_dataset);
         throw std::runtime_error("Failed to create output dataset");
     }
@@ -406,7 +430,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
             }
             aclmdlDestroyDataset(output_dataset);
             aclDestroyDataBuffer(input_buffer_desc);
-            aclrtFree(input_buffer);
+            aclrtFree(device_buffer);
             aclmdlDestroyDataset(input_dataset);
             throw std::runtime_error(
                 "Failed to allocate output buffer");
@@ -430,7 +454,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
             }
             aclmdlDestroyDataset(output_dataset);
             aclDestroyDataBuffer(input_buffer_desc);
-            aclrtFree(input_buffer);
+            aclrtFree(device_buffer);
             aclmdlDestroyDataset(input_dataset);
             throw std::runtime_error(
                 "Failed to create output data buffer");
@@ -458,7 +482,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
             }
             aclmdlDestroyDataset(output_dataset);
             aclDestroyDataBuffer(input_buffer_desc);
-            aclrtFree(input_buffer);
+            aclrtFree(device_buffer);
             aclmdlDestroyDataset(input_dataset);
             throw std::runtime_error(
                 "Failed to add output dataset buffer");
@@ -498,7 +522,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
         }
         aclmdlDestroyDataset(output_dataset);
         aclDestroyDataBuffer(input_buffer_desc);
-        aclrtFree(input_buffer);
+        aclrtFree(device_buffer);
         aclmdlDestroyDataset(input_dataset);
         throw std::runtime_error("Failed to execute model");
     }
@@ -518,7 +542,7 @@ void Detect0(Infer* infer, InferTask* task, int no) {
 
     // 清理输入
     aclDestroyDataBuffer(input_buffer_desc);
-    aclrtFree(input_buffer);
+    aclrtFree(device_buffer);
     aclmdlDestroyDataset(input_dataset);
 
     // 保存输出数据集供后续处理使用
@@ -604,16 +628,64 @@ void Detect1(Infer* infer, InferTask* task) {
             }
         }
 
-        // 检查数据有效性
-        data.box_ = static_cast<float*>(box_ptr);
-        data.score_ = score_ptr;
-        data.score_sum_ = score_sum_ptr;
+        // --- 修改开始：准备 Host 侧容器 ---
+        std::vector<float> host_box;
+        std::vector<float> host_score;
+        std::vector<float> host_score_sum;
+
+        // 1. 处理 Box (必须存在)
+        size_t box_size = aclGetDataBufferSizeV2(box_buffer);
+
+        // 分配 Host 内存并拷贝 (Device -> Host)
+        host_box.resize(box_size / sizeof(float));
+        aclError ret = aclrtMemcpy(host_box.data(), box_size,
+                                   box_ptr, box_size,
+                                   ACL_MEMCPY_DEVICE_TO_HOST);
+        if (ret != ACL_SUCCESS) {
+            qDebug("Copy box failed: %d", ret);
+            continue;
+        }
+
+        // 2. 处理 Score (可选)
+        if (b + 1 < num_buffers) {
+            aclDataBuffer* score_buffer = aclmdlGetDatasetBuffer(output_dataset, b + 1);
+            if (score_buffer) {
+                void* dev_score_ptr = aclGetDataBufferAddr(score_buffer);
+                size_t score_size = aclGetDataBufferSizeV2(score_buffer);
+
+                host_score.resize(score_size / sizeof(float));
+                ret = aclrtMemcpy(host_score.data(), score_size,
+                                  dev_score_ptr, score_size,
+                                  ACL_MEMCPY_DEVICE_TO_HOST);
+                if (ret != ACL_SUCCESS) qDebug("Copy score failed");
+            }
+        }
+
+        // 3. 处理 Score Sum (可选)
+        if (b + 2 < num_buffers) {
+            aclDataBuffer* score_sum_buffer = aclmdlGetDatasetBuffer(output_dataset, b + 2);
+            if (score_sum_buffer) {
+                void* dev_sum_ptr = aclGetDataBufferAddr(score_sum_buffer);
+                size_t sum_size = aclGetDataBufferSizeV2(score_sum_buffer);
+
+                host_score_sum.resize(sum_size / sizeof(float));
+                ret = aclrtMemcpy(host_score_sum.data(), sum_size,
+                                  dev_sum_ptr, sum_size,
+                                  ACL_MEMCPY_DEVICE_TO_HOST);
+                if (ret != ACL_SUCCESS) qDebug("Copy score_sum failed");
+            }
+        }
+
+        // --- 赋值给 data 结构体 (使用 Host 内存地址) ---
+        data.box_ = host_box.data();
+        data.score_ = host_score.empty() ? nullptr : host_score.data();
+        data.score_sum_ = host_score_sum.empty() ? nullptr : host_score_sum.data();
 
         // 获取输出张量维度
         aclmdlIODims output_dims;
-        aclError ret =
+        aclError dim_ret =
             aclmdlGetOutputDims(session.model_desc_, b, &output_dims);
-        if (QueryAcl(ret, "aclmdlGetOutputDims")) {
+        if (QueryAcl(dim_ret, "aclmdlGetOutputDims")) {
             data.h_grid_ =
                 static_cast<int>(output_dims.dims[2]);  // H 维度
             data.w_grid_ =

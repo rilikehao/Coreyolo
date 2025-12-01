@@ -37,6 +37,7 @@ open class EncoderACL(
     private var height = 0
     private var codecpar: CPointer<AVCodecParameters>? = null
     private var codec: CPointer<AVCodec>? = null
+    private var lastDts: Long = -1L
 
     lateinit var timestamp0: Instant
 
@@ -96,14 +97,6 @@ open class EncoderACL(
                                 cValuesOf(nv12, nv12 + wstride * hstride),
                                 cValuesOf(wstride, wstride),
                             )
-                            if (inputFrames == 0L) {
-                                EncoderW(encoderProcess.await(), cValue {
-                                    timestamp_ = -1
-                                    is_key_frame_ = true
-                                    size_ = nv12Size.toLong()
-                                    data_ = nv12.reinterpret()
-                                })
-                            }
                             EncoderW(encoderProcess.await(), cValue {
                                 timestamp_ = commandImage.timestamp.toEpochMilliseconds()
                                 is_key_frame_ = inputFrames % 12L == 0L
@@ -126,162 +119,132 @@ open class EncoderACL(
                         val io = alloc<EncoderIO>().also { it.timestamp_ = 0L }
                         EncoderR0(encoderProcess.await(), io.ptr)
                         if (io.timestamp_ == 0L) break
+
+                        // 1. 读取数据
                         av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
                         io.data_ = packet.pointed.data!!.reinterpret()
                         EncoderR1(encoderProcess.await(), io.ptr)
-                        if (io.timestamp_ == -1L) {
-                            av_packet_unref(packet)
-                            continue
+
+                        // 2. 确保 codecpar 存在
+                        if (codecpar == null) {
+                            codecpar = avcodec_parameters_alloc().also {
+                                it!!.pointed.codec_type = AVMEDIA_TYPE_VIDEO
+                                it.pointed.codec_id = codec!!.pointed.id
+                                it.pointed.codec_tag = 0U
+                                it.pointed.width = width
+                                it.pointed.height = height
+                                it.pointed.format = AV_PIX_FMT_YUV420P
+                            }
                         }
+
+                        // 3. 严格的手动提取逻辑
+                        if (codecpar!!.pointed.extradata == null) {
+                            val dataPtr = packet.pointed.data!!
+                            val size = packet.pointed.size
+                            val isHevc = (codec!!.pointed.id == AV_CODEC_ID_HEVC)
+
+                            // 查找 Header 与 图像数据 的分界点
+                            val splitIndex = findHeaderEndOffset(dataPtr, size, isHevc)
+
+                            if (splitIndex > 0) {
+                                Logger.i { "Extradata detected! Size: $splitIndex bytes" }
+                                val extradata =
+                                    av_malloc(splitIndex.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
+                                memcpy(extradata, dataPtr, splitIndex.toULong())
+                                codecpar!!.pointed.extradata = extradata.reinterpret()
+                                codecpar!!.pointed.extradata_size = splitIndex
+                            } else {
+                                Logger.w { "No extradata found in first packet (SplitIndex=$splitIndex)" }
+                            }
+                        }
+
                         if (io.is_key_frame_) {
                             packet.pointed.flags = packet.pointed.flags.or(AV_PKT_FLAG_KEY)
                         }
                         Instant.fromEpochMilliseconds(io.timestamp_)
                     }
-                    if (codecpar == null) {
-                        codecpar = avcodec_parameters_alloc().also {
-                            it!!.pointed.codec_type = AVMEDIA_TYPE_VIDEO
-                            it.pointed.codec_id = codec!!.pointed.id
-                            it.pointed.codec_tag = 0U
-                            it.pointed.width = width
-                            it.pointed.height = height
-                            it.pointed.format = AV_PIX_FMT_YUV420P
-                        }
-                        setupExtraData(packet)
+
+                    var pts = (timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
+                    if (pts <= lastDts) {
+                        pts = lastDts + 1
                     }
-                    val pts = (timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
+                    lastDts = pts
+
                     packet.pointed.pts = pts
                     packet.pointed.dts = pts
+
                     emit(packet as CPointer<AVPacket>?)
                 }
             }
         }.onCompletion {
             if (swsCtx != null) sws_freeContext(swsCtx)
-            if (codecpar != null) av_free(codecpar!!.pointed.extradata)
+            if (codecpar != null) {
+                if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+                av_free(codecpar)
+            }
             StopEncoder(encoderProcess.getCompleted())
         }
     }
 
-    private fun setupExtraData(packet: CPointer<AVPacket>) {
-        val data = packet.pointed.data ?: return
-        val size = packet.pointed.size
-        val codecId = codec!!.pointed.id
-
-        // 1. 初始化 BSF 结构 (如果需要的话，或者仅依靠 codecpar)
-
-        // 2. 深度扫描：遍历所有 NALU
-        var splitIndex = -1
-        var hasHeader = false // [新增] 标记是否找到了参数集
+    /**
+     * 严格扫描 NALU，返回 Header (VPS/SPS/PPS/SEI) 结束的位置。
+     * 如果整个包都是 Header，返回 size。
+     * 如果没有 Header，返回 0。
+     */
+    private fun findHeaderEndOffset(data: CPointer<UByteVar>, size: Int, isHevc: Boolean): Int {
         var i = 0
+        var lastHeaderEnd = 0
+        var foundAnyHeader = false
 
-        println(">>> analyzing first frame NALUs (size: $size)...")
-
-        while (i < size - 5) {
-            // 检测起始码前缀长度 (3字节 或 4字节)
+        while (i < size - 4) {
+            // 1. 查找 Start Code (00 00 01 或 00 00 00 01)
             var startCodeLen = 0
-            if (data[i] == 0.toUByte() && data[i+1] == 0.toUByte()) { // 注意：这里通常用 toByte() 比较方便，toUByte 也行
-                if (data[i+2] == 1.toUByte()) {
+            if (data[i] == 0.toUByte() && data[i + 1] == 0.toUByte()) {
+                if (data[i + 2] == 1.toUByte()) {
                     startCodeLen = 3
-                } else if (data[i+2] == 0.toUByte() && data[i+3] == 1.toUByte()) {
+                } else if (data[i + 2] == 0.toUByte() && data[i + 3] == 1.toUByte()) {
                     startCodeLen = 4
                 }
             }
 
             if (startCodeLen > 0) {
-                // 读取 NAL Header
+                val naluStart = i
+                // 读取 NAL Header 字节
                 val headerByte = data[i + startCodeLen].toInt()
-                var naluType = 0
-                var naluName = "UNKNOWN"
-                var isVCL = false
+                val naluType: Int
+                val isVcl: Boolean
 
-                if (codecId == AV_CODEC_ID_HEVC) {
-                    // H.265
-                    naluType = (headerByte shr 1) and 0x3F
-                    isVCL = naluType < 32
-
-                    // [新增] 记录是否包含参数集
-                    if (naluType == 32 || naluType == 33 || naluType == 34) hasHeader = true
-
-                    naluName = when(naluType) {
-                        32 -> "VPS"
-                        33 -> "SPS"
-                        34 -> "PPS"
-                        35 -> "AUD"
-                        39, 40 -> "SEI"
-                        19, 20 -> "IDR"
-                        21 -> "CRA"
-                        else -> "Type($naluType)"
-                    }
+                if (isHevc) {
+                    // H.265: Type = (byte & 0x7E) >> 1
+                    naluType = (headerByte and 0x7E) shr 1
+                    // VCL 范围: 0-31. Header: 32(VPS), 33(SPS), 34(PPS), 39/40(SEI)
+                    isVcl = naluType < 32
                 } else {
-                    // H.264
+                    // H.264: Type = byte & 0x1F
                     naluType = headerByte and 0x1F
-                    isVCL = naluType in 1..5
-
-                    // [新增] 记录是否包含参数集
-                    if (naluType == 7 || naluType == 8) hasHeader = true
-
-                    naluName = when(naluType) {
-                        7 -> "SPS"
-                        8 -> "PPS"
-                        6 -> "SEI"
-                        5 -> "IDR"
-                        1 -> "P/B Slice"
-                        else -> "Type($naluType)"
-                    }
+                    // VCL 范围: 1-5. Header: 7(SPS), 8(PPS), 6(SEI)
+                    isVcl = naluType in 1..5
                 }
 
-                println("  Offset $i: Found StartCode($startCodeLen) + $naluName")
-
-                // 如果找到了第一个视频切片 (VCL)，这就是分界线！
-                if (isVCL) {
-                    splitIndex = i
-                    println("  -> Split Point Found! Extradata ends at $splitIndex")
-                    break
+                if (isVcl) {
+                    // 找到了第一帧图像数据 (IDR/Slice)，立刻停止！
+                    // 分界点就是当前 NALU 的起始位置 (i)
+                    return i
+                } else {
+                    // 这是一个 Header，继续找下一个
+                    foundAnyHeader = true
+                    // 暂时假设这个 Header 之后全是 Header，直到发现 VCL
+                    // 如果整个包跑完了都没发现 VCL，那整个包都是 Extradata
+                    lastHeaderEnd = size
                 }
 
+                // 跳过 StartCode 继续扫描
                 i += startCodeLen
             } else {
                 i++
             }
         }
 
-        // 3. 执行提取逻辑
-        if (splitIndex > 0) {
-            // --- 情况 A: 混合包 (Header + Data) ---
-            // 提取前面的 Header，保留后面的 Data
-            val extradataSize = splitIndex
-            val extradata = av_malloc(extradataSize.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
-            memcpy(extradata, data, extradataSize.toULong())
-
-            if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
-            codecpar!!.pointed.extradata = extradata.reinterpret()
-            codecpar!!.pointed.extradata_size = extradataSize
-
-            println("Manual Extract: Success (Split)! Extradata Size: ${codecpar!!.pointed.extradata_size}")
-
-        } else if (hasHeader) {
-            // --- [新增] 情况 B: 纯 Header 包 (Header Only) ---
-            // 整个包都是 Extradata，没有图像数据
-            println("Manual Extract: Packet is pure Extradata (size: $size). Consuming entirely.")
-
-            val extradata = av_malloc(size.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
-            memcpy(extradata, data, size.toULong())
-
-            if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
-            codecpar!!.pointed.extradata = extradata.reinterpret()
-            codecpar!!.pointed.extradata_size = size
-
-            println("Manual Extract: Success (Full)! Extradata Size: ${codecpar!!.pointed.extradata_size}")
-
-        } else {
-            // --- 情况 C: 既没找到 VCL 也没找到 Header (异常数据) ---
-            val hexStr = StringBuilder()
-            for (k in 0 until kotlin.math.min(size, 16)) {
-                val b = data[k].toInt()
-                if(b < 16) hexStr.append("0")
-                hexStr.append(b.toString(16).uppercase()).append(" ")
-            }
-            println("Manual Extract: FAILED. No VCL nor Header found. Header bytes: $hexStr")
-        }
+        return if (foundAnyHeader) lastHeaderEnd else 0
     }
 }
