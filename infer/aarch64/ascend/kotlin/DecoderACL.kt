@@ -31,11 +31,11 @@ open class DecoderACL(
     }
 
     override suspend fun invoke(): Flow<Command.CommandImage> {
+        val decoderProcess = CompletableDeferred<CPointer<DecoderProcess>>()
         var width = 0
         var height = 0
         var inputFrames = 0L
         var timestamp0 = Clock.System.now()
-        val decoderProcess = CompletableDeferred<CPointer<DecoderProcess>>()
         var swsCtx: CPointer<SwsContext>? = null
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
@@ -87,61 +87,67 @@ open class DecoderACL(
                         }
                     }
                 }
-                memScoped {
-                    while (true) {
-                        val io = alloc<DecoderIO>().also { it.timestamp_ = 0L }
-                        DecoderR(decoderProcess.await(), io.ptr)
-                        try {
-                            if (io.timestamp_ == 0L) break
-                            if (io.timestamp_ == -1L) continue
-                            val timestamp = Instant.fromEpochMilliseconds(io.timestamp_)
-                            val wstride = (width + 15) / 16 * 16
-                            val hstride = (height + 1) / 2 * 2
-                            CreateImageRGB24(width, height)!!.also { image ->
-                                sws_scale(
-                                    swsCtx,
-                                    cValuesOf(
-                                        io.data_!!.reinterpret(),
-                                        io.data_!!.reinterpret<UByteVar>() + wstride * hstride
-                                    ),
-                                    cValuesOf(wstride, wstride),
-                                    0, height,
-                                    cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
-                                )
-                            }.let { emit(Command.CommandImage(timestamp, it)) }
-                        } finally {
-                            DestroyDecoderIO(io.ptr)
+
+                try {
+                    memScoped {
+                        while (true) {
+                            val io = alloc<DecoderIO>().also { it.timestamp_ = 0L }
+                            DecoderR(decoderProcess.await(), io.ptr)
+                            try {
+                                if (io.timestamp_ == 0L) break
+                                if (io.timestamp_ == -1L) continue
+                                val timestamp = Instant.fromEpochMilliseconds(io.timestamp_)
+                                val wstride = (width + 15) / 16 * 16
+                                val hstride = (height + 1) / 2 * 2
+                                CreateImageRGB24(width, height)!!.also { image ->
+                                    sws_scale(
+                                        swsCtx,
+                                        cValuesOf(
+                                            io.data_!!.reinterpret(),
+                                            io.data_!!.reinterpret<UByteVar>() + wstride * hstride
+                                        ),
+                                        cValuesOf(wstride, wstride),
+                                        0, height,
+                                        cValuesOf(Bits(image)), cValuesOf(BytesPerLine(image)),
+                                    )
+                                }.let { emit(Command.CommandImage(timestamp, it)) }
+                            } finally {
+                                DestroyDecoderIO(io.ptr)
+                            }
                         }
                     }
-                }
-            }
-        }.onCompletion { cause ->
-            if (decoderProcess.isCompleted) {
-                val proc = decoderProcess.getCompleted()
+                } finally {
+                    println("decoder die")
+                    // 【关键修复】在此处立即清理，位于 coroutineScope 等待子协程之前
+                    if (decoderProcess.isCompleted) {
+                        val proc = decoderProcess.getCompleted()
 
-                if (cause == null) {
-                    try {
-                        DecoderW(proc, cValue {
-                            timestamp_ = 0
-                            data_ = null
-                            size_ = 0
-                        })
-                    } catch (e: Throwable) {
+                        // 尝试发送结束帧（可选，尽量做）
+                        try {
+                            DecoderW(proc, cValue {
+                                timestamp_ = 0
+                                data_ = null
+                                size_ = 0
+                            })
+                        } catch (e: Throwable) {
+                            // 忽略错误，因为进程可能已经卡死或我们要强制杀死它
+                        }
+
+                        // 释放 FFmpeg 资源
+                        if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
+                        av_packet_free(cValuesOf(filterPacket))
+
+                        if (swsCtx != null) sws_freeContext(swsCtx)
+
+                        StopDecoder(proc)
+                        availableIds.trySend(id)
+                    } else {
+                        // 如果进程还没有创建，只释放部分资源
+                        if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
+                        av_packet_free(cValuesOf(filterPacket))
+                        availableIds.trySend(id)
                     }
                 }
-
-                if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
-                av_packet_free(cValuesOf(filterPacket))
-
-                if (swsCtx != null) {
-                    sws_freeContext(swsCtx)
-                    StopDecoder(proc)
-                    availableIds.trySend(id)
-                }
-            } else {
-                if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
-                av_packet_free(cValuesOf(filterPacket))
-                availableIds.trySend(id)
             }
         }.transform { frame ->
             reorder.add(frame)

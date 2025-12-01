@@ -108,7 +108,7 @@ struct DecoderIO {
 
 void DestroyDecoderIO(struct DecoderIO* io);
 void DecoderR(struct DecoderProcess* process, struct DecoderIO* io);
-void DecoderW(struct DecoderProcess* process, struct DecoderIO* io);
+bool DecoderW(struct DecoderProcess* process, struct DecoderIO* io);
 
 struct EncoderProcess;
 
@@ -125,6 +125,6 @@ struct EncoderIO {
 
 void EncoderR0(struct EncoderProcess* process, struct EncoderIO* io);
 void EncoderR1(struct EncoderProcess* process, struct EncoderIO* io);
-void EncoderW(struct EncoderProcess* process, struct EncoderIO* io);
+bool EncoderW(struct EncoderProcess* process, struct EncoderIO* io);
 
 #endif  // NATIVE_H

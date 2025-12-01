@@ -108,95 +108,98 @@ open class EncoderACL(
                         ++inputFrames
                     }
                 }
-                while (true) {
-                    val timestamp = memScoped {
-                        val io = alloc<EncoderIO>().also { it.timestamp_ = 0L }
-                        EncoderR0(encoderProcess.await(), io.ptr)
-                        if (io.timestamp_ == 0L) break
 
-                        // 1. 读取数据
-                        av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
-                        io.data_ = packet.pointed.data!!.reinterpret()
-                        EncoderR1(encoderProcess.await(), io.ptr)
+                try {
+                    while (true) {
+                        val timestamp = memScoped {
+                            val io = alloc<EncoderIO>().also { it.timestamp_ = 0L }
+                            EncoderR0(encoderProcess.await(), io.ptr)
+                            if (io.timestamp_ == 0L) break
 
-                        // 2. 确保 codecpar 存在
-                        if (codecpar == null) {
-                            codecpar = avcodec_parameters_alloc().also {
-                                it!!.pointed.codec_type = AVMEDIA_TYPE_VIDEO
-                                it.pointed.codec_id = codec!!.pointed.id
-                                it.pointed.codec_tag = 0U
-                                it.pointed.width = width
-                                it.pointed.height = height
-                                it.pointed.format = AV_PIX_FMT_YUV420P
+                            // 1. 读取数据
+                            av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
+                            io.data_ = packet.pointed.data!!.reinterpret()
+                            EncoderR1(encoderProcess.await(), io.ptr)
+
+                            // 2. 确保 codecpar 存在
+                            if (codecpar == null) {
+                                codecpar = avcodec_parameters_alloc().also {
+                                    it!!.pointed.codec_type = AVMEDIA_TYPE_VIDEO
+                                    it.pointed.codec_id = codec!!.pointed.id
+                                    it.pointed.codec_tag = 0U
+                                    it.pointed.width = width
+                                    it.pointed.height = height
+                                    it.pointed.format = AV_PIX_FMT_YUV420P
+                                }
                             }
-                        }
 
-                        // 3. 严格的手动提取逻辑
-                        if (codecpar!!.pointed.extradata == null) {
-                            val dataPtr = packet.pointed.data!!
-                            val size = packet.pointed.size
-                            val isHevc = (codec!!.pointed.id == AV_CODEC_ID_HEVC)
+                            // 3. 严格的手动提取逻辑
+                            if (codecpar!!.pointed.extradata == null) {
+                                val dataPtr = packet.pointed.data!!
+                                val size = packet.pointed.size
+                                val isHevc = (codec!!.pointed.id == AV_CODEC_ID_HEVC)
 
-                            // 查找 Header 与 图像数据 的分界点
-                            val splitIndex = findHeaderEndOffset(dataPtr, size, isHevc)
+                                // 查找 Header 与 图像数据 的分界点
+                                val splitIndex = findHeaderEndOffset(dataPtr, size, isHevc)
 
-                            if (splitIndex > 0) {
-                                Logger.i { "Extradata detected! Size: $splitIndex bytes" }
-                                val extradata =
-                                    av_malloc(splitIndex.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
-                                memcpy(extradata, dataPtr, splitIndex.toULong())
-                                codecpar!!.pointed.extradata = extradata.reinterpret()
-                                codecpar!!.pointed.extradata_size = splitIndex
-                            } else {
-                                Logger.w { "No extradata found in first packet (SplitIndex=$splitIndex)" }
+                                if (splitIndex > 0) {
+                                    Logger.i { "Extradata detected! Size: $splitIndex bytes" }
+                                    val extradata =
+                                        av_malloc(splitIndex.toULong() + AV_INPUT_BUFFER_PADDING_SIZE.toULong())!!
+                                    memcpy(extradata, dataPtr, splitIndex.toULong())
+                                    codecpar!!.pointed.extradata = extradata.reinterpret()
+                                    codecpar!!.pointed.extradata_size = splitIndex
+                                } else {
+                                    Logger.w { "No extradata found in first packet (SplitIndex=$splitIndex)" }
+                                }
                             }
+
+                            if (io.is_key_frame_) {
+                                packet.pointed.flags = packet.pointed.flags.or(AV_PKT_FLAG_KEY)
+                            }
+                            Instant.fromEpochMilliseconds(io.timestamp_)
                         }
 
-                        if (io.is_key_frame_) {
-                            packet.pointed.flags = packet.pointed.flags.or(AV_PKT_FLAG_KEY)
+                        var pts = (timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
+                        if (pts <= lastDts) {
+                            pts = lastDts + 1
                         }
-                        Instant.fromEpochMilliseconds(io.timestamp_)
+                        lastDts = pts
+
+                        packet.pointed.pts = pts
+                        packet.pointed.dts = pts
+
+                        emit(packet as CPointer<AVPacket>?)
                     }
+                } finally {
+                    println("encoder die")
+                    // 【关键修复】在此处立即清理，位于 coroutineScope 等待子协程之前
+                    if (encoderProcess.isCompleted) {
+                        val proc = encoderProcess.getCompleted()
 
-                    var pts = (timestamp - timestamp0).inWholeMicroseconds * 90 / 1000
-                    if (pts <= lastDts) {
-                        pts = lastDts + 1
+                        // 尝试发送结束帧（可选，尽量做）
+                        try {
+                            EncoderW(proc, cValue {
+                                timestamp_ = 0
+                                is_key_frame_ = false
+                                size_ = 0
+                                data_ = null
+                            })
+                        } catch (e: Throwable) {
+                            // 忽略错误，因为进程可能已经卡死或我们要强制杀死它
+                        }
+
+                        // 释放 FFmpeg 资源
+                        if (swsCtx != null) sws_freeContext(swsCtx)
+                        if (codecpar != null) {
+                            if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+                            av_free(codecpar)
+                        }
+
+                        // 调用 C++ 的 StopEncoder
+                        // 这会关闭管道 fd 并 kill 进程，从而立即解除 Writer 协程的阻塞
+                        StopEncoder(proc)
                     }
-                    lastDts = pts
-
-                    packet.pointed.pts = pts
-                    packet.pointed.dts = pts
-
-                    emit(packet as CPointer<AVPacket>?)
-                }
-            }
-        }.onCompletion { cause ->
-            if (encoderProcess.isCompleted) {
-                val proc = encoderProcess.getCompleted()
-
-                if (cause == null) {
-                    try {
-                        EncoderW(proc, cValue {
-                            timestamp_ = 0
-                            is_key_frame_ = false
-                            size_ = 0
-                            data_ = null
-                        })
-                    } catch (e: Throwable) {
-                    }
-                }
-
-                if (swsCtx != null) sws_freeContext(swsCtx)
-                if (codecpar != null) {
-                    if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
-                    av_free(codecpar)
-                }
-                StopEncoder(proc)
-            } else {
-                if (swsCtx != null) sws_freeContext(swsCtx)
-                if (codecpar != null) {
-                    if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
-                    av_free(codecpar)
                 }
             }
         }

@@ -107,11 +107,16 @@ void EncoderR1(struct EncoderProcess* process, struct EncoderIO* io) {
     Read(process->from_encoder_, io->data_, io->size_);
 }
 
-void EncoderW(struct EncoderProcess* process, struct EncoderIO* io) {
-    Write(process->to_encoder_, &io->timestamp_);
-    Write(process->to_encoder_, &io->is_key_frame_);
-    Write(process->to_encoder_, &io->size_);
-    Write(process->to_encoder_, io->data_, io->size_);
+bool EncoderW(struct EncoderProcess* process, struct EncoderIO* io) {
+    try {
+        Write(process->to_encoder_, &io->timestamp_);
+        Write(process->to_encoder_, &io->is_key_frame_);
+        Write(process->to_encoder_, &io->size_);
+        Write(process->to_encoder_, io->data_, io->size_);
+    } catch (const std::runtime_error& e) {
+        return false;
+    }
+    return true;
 }
 
 }  // extern

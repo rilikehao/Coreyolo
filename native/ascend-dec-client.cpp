@@ -110,10 +110,15 @@ void DecoderR(struct DecoderProcess* process, struct DecoderIO* io) {
     Read(process->from_decoder_, io->data_, io->size_);
 }
 
-void DecoderW(struct DecoderProcess* process, struct DecoderIO* io) {
-    Write(process->to_decoder_, &io->timestamp_);
-    Write(process->to_decoder_, &io->size_);
-    Write(process->to_decoder_, io->data_, io->size_);
+bool DecoderW(struct DecoderProcess* process, struct DecoderIO* io) {
+    try {
+        Write(process->to_decoder_, &io->timestamp_);
+        Write(process->to_decoder_, &io->size_);
+        Write(process->to_decoder_, io->data_, io->size_);
+    } catch (const std::runtime_error& e) {
+        return false;
+    }
+    return true;
 }
 
 }  // extern
