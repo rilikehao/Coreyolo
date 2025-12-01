@@ -110,7 +110,8 @@ object TrainEnvBuilder {
 
             ProcessBuilder(
                 "uv", "pip", "install",
-                "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python", "pip", "decorator", "sympy",
+                "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python",
+                "pip", "decorator", "sympy", "scipy", "attrs", "psutil",
                 "../deps/$version/amct/amct_onnx/amct_onnx-$amctOnnxVersion-py3-none-linux_x86_64.whl",
                 "--directory", File(venvPath).absolutePath,
             ).runCommand()

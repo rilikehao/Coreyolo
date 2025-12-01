@@ -129,6 +129,6 @@ if __name__ == '__main__':
     subprocess.run(command_list, check=True)
     command_list = [
         "bash",
-        "to_ascend.sh",
+        "to_ascend_310.sh",
     ]
     subprocess.run(command_list, check=True)
