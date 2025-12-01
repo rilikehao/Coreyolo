@@ -41,6 +41,10 @@ struct DecoderProcess* StartDecoder(  //
     libraryPath.append(dir.absoluteFilePath("../usr/lib"));
     libraryPath.append(dir.absoluteFilePath("../usr/lib/libproxy"));
     libraryPath.append(dir.absoluteFilePath("../usr/local/lib"));
+    auto ldPath = qgetenv("LD_LIBRARY_PATH");
+    if (!ldPath.isEmpty()) {
+        libraryPath.append(QString::fromLocal8Bit(ldPath));
+    }
     addArg(libraryPath.join(":"));
     auto dec = "../usr/local/ascend" SUFFIX "/bin/dec";
     addArg(dir.absoluteFilePath(dec));
