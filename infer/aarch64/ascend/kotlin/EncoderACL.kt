@@ -30,8 +30,6 @@ open class EncoderACL(
     val input: Flow<Command.CommandImage>,
     val encodeType: String,
 ) : Encoder {
-    val encoderProcess = CompletableDeferred<CPointer<EncoderProcess>>()
-
     private var swsCtx: CPointer<SwsContext>? = null
     private var width = 0
     private var height = 0
@@ -50,6 +48,8 @@ open class EncoderACL(
     }
 
     override suspend fun invoke(): Flow<CPointer<AVPacket>?> {
+        val encoderProcess = CompletableDeferred<CPointer<EncoderProcess>>()
+
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
@@ -170,19 +170,35 @@ open class EncoderACL(
                     emit(packet as CPointer<AVPacket>?)
                 }
             }
-        }.onCompletion {
-            EncoderW(encoderProcess.getCompleted(), cValue {
-                timestamp_ = 0
-                is_key_frame_ = false
-                size_ = 0
-                data_ = null
-            })
-            if (swsCtx != null) sws_freeContext(swsCtx)
-            if (codecpar != null) {
-                if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
-                av_free(codecpar)
+        }.onCompletion { cause ->
+            if (encoderProcess.isCompleted) {
+                val proc = encoderProcess.getCompleted()
+
+                if (cause == null) {
+                    try {
+                        EncoderW(proc, cValue {
+                            timestamp_ = 0
+                            is_key_frame_ = false
+                            size_ = 0
+                            data_ = null
+                        })
+                    } catch (e: Throwable) {
+                    }
+                }
+
+                if (swsCtx != null) sws_freeContext(swsCtx)
+                if (codecpar != null) {
+                    if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+                    av_free(codecpar)
+                }
+                StopEncoder(proc)
+            } else {
+                if (swsCtx != null) sws_freeContext(swsCtx)
+                if (codecpar != null) {
+                    if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+                    av_free(codecpar)
+                }
             }
-            StopEncoder(encoderProcess.getCompleted())
         }
     }
 

@@ -115,17 +115,32 @@ open class DecoderACL(
                     }
                 }
             }
-        }.onCompletion {
-            DecoderW(decoderProcess.getCompleted(), cValue {
-                timestamp_ = 0
-                data_ = null
-                size_ = 0
-            })
-            if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
-            av_packet_free(cValuesOf(filterPacket))
-            if (swsCtx != null) {
-                sws_freeContext(swsCtx)
-                StopDecoder(decoderProcess.getCompleted())
+        }.onCompletion { cause ->
+            if (decoderProcess.isCompleted) {
+                val proc = decoderProcess.getCompleted()
+
+                if (cause == null) {
+                    try {
+                        DecoderW(proc, cValue {
+                            timestamp_ = 0
+                            data_ = null
+                            size_ = 0
+                        })
+                    } catch (e: Throwable) {
+                    }
+                }
+
+                if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
+                av_packet_free(cValuesOf(filterPacket))
+
+                if (swsCtx != null) {
+                    sws_freeContext(swsCtx)
+                    StopDecoder(proc)
+                    availableIds.trySend(id)
+                }
+            } else {
+                if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
+                av_packet_free(cValuesOf(filterPacket))
                 availableIds.trySend(id)
             }
         }.transform { frame ->

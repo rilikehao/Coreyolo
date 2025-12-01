@@ -87,8 +87,11 @@ void StopEncoder(struct EncoderProcess* process) {
     ::close(process->to_encoder_);
     ::close(process->from_encoder_);
 
+    qDebug() << "StopEncoder" << process->pid_;
+
     if (process->pid_ > 0) {
-        ::kill(process->pid_, SIGTERM);
+        ::kill(process->pid_, SIGKILL);
+        ::waitpid(process->pid_, nullptr, 0);
     }
 
     delete process;
