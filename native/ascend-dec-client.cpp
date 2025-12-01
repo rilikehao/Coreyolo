@@ -42,7 +42,8 @@ struct DecoderProcess* StartDecoder(  //
     libraryPath.append(dir.absoluteFilePath("../usr/lib/libproxy"));
     libraryPath.append(dir.absoluteFilePath("../usr/local/lib"));
     addArg(libraryPath.join(":"));
-    addArg(dir.absoluteFilePath("../usr/local/ascend/bin/dec"));
+    auto dec = "../usr/local/ascend" SUFFIX "/bin/dec";
+    addArg(dir.absoluteFilePath(dec));
     addArg(QString::number(device));
     addArg(QString::number(id));
     addArg(QString::fromUtf8(decodeType));

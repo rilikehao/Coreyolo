@@ -312,6 +312,7 @@ object ProjectBuilder {
                         "-DCMAKE_BUILD_TYPE=Release",
                         "-DBUILD_SHARED_LIBS=ON",
                         "-DPLATFORM=$platform",
+                        "-DSUFFIX=$suffix",
                     ).directory(buildDir).runCommand()
 
                     ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir)

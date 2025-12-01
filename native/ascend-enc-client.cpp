@@ -42,7 +42,8 @@ struct EncoderProcess* StartEncoder(  //
     libraryPath.append(dir.absoluteFilePath("../usr/lib/libproxy"));
     libraryPath.append(dir.absoluteFilePath("../usr/local/lib"));
     addArg(libraryPath.join(":"));
-    addArg(dir.absoluteFilePath("../usr/local/ascend/bin/enc"));
+    auto enc = "../usr/local/ascend" SUFFIX "/bin/enc";
+    addArg(dir.absoluteFilePath(enc));
     addArg(QString::number(device));
     addArg(QString::number(id));
     addArg(QString::fromUtf8(encodeType));
