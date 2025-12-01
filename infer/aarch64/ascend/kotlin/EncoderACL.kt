@@ -107,12 +107,6 @@ open class EncoderACL(
                         DestroyImage(commandImage.data)
                         ++inputFrames
                     }
-                    EncoderW(encoderProcess.await(), cValue {
-                        timestamp_ = 0
-                        is_key_frame_ = false
-                        size_ = 0
-                        data_ = null
-                    })
                 }
                 while (true) {
                     val timestamp = memScoped {
@@ -177,6 +171,12 @@ open class EncoderACL(
                 }
             }
         }.onCompletion {
+            EncoderW(encoderProcess.getCompleted(), cValue {
+                timestamp_ = 0
+                is_key_frame_ = false
+                size_ = 0
+                data_ = null
+            })
             if (swsCtx != null) sws_freeContext(swsCtx)
             if (codecpar != null) {
                 if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)

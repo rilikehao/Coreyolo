@@ -86,11 +86,6 @@ open class DecoderACL(
                             av_packet_unref(filterPacket)
                         }
                     }
-                    DecoderW(decoderProcess.await(), cValue {
-                        timestamp_ = 0
-                        data_ = null
-                        size_ = 0
-                    })
                 }
                 memScoped {
                     while (true) {
@@ -121,6 +116,11 @@ open class DecoderACL(
                 }
             }
         }.onCompletion {
+            DecoderW(decoderProcess.getCompleted(), cValue {
+                timestamp_ = 0
+                data_ = null
+                size_ = 0
+            })
             if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
             av_packet_free(cValuesOf(filterPacket))
             if (swsCtx != null) {
