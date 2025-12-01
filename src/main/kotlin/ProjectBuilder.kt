@@ -299,7 +299,7 @@ object ProjectBuilder {
                     "ascend" -> listOf("6.0.1", "8.0.0")
                     else -> listOf(null)
                 }.forEach { nnrt ->
-                    val suffix = if (nnrt == null) "" else "-$nnrt"
+                    val suffix = if (nnrt == null) "" else "-${nnrt.replace('.', '-')}"
                     ToolchainManager.createCmakeToolchainFile(archConfig, nnrt)
                     val nativeDir = File("native")
                     val buildDir = File("${archConfig.cpu}/native/build-$platform$suffix")

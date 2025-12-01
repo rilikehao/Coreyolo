@@ -1,5 +1,5 @@
-include(":infer:aarch64:ascend-6.1.0")
-project(":infer:aarch64:ascend-6.1.0").projectDir = file("infer/aarch64/ascend-6.1.0")
+include(":infer:aarch64:ascend-6.0.1")
+project(":infer:aarch64:ascend-6.0.1").projectDir = file("infer/aarch64/ascend-6.0.1")
 include(":infer:aarch64:ascend-8.0.0")
 project(":infer:aarch64:ascend-8.0.0").projectDir = file("infer/aarch64/ascend-8.0.0")
 include(":infer:aarch64:rockchip")

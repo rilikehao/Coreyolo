@@ -35,10 +35,12 @@ object Config {
             APP_DIR="$(dirname "$(readlink -f "$0")")"
             PLATFORM="$1"
             shift
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib"
+            SUFFIX="$1"
+            shift
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib:$APP_DIR/usr/local/$PLATFORM$SUFFIX/lib"
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
-            exec "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-$PLATFORM" "$@"
+            exec "$APP_DIR/lib/ld-linux-aarch64.so.1" --library-path "$LIB_PATH:$LD_LIBRARY_PATH" "$APP_DIR/usr/local/bin/YoloInfer-aarch64-$PLATFORM$SUFFIX" "$@"
         """.trimIndent()
     )
 
@@ -55,7 +57,7 @@ object Config {
             APP_DIR="$(dirname "$(readlink -f "$0")")"
             PLATFORM="$1"
             shift
-            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib"
+            LIB_PATH="$APP_DIR/lib:$APP_DIR/usr/lib:$APP_DIR/usr/local/lib:$APP_DIR/usr/lib/libproxy:$APP_DIR/usr/local/$PLATFORM/lib:$APP_DIR/usr/local/$PLATFORM$SUFFIX/lib"
             export QT_QPA_PLATFORM=offscreen
             export QT_QPA_PLATFORM_PLUGIN_PATH="$LIB_PATH"
             LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH" exec "$APP_DIR/usr/local/bin/YoloInfer-x86_64-$PLATFORM" "$@"
