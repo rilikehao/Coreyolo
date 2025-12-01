@@ -187,12 +187,12 @@ object ProjectBuilder {
             ProcessBuilder("chmod", "+x", File("aarch64/$run").absolutePath).runCommand()
             ProcessBuilder(
                 "${File("aarch64/$run").absolutePath}",
-                "--quiet", "--nox11", "--install", "--install-path=${File("aarch64/root/usr/local/$version").absolutePath}",
+                "--quiet", "--nox11", "--install", "--install-path=${File("aarch64/$version").absolutePath}",
             ).runCommand()
-            ProcessBuilder("chmod", "-R", "+w", File("aarch64/root/usr/local/$version/nnrt").absolutePath).runCommand()
+            ProcessBuilder("chmod", "-R", "+w", File("aarch64/$version/nnrt").absolutePath).runCommand()
             ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
             ProcessBuilder(
-                "curl", "-o", File("aarch64/root/usr/local/$version/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
+                "curl", "-o", File("aarch64/$version/nnrt/latest/include/acl/ops/acl_dvpp.h").absolutePath,
                 "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/acl_dvpp.h",
             ).runCommand()
         }
@@ -295,23 +295,29 @@ object ProjectBuilder {
     fun buildNative() {
         Config.archConfigs.forEach { archConfig ->
             archConfig.platform.forEach { platform ->
-                ToolchainManager.createCmakeToolchainFile(archConfig)
-                val nativeDir = File("native")
-                val buildDir = File("${archConfig.cpu}/native/build-$platform")
-                buildDir.mkdirs()
+                when (platform) {
+                    "ascend" -> listOf("6.0.1", "8.0.0")
+                    else -> listOf(null)
+                }.forEach { nnrt ->
+                    val suffix = if (nnrt == null) "" else "-$nnrt"
+                    ToolchainManager.createCmakeToolchainFile(archConfig, nnrt)
+                    val nativeDir = File("native")
+                    val buildDir = File("${archConfig.cpu}/native/build-$platform$suffix")
+                    buildDir.mkdirs()
 
-                ProcessBuilder(
-                    "/usr/bin/cmake", nativeDir.absolutePath,
-                    "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchain()).absolutePath}",
-                    "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix()).absolutePath}/$platform",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    "-DBUILD_SHARED_LIBS=ON",
-                    "-DPLATFORM=$platform",
-                ).directory(buildDir).runCommand()
+                    ProcessBuilder(
+                        "/usr/bin/cmake", nativeDir.absolutePath,
+                        "-DCMAKE_TOOLCHAIN_FILE=${File(archConfig.toolchain()).absolutePath}",
+                        "-DCMAKE_INSTALL_PREFIX=${File(archConfig.installPrefix()).absolutePath}/$platform$suffix",
+                        "-DCMAKE_BUILD_TYPE=Release",
+                        "-DBUILD_SHARED_LIBS=ON",
+                        "-DPLATFORM=$platform",
+                    ).directory(buildDir).runCommand()
 
-                ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir)
-                    .runCommand()
-                ProcessBuilder("make", "install").directory(buildDir).runCommand()
+                    ProcessBuilder("make", "-j${Runtime.getRuntime().availableProcessors()}").directory(buildDir)
+                        .runCommand()
+                    ProcessBuilder("make", "install").directory(buildDir).runCommand()
+                }
             }
         }
     }

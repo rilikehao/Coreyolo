@@ -1,23 +1,29 @@
 import java.io.File
 
 object ToolchainManager {
-    fun createCmakeToolchainFile(archConfig: Config.ArchConfig) {
+    fun createCmakeToolchainFile(archConfig: Config.ArchConfig, nnrtVersion: String? = null) {
         val rootPath = arrayOf(
             archConfig.sysrootDir,
             "${File(archConfig.targetDir()).absolutePath}/usr",
             File(archConfig.installPrefix()).absolutePath,
         ).joinToString(";")
-        val includeFlags = arrayOf(
+        val includeFlags = mutableListOf(
             "${File(archConfig.targetDir()).absolutePath}/usr/include",
             "${File(archConfig.installPrefix()).absolutePath}/include",
-            "${File(archConfig.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/include",
-        ).joinToString(" ") { "-I$it" }
-        val linkerFlags = arrayOf(
+        ).apply {
+            if (nnrtVersion != null) {
+                add("${File(archConfig.cpu).absolutePath}/$nnrtVersion/nnrt/latest/aarch64-linux/include")
+            }
+        }.joinToString(" ") { "-I$it" }
+        val linkerFlags = mutableListOf(
             "${File(archConfig.targetDir()).absolutePath}/usr/lib",
             "${File(archConfig.installPrefix()).absolutePath}/lib",
-            "${File(archConfig.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/lib64",
-            "${File(archConfig.installPrefix()).absolutePath}/nnrt/latest/aarch64-linux/devlib",
-        ).joinToString(" ") { "-L$it -Wl,-rpath-link=$it" }
+        ).apply {
+            if (nnrtVersion != null) {
+                add("${File(archConfig.cpu).absolutePath}/$nnrtVersion/nnrt/latest/aarch64-linux/lib64")
+                add("${File(archConfig.cpu).absolutePath}/$nnrtVersion/nnrt/latest/aarch64-linux/devlib")
+            }
+        }.joinToString(" ") { "-L$it -Wl,-rpath-link=$it" }
         val content = """
             set(CMAKE_SYSTEM_NAME Linux)
             set(CMAKE_SYSTEM_PROCESSOR ${archConfig.cpu})

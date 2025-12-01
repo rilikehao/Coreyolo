@@ -36,6 +36,7 @@ tasks.register("infer") {
     dependsOn(
         ":infer:x86_64:software:install",
         ":infer:aarch64:rockchip:install",
-        ":infer:aarch64:ascend:install",
+        ":infer:aarch64:ascend-6.1.0:install",
+        ":infer:aarch64:ascend-8.0.0:install",
     )
 }
