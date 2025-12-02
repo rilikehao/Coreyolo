@@ -10,7 +10,7 @@
             "cppStandard": "gnu++26",
             "intelliSenseMode": "linux-gcc-arm64",
             "includePath": [
-                "/home/kunweiz/Desktop/CoreYolo/aarch64/6.0.1/nnrt/latest/include",
+                "/home/kunweiz/Desktop/CoreYolo/aarch64/nnrt/latest/include",
                 "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6",
                 "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6/QtCore",
                 "/home/kunweiz/Desktop/CoreYolo/aarch64/root/usr/include/qt6/QtGui"

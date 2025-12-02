@@ -78,6 +78,9 @@
         "variant": "cpp",
         "csignal": "cpp",
         "qeventloop": "cpp",
-        "qcoreapplication": "cpp"
+        "qcoreapplication": "cpp",
+        "qthread": "cpp",
+        "qfile": "cpp",
+        "qdebug": "cpp"
     }
 }
