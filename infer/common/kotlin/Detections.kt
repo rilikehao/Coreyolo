@@ -119,9 +119,7 @@ object Detections {
             }
             return@map commandImage
         }.onCompletion {
-            println("mux die")
             ch.cancel()
-            println("mux die!")
         }
     }
 }

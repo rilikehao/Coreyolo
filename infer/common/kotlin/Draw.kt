@@ -41,10 +41,8 @@ class Draw(val input: Flow<Command>, val enableHttp: Boolean) : suspend () -> Fl
                 }
             }
         }.onCompletion {
-            println("draw die")
             draw.close()
             taskLast?.let { DestroyInferTask(it) }
-            println("draw die!")
         }.buffer(Channel.UNLIMITED)
     }
 }

@@ -123,12 +123,10 @@ open class DecoderACL(
                         }
                     }
                 } finally {
-                    println("decoder die")
                     if (decoderProcess.isCompleted) StopDecoder(decoderProcess.getCompleted())
                 }
             }
         }.onCompletion {
-            println("decoder completion")
             if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
             if (swsCtx != null) sws_freeContext(swsCtx)
             availableIds.trySend(id)
