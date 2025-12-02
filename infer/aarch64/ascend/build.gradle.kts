@@ -8,7 +8,7 @@ repositories {
 }
 
 kotlin {
-    linuxArm64("aarch64-ascend-6-0-1") {
+    linuxArm64("aarch64-ascend") {
         val targetName = name
         val cpuName = name.takeWhile { it != '-' }
         binaries {
@@ -42,12 +42,12 @@ kotlin {
 }
 
 tasks.register("install") {
-    dependsOn("aarch64-ascend-6-0-1Binaries")
+    dependsOn("aarch64-ascendBinaries")
 
     val buildType = project.findProperty("buildType") as String
 
     doLast {
-        val targetName = "aarch64-ascend-6-0-1"
+        val targetName = "aarch64-ascend"
         val cpuName = targetName.takeWhile { it != '-' }
         val executableFile =
             file("build/bin/$targetName/YoloInfer-$targetName${buildType}Executable/YoloInfer-$targetName.kexe")
