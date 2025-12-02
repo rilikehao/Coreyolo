@@ -25,7 +25,7 @@ object TrainEnvBuilder {
     }
 
     const val VENV_PATH = "train/env"
-    const val VENV_PATH_HUAWEI = "train/env-huawei-8"
+    const val VENV_PATH_HUAWEI = "train/env-huawei"
 
     private fun createVenv() {
         println("创建虚拟环境...")
