@@ -22,13 +22,35 @@
 
 ### 性能实测数据
 
-**RK3588/RK3576** 的实测性能：
-- 使用 YOLO11 官方 S 大小模型（参数量 9.4M）
-- 640 x 480 分辨率
-- 同时处理 RK3588: 6 路视频, RK3576: 4 路视频
-- 编解码 30 FPS
-- 图像识别 10 FPS
-- 测试条件：使用 INT8 量化
+- INT8 量化
+
+#### RK3588
+
+- 使用 YOLO11 官方 S 大小模型
+- 576 x 320 分辨率
+- 同时处理 6 路视频 + 1 路回放
+- 编解码 30 FPS + 图像识别 10 FPS
+
+#### RK3576
+
+- 使用 YOLO11 官方 L 大小模型
+- 576 x 320 分辨率
+- 同时处理 3 路视频 + 1 路回放
+- 编解码 30 FPS + 图像识别 10 FPS
+
+#### Ascend 310P
+
+- 使用 YOLO11 官方 L 大小模型
+- 576 x 320 分辨率
+- 同时处理 15 路视频 + 1 路回放
+- 编解码 30 FPS + 图像识别 10 FPS
+
+#### Ascend 310
+
+- 使用 YOLO11 官方 L 大小模型
+- 576 x 320 分辨率
+- 同时处理 1 路视频 + 1 路回放 (使用 H264 存储)
+- 编解码 30 FPS + 图像识别 30 FPS
 
 ## 项目结构
 
@@ -91,11 +113,14 @@ x86_64/YoloInfer.AppImage software configs/config-software.toml
 # 流媒体推理 (在 rk3588 运行)
 aarch64/YoloInfer.AppImage rockchip configs/config-rk3588.toml
 
-# 流媒体推理 (在限制功率的 rk3588 运行)
-aarch64/YoloInfer.AppImage rockchip configs/config-rk3588-degraded.toml
-
 # 流媒体推理 (在 rk3576 运行)
 aarch64/YoloInfer.AppImage rockchip configs/config-rk3576.toml
+
+# 流媒体推理 (在 ascend310 运行)
+aarch64/YoloInfer.AppImage ascend configs/config-ascend310.toml
+
+# 流媒体推理 (在 ascend310P 运行)
+aarch64/YoloInfer.AppImage ascend configs/config-ascend310P3.toml
 ```
 
 ## YOLO 模型导出工具
@@ -140,6 +165,8 @@ aarch64/YoloInfer.AppImage rockchip configs/config-rk3576.toml
 - `best.x86_64`
 - `best.rk3588`
 - `best.rk3576`
+- `best.ascend310`
+- `best.ascend310P3`
 
 ```bash
 ./gradlew run --args="train-clean"
@@ -147,7 +174,4 @@ aarch64/YoloInfer.AppImage rockchip configs/config-rk3576.toml
 
 ## TODO
 
-1. [已完成] 整理成 x86_64 和 aarch64 两种编译配置。
-2. [已完成] 输入端直连，输出端输出绘制和不绘制的两个流。
-3. [已完成] 支持 Lua 截图。
-4. 支持 AMD，英伟达，华为，寒武纪。
+- 支持 AMD，英伟达，寒武纪。
