@@ -5,12 +5,9 @@ import common.Input
 import common.Utils.cPointer
 import common.Utils.check
 import kotlinx.cinterop.*
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import platform.ffmpeg.*
 import platform.native.*
 import kotlin.time.Clock
@@ -40,10 +37,10 @@ open class DecoderACL(
         val reorder = mutableSetOf<Command.CommandImage>()
         fun pop() = reorder.minBy { it.timestamp }.also { reorder.remove(it) }
         val id = availableIds.receive()
-        
+
         var bsfCtx: CPointer<AVBSFContext>? = null
         val filterPacket = av_packet_alloc()!!
-        
+
         return flow {
             coroutineScope {
                 launch {
@@ -72,20 +69,29 @@ open class DecoderACL(
                         }
                         av_bsf_send_packet(bsfCtx, packet).check("av_bsf_send_packet")
                         while (av_bsf_receive_packet(bsfCtx, filterPacket) == 0) {
-                            val tb = input.getStream().time_base
-                            val start = Instant.fromEpochMilliseconds(input.getFormatCtx().start_time_realtime / 1000L)
-                            val timestamp = start + (1000 * filterPacket.pointed.pts * tb.num / tb.den).milliseconds
-                            if (inputFrames == 0L) timestamp0 = timestamp
-                            val keep = inputFrames <= Decoder.maxFrames(timestamp - timestamp0)
-                            if (keep) ++inputFrames
-                            DecoderW(decoderProcess.await(), cValue {
-                                timestamp_ = if (keep) timestamp.toEpochMilliseconds() else -1
-                                data_ = filterPacket.pointed.data!!.reinterpret()
-                                size_ = filterPacket.pointed.size.toLong()
-                            })
-                            av_packet_unref(filterPacket)
+                            try {
+                                val tb = input.getStream().time_base
+                                val startMs = input.getFormatCtx().start_time_realtime / 1000L
+                                val start = Instant.fromEpochMilliseconds(startMs)
+                                val timestamp = start + (1000 * filterPacket.pointed.pts * tb.num / tb.den).milliseconds
+                                if (inputFrames == 0L) timestamp0 = timestamp
+                                val keep = inputFrames <= Decoder.maxFrames(timestamp - timestamp0)
+                                if (keep) ++inputFrames
+                                DecoderW(decoderProcess.await(), cValue {
+                                    timestamp_ = if (keep) timestamp.toEpochMilliseconds() else -1
+                                    data_ = filterPacket.pointed.data!!.reinterpret()
+                                    size_ = filterPacket.pointed.size.toLong()
+                                }).let { if (!it) throw CancellationException() }
+                            } finally {
+                                av_packet_unref(filterPacket)
+                            }
                         }
                     }
+                    DecoderW(decoderProcess.await(), cValue {
+                        timestamp_ = 0
+                        data_ = null
+                        size_ = 0
+                    })
                 }
 
                 try {
@@ -118,44 +124,19 @@ open class DecoderACL(
                     }
                 } finally {
                     println("decoder die")
-                    // 【关键修复】在此处立即清理，位于 coroutineScope 等待子协程之前
-                    if (decoderProcess.isCompleted) {
-                        val proc = decoderProcess.getCompleted()
-
-                        // 尝试发送结束帧（可选，尽量做）
-                        try {
-                            DecoderW(proc, cValue {
-                                timestamp_ = 0
-                                data_ = null
-                                size_ = 0
-                            })
-                        } catch (e: Throwable) {
-                            // 忽略错误，因为进程可能已经卡死或我们要强制杀死它
-                        }
-
-                        // 释放 FFmpeg 资源
-                        if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
-                        av_packet_free(cValuesOf(filterPacket))
-
-                        if (swsCtx != null) sws_freeContext(swsCtx)
-
-                        StopDecoder(proc)
-                        availableIds.trySend(id)
-                    } else {
-                        // 如果进程还没有创建，只释放部分资源
-                        if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
-                        av_packet_free(cValuesOf(filterPacket))
-                        availableIds.trySend(id)
-                    }
+                    if (decoderProcess.isCompleted) StopDecoder(decoderProcess.getCompleted())
                 }
             }
+        }.onCompletion {
+            if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
+            if (swsCtx != null) sws_freeContext(swsCtx)
+            availableIds.trySend(id)
         }.transform { frame ->
             reorder.add(frame)
             while (REORDER_SIZE < reorder.size) emit(pop())
         }.onCompletion { cause ->
-            if (cause == null) {
-                while (!reorder.isEmpty()) emit(pop())
-            }
+            if (cause != null) return@onCompletion
+            while (!reorder.isEmpty()) emit(pop())
         }.buffer(Channel.UNLIMITED)
     }
 }

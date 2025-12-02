@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import platform.ffmpeg.*
 import platform.native.*
 import platform.posix.memcpy
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.max
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -59,54 +60,63 @@ open class EncoderACL(
             coroutineScope {
                 launch {
                     input.collect { commandImage ->
-                        if (inputFrames == 0L) {
-                            timestamp0 = commandImage.timestamp
-                            val name = timestamp0.toTimeString()
-                            suggestedName?.complete(name)
-                            width = GetWidth(commandImage.data)
-                            height = GetHeight(commandImage.data)
-                            encoderProcess.complete(StartEncoder(0, 0, encodeType, width, height)!!)
-                            swsCtx = sws_getContext(
-                                width, height, AV_PIX_FMT_RGB24,
-                                width, height, AV_PIX_FMT_NV12,
-                                SWS_BILINEAR.toInt(), null, null, null,
-                            )
-                            codec = when (encodeType) {
-                                "h264" -> AV_CODEC_ID_H264
-                                "hevc" -> AV_CODEC_ID_HEVC
-                                else -> throw Error("不支持的视频编码")
-                            }.let { avcodec_find_encoder(it) }
+                        try {
+                            if (inputFrames == 0L) {
+                                timestamp0 = commandImage.timestamp
+                                val name = timestamp0.toTimeString()
+                                suggestedName?.complete(name)
+                                width = GetWidth(commandImage.data)
+                                height = GetHeight(commandImage.data)
+                                encoderProcess.complete(StartEncoder(0, 0, encodeType, width, height)!!)
+                                swsCtx = sws_getContext(
+                                    width, height, AV_PIX_FMT_RGB24,
+                                    width, height, AV_PIX_FMT_NV12,
+                                    SWS_BILINEAR.toInt(), null, null, null,
+                                )
+                                codec = when (encodeType) {
+                                    "h264" -> AV_CODEC_ID_H264
+                                    "hevc" -> AV_CODEC_ID_HEVC
+                                    else -> throw Error("不支持的视频编码")
+                                }.let { avcodec_find_encoder(it) }
+                            }
+                            Logger.i {
+                                if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
+                                val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
+                                val delayed = frame0.elapsedNow() - (commandImage.timestamp - timestamp0)
+                                val delayMs = max(0L, delayed.inWholeMilliseconds)
+                                "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
+                            }
+                            val wstride = (width + 15) / 16 * 16
+                            val hstride = (height + 1) / 2 * 2
+                            val nv12Size = wstride * hstride * 3 / 2
+                            memScoped {
+                                val nv12 = allocArray<UByteVar>(nv12Size)
+                                sws_scale(
+                                    swsCtx,
+                                    cValuesOf(Bits(commandImage.data)),
+                                    cValuesOf(BytesPerLine(commandImage.data)),
+                                    0, height,
+                                    cValuesOf(nv12, nv12 + wstride * hstride),
+                                    cValuesOf(wstride, wstride),
+                                )
+                                EncoderW(encoderProcess.await(), cValue {
+                                    timestamp_ = commandImage.timestamp.toEpochMilliseconds()
+                                    is_key_frame_ = inputFrames % 12L == 0L
+                                    size_ = nv12Size.toLong()
+                                    data_ = nv12.reinterpret()
+                                }).let { if (!it) throw CancellationException() }
+                            }
+                            ++inputFrames
+                        } finally {
+                            DestroyImage(commandImage.data)
                         }
-                        Logger.i {
-                            if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
-                            val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
-                            val delayed = frame0.elapsedNow() - (commandImage.timestamp - timestamp0)
-                            val delayMs = max(0L, delayed.inWholeMilliseconds)
-                            "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
-                        }
-                        val wstride = (width + 15) / 16 * 16
-                        val hstride = (height + 1) / 2 * 2
-                        val nv12Size = wstride * hstride * 3 / 2
-                        memScoped {
-                            val nv12 = allocArray<UByteVar>(nv12Size)
-                            sws_scale(
-                                swsCtx,
-                                cValuesOf(Bits(commandImage.data)),
-                                cValuesOf(BytesPerLine(commandImage.data)),
-                                0, height,
-                                cValuesOf(nv12, nv12 + wstride * hstride),
-                                cValuesOf(wstride, wstride),
-                            )
-                            EncoderW(encoderProcess.await(), cValue {
-                                timestamp_ = commandImage.timestamp.toEpochMilliseconds()
-                                is_key_frame_ = inputFrames % 12L == 0L
-                                size_ = nv12Size.toLong()
-                                data_ = nv12.reinterpret()
-                            })
-                        }
-                        DestroyImage(commandImage.data)
-                        ++inputFrames
                     }
+                    EncoderW(encoderProcess.await(), cValue {
+                        timestamp_ = 0
+                        is_key_frame_ = false
+                        size_ = 0
+                        data_ = null
+                    })
                 }
 
                 try {
@@ -116,12 +126,10 @@ open class EncoderACL(
                             EncoderR0(encoderProcess.await(), io.ptr)
                             if (io.timestamp_ == 0L) break
 
-                            // 1. 读取数据
                             av_new_packet(packet, io.size_.toInt()).check("av_new_packet")
                             io.data_ = packet.pointed.data!!.reinterpret()
                             EncoderR1(encoderProcess.await(), io.ptr)
 
-                            // 2. 确保 codecpar 存在
                             if (codecpar == null) {
                                 codecpar = avcodec_parameters_alloc().also {
                                     it!!.pointed.codec_type = AVMEDIA_TYPE_VIDEO
@@ -133,13 +141,11 @@ open class EncoderACL(
                                 }
                             }
 
-                            // 3. 严格的手动提取逻辑
                             if (codecpar!!.pointed.extradata == null) {
                                 val dataPtr = packet.pointed.data!!
                                 val size = packet.pointed.size
                                 val isHevc = (codec!!.pointed.id == AV_CODEC_ID_HEVC)
 
-                                // 查找 Header 与 图像数据 的分界点
                                 val splitIndex = findHeaderEndOffset(dataPtr, size, isHevc)
 
                                 if (splitIndex > 0) {
@@ -173,34 +179,14 @@ open class EncoderACL(
                     }
                 } finally {
                     println("encoder die")
-                    // 【关键修复】在此处立即清理，位于 coroutineScope 等待子协程之前
-                    if (encoderProcess.isCompleted) {
-                        val proc = encoderProcess.getCompleted()
-
-                        // 尝试发送结束帧（可选，尽量做）
-                        try {
-                            EncoderW(proc, cValue {
-                                timestamp_ = 0
-                                is_key_frame_ = false
-                                size_ = 0
-                                data_ = null
-                            })
-                        } catch (e: Throwable) {
-                            // 忽略错误，因为进程可能已经卡死或我们要强制杀死它
-                        }
-
-                        // 释放 FFmpeg 资源
-                        if (swsCtx != null) sws_freeContext(swsCtx)
-                        if (codecpar != null) {
-                            if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
-                            av_free(codecpar)
-                        }
-
-                        // 调用 C++ 的 StopEncoder
-                        // 这会关闭管道 fd 并 kill 进程，从而立即解除 Writer 协程的阻塞
-                        StopEncoder(proc)
-                    }
+                    if (encoderProcess.isCompleted) StopEncoder(encoderProcess.getCompleted())
                 }
+            }
+        }.onCompletion {
+            if (swsCtx != null) sws_freeContext(swsCtx)
+            if (codecpar != null) {
+                if (codecpar!!.pointed.extradata != null) av_free(codecpar!!.pointed.extradata)
+                av_free(codecpar)
             }
         }
     }
