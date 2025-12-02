@@ -85,12 +85,17 @@ object Detections {
                 }
                 return s.toString()
             }
-            while (true) {
-                val timestamp = readUntil(';')
-                if (timestamp.isEmpty()) break
-                val detections = readUntil('\n')
-                emit(Pair(EpochMsFromTimeString(timestamp), { load(infer, detections) }))
+            try {
+                while (true) {
+                    val timestamp = readUntil(';')
+                    if (timestamp.isEmpty()) break
+                    val detections = readUntil('\n')
+                    emit(Pair(EpochMsFromTimeString(timestamp)) { load(infer, detections) })
+                }
+            } finally {
+                fclose(file)
             }
+            println("loadAll die")
         }
 
     fun CoroutineScope.mux(
@@ -114,7 +119,9 @@ object Detections {
             }
             return@map commandImage
         }.onCompletion {
-            ch.consumeEach {}
+            println("mux die")
+            ch.cancel()
+            println("mux die!")
         }
     }
 }

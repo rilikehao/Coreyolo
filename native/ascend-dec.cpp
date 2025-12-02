@@ -24,44 +24,38 @@ void Process() {
 void Callback(acldvppStreamDesc* input, acldvppPicDesc* output,
               void* data) {
     QByteArray pic;
-    if (!data) {
-        int64_t timestamp = 0, size = 0;
-        Write(STDOUT_FILENO, &timestamp);
-        Write(STDOUT_FILENO, &size);
-    } else {
-        QMetaObject::invokeMethod(
-            &aclWorker,
-            [&] {
-                auto streamDev = acldvppGetStreamDescData(input);
-                if (ACL_SUCCESS != acldvppFree(streamDev)) {
-                    throw std::runtime_error("acldvppFree");
-                }
-                if (ACL_SUCCESS != acldvppDestroyStreamDesc(input)) {
-                    throw std::runtime_error("acldvppFree");
-                }
-                auto picDev = acldvppGetPicDescData(output);
-                auto picSize = acldvppGetPicDescSize(output);
-                pic.resizeForOverwrite(picSize);
-                if (ACL_SUCCESS !=  //
-                    aclrtMemcpy(pic.data(), picSize, picDev, picSize,
-                                download)) {
-                    throw std::runtime_error("aclrtMemcpy pic");
-                }
-                if (ACL_SUCCESS != acldvppFree(picDev)) {
-                    throw std::runtime_error("acldvppFree");
-                }
-                if (ACL_SUCCESS != acldvppDestroyPicDesc(output)) {
-                    throw std::runtime_error("acldvppFree");
-                }
-            },
-            Qt::BlockingQueuedConnection);
-        auto timestamp = static_cast<qint64*>(data);
-        int64_t size = pic.size();
-        Write(STDOUT_FILENO, timestamp);
-        Write(STDOUT_FILENO, &size);
-        Write(STDOUT_FILENO, pic.data(), size);
-        delete timestamp;
-    }
+    QMetaObject::invokeMethod(
+        &aclWorker,
+        [&] {
+            auto streamDev = acldvppGetStreamDescData(input);
+            if (ACL_SUCCESS != acldvppFree(streamDev)) {
+                throw std::runtime_error("acldvppFree");
+            }
+            if (ACL_SUCCESS != acldvppDestroyStreamDesc(input)) {
+                throw std::runtime_error("acldvppFree");
+            }
+            auto picDev = acldvppGetPicDescData(output);
+            auto picSize = acldvppGetPicDescSize(output);
+            pic.resizeForOverwrite(picSize);
+            if (ACL_SUCCESS !=  //
+                aclrtMemcpy(
+                    pic.data(), picSize, picDev, picSize, download)) {
+                throw std::runtime_error("aclrtMemcpy pic");
+            }
+            if (ACL_SUCCESS != acldvppFree(picDev)) {
+                throw std::runtime_error("acldvppFree");
+            }
+            if (ACL_SUCCESS != acldvppDestroyPicDesc(output)) {
+                throw std::runtime_error("acldvppFree");
+            }
+        },
+        Qt::BlockingQueuedConnection);
+    auto timestamp = static_cast<qint64*>(data);
+    int64_t size = pic.size();
+    Write(STDOUT_FILENO, timestamp);
+    Write(STDOUT_FILENO, &size);
+    Write(STDOUT_FILENO, pic.data(), size);
+    delete timestamp;
 }
 
 int main(int argc, char** argv) {
@@ -279,5 +273,8 @@ int main(int argc, char** argv) {
     if (ACL_SUCCESS != aclFinalize()) {
         throw std::runtime_error("aclFinalize");
     }
+    int64_t timestamp = 0, size = 0;
+    Write(STDOUT_FILENO, &timestamp);
+    Write(STDOUT_FILENO, &size);
     return 0;
 }

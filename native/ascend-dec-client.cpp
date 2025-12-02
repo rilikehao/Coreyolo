@@ -87,8 +87,6 @@ void StopDecoder(struct DecoderProcess* process) {
     ::close(process->to_decoder_);
     ::close(process->from_decoder_);
 
-    qDebug() << "StopDecoder" << process->pid_;
-
     if (process->pid_ > 0) {
         ::kill(process->pid_, SIGKILL);
         ::waitpid(process->pid_, nullptr, 0);

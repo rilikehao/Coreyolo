@@ -29,42 +29,33 @@ struct Data {
 void Callback(acldvppPicDesc* input, acldvppStreamDesc* output,
               void* rawData) {
     auto data = static_cast<Data*>(rawData);
-    if (!data) {
-        int64_t timestamp = 0, size = 0;
-        bool isKeyFrame = false;
-        Write(STDOUT_FILENO, &timestamp);
-        Write(STDOUT_FILENO, &isKeyFrame);
-        Write(STDOUT_FILENO, &size);
-    } else {
-        QByteArray encodedStream;
-        int64_t streamSize;
-        QMetaObject::invokeMethod(
-            &aclWorker,
-            [&] {
-                auto picDev = acldvppGetPicDescData(input);
-                if (ACL_SUCCESS != acldvppFree(picDev)) {
-                    throw std::runtime_error("acldvppFree");
-                }
-                if (ACL_SUCCESS != acldvppDestroyPicDesc(input)) {
-                    throw std::runtime_error("acldvppDestroyPicDesc");
-                }
-                auto streamDev = acldvppGetStreamDescData(output);
-                streamSize = acldvppGetStreamDescSize(output);
-                encodedStream.resizeForOverwrite(streamSize);
-                if (ACL_SUCCESS !=  //
-                    aclrtMemcpy(encodedStream.data(), streamSize,
-                                streamDev, streamSize, download)) {
-                    throw std::runtime_error(
-                        "aclrtMemcpy encoded stream");
-                }
-            },
-            Qt::BlockingQueuedConnection);
-        Write(STDOUT_FILENO, &data->timestamp_);
-        Write(STDOUT_FILENO, &data->is_key_frame_);
-        Write(STDOUT_FILENO, &streamSize);
-        Write(STDOUT_FILENO, encodedStream.data(), streamSize);
-        delete data;
-    }
+    QByteArray encodedStream;
+    int64_t streamSize;
+    QMetaObject::invokeMethod(
+        &aclWorker,
+        [&] {
+            auto picDev = acldvppGetPicDescData(input);
+            if (ACL_SUCCESS != acldvppFree(picDev)) {
+                throw std::runtime_error("acldvppFree");
+            }
+            if (ACL_SUCCESS != acldvppDestroyPicDesc(input)) {
+                throw std::runtime_error("acldvppDestroyPicDesc");
+            }
+            auto streamDev = acldvppGetStreamDescData(output);
+            streamSize = acldvppGetStreamDescSize(output);
+            encodedStream.resizeForOverwrite(streamSize);
+            if (ACL_SUCCESS !=  //
+                aclrtMemcpy(encodedStream.data(), streamSize, streamDev,
+                            streamSize, download)) {
+                throw std::runtime_error("aclrtMemcpy encoded stream");
+            }
+        },
+        Qt::BlockingQueuedConnection);
+    Write(STDOUT_FILENO, &data->timestamp_);
+    Write(STDOUT_FILENO, &data->is_key_frame_);
+    Write(STDOUT_FILENO, &streamSize);
+    Write(STDOUT_FILENO, encodedStream.data(), streamSize);
+    delete data;
 }
 
 int main(int argc, char** argv) {
@@ -302,5 +293,10 @@ int main(int argc, char** argv) {
     if (ACL_SUCCESS != aclFinalize()) {
         throw std::runtime_error("aclFinalize");
     }
+    int64_t timestamp = 0, size = 0;
+    bool isKeyFrame = false;
+    Write(STDOUT_FILENO, &timestamp);
+    Write(STDOUT_FILENO, &isKeyFrame);
+    Write(STDOUT_FILENO, &size);
     return 0;
 }

@@ -81,7 +81,7 @@ open class DecoderACL(
                                     timestamp_ = if (keep) timestamp.toEpochMilliseconds() else -1
                                     data_ = filterPacket.pointed.data!!.reinterpret()
                                     size_ = filterPacket.pointed.size.toLong()
-                                }).let { if (!it) throw CancellationException() }
+                                }).let { if (!it) throw IllegalStateException() }
                             } finally {
                                 av_packet_unref(filterPacket)
                             }
@@ -128,14 +128,14 @@ open class DecoderACL(
                 }
             }
         }.onCompletion {
+            println("decoder completion")
             if (bsfCtx != null) av_bsf_free(cValuesOf(bsfCtx))
             if (swsCtx != null) sws_freeContext(swsCtx)
             availableIds.trySend(id)
         }.transform { frame ->
             reorder.add(frame)
             while (REORDER_SIZE < reorder.size) emit(pop())
-        }.onCompletion { cause ->
-            if (cause != null) return@onCompletion
+        }.onCompletion {
             while (!reorder.isEmpty()) emit(pop())
         }.buffer(Channel.UNLIMITED)
     }
