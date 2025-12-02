@@ -46,7 +46,7 @@ struct EncoderProcess* StartEncoder(  //
         libraryPath.append(QString::fromLocal8Bit(ldPath));
     }
     addArg(libraryPath.join(":"));
-    auto enc = "../usr/local/ascend" SUFFIX "/bin/enc";
+    auto enc = "../usr/local/ascend/bin/enc";
     addArg(dir.absoluteFilePath(enc));
     addArg(QString::number(device));
     addArg(QString::number(id));

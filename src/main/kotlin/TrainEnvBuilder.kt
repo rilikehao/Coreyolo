@@ -25,19 +25,15 @@ object TrainEnvBuilder {
     }
 
     const val VENV_PATH = "train/env"
-    const val VENV_PATH_HUAWEI_6 = "train/env-huawei-6"
-    const val VENV_PATH_HUAWEI_8 = "train/env-huawei-8"
+    const val VENV_PATH_HUAWEI = "train/env-huawei-8"
 
     private fun createVenv() {
         println("创建虚拟环境...")
         if (!File(VENV_PATH).exists()) {
             ProcessBuilder("uv", "venv", File(VENV_PATH).absolutePath, "--python", "3.12").runCommand()
         }
-        if (!File(VENV_PATH_HUAWEI_6).exists()) {
-            ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI_6).absolutePath, "--python", "3.9").runCommand()
-        }
-        if (!File(VENV_PATH_HUAWEI_8).exists()) {
-            ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI_8).absolutePath, "--python", "3.9").runCommand()
+        if (!File(VENV_PATH_HUAWEI).exists()) {
+            ProcessBuilder("uv", "venv", File(VENV_PATH_HUAWEI).absolutePath, "--python", "3.9").runCommand()
         }
         println("虚拟环境创建完成")
     }
@@ -73,82 +69,69 @@ object TrainEnvBuilder {
 
         println("下载华为依赖...")
         File("train/deps").mkdirs()
-
-        listOf("6.0.1", "8.0.0").forEach { version ->
-            val venvPath: String
-            val amctOnnxVersion: String
-            when(version) {
-                "6.0.1" -> {
-                    venvPath = VENV_PATH_HUAWEI_6
-                    amctOnnxVersion = "0.7.4"
-                }
-                "8.0.0" -> {
-                    venvPath = VENV_PATH_HUAWEI_8
-                    amctOnnxVersion = "0.19.3"
-                }
-                else -> throw Error("版本不对")
+        val version = "6.0.1"
+        val venvPath = VENV_PATH_HUAWEI
+        val amctOnnxVersion = "0.7.4"
+        listOf(
+            "execstack",
+            "Ascend-cann-amct_${version}_linux-x86_64.tar.gz",
+            "Ascend-cann-toolkit_${version}_linux-x86_64.run",
+        ).forEach {
+            if (!File("train/deps/$it").exists()) {
+                ProcessBuilder(
+                    "curl", "-o", File("train/deps/$it").absolutePath,
+                    "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$it",
+                ).runCommand()
             }
-            listOf(
-                "execstack",
-                "Ascend-cann-amct_${version}_linux-x86_64.tar.gz",
-                "Ascend-cann-toolkit_${version}_linux-x86_64.run",
-            ).forEach {
-                if (!File("train/deps/$it").exists()) {
-                    ProcessBuilder(
-                        "curl", "-o", File("train/deps/$it").absolutePath,
-                        "https://f000.kw92.cyou/file/kunweiz92-YoloInfer/$it",
-                    ).runCommand()
-                }
-            }
-
-            File("train/deps/$version").mkdirs()
-
-            println("安装华为虚拟环境相关依赖...")
-            ProcessBuilder(
-                "tar", "-xf", "Ascend-cann-amct_${version}_linux-x86_64.tar.gz", "-C", version,
-            ).directory(File("train/deps")).runCommand()
-
-            ProcessBuilder(
-                "uv", "pip", "install",
-                "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python",
-                "pip", "decorator", "sympy", "scipy", "attrs", "psutil",
-                "../deps/$version/amct/amct_onnx/amct_onnx-$amctOnnxVersion-py3-none-linux_x86_64.whl",
-                "--directory", File(venvPath).absolutePath,
-            ).runCommand()
-
-            ProcessBuilder(
-                "chmod", "+x", "execstack",
-            ).directory(File("train/deps")).runCommand()
-
-            ProcessBuilder(
-                "./execstack", "-c",
-                File("$venvPath/lib/python3.9/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-39-x86_64-linux-gnu.so").absolutePath,
-            ).directory(File("train/deps")).runCommand()
-
-            ProcessBuilder(
-                "tar", "-xf",
-                "amct_onnx_op.tar.gz",
-            ).directory(File("train/deps/$version/amct/amct_onnx")).runCommand()
-
-            ProcessBuilder(
-                "bin/python", "../deps/$version/amct/amct_onnx/amct_onnx_op/setup.py", "install",
-            ).directory(File(venvPath)).apply {
-                environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-            }.runCommand()
-
-            ProcessBuilder(
-                "chmod", "+x", "Ascend-cann-toolkit_${version}_linux-x86_64.run",
-            ).directory(File("train/deps")).runCommand()
-
-            val run = "../deps/Ascend-cann-toolkit_${version}_linux-x86_64.run"
-            val path = File("train/deps/${version}").absolutePath
-            ProcessBuilder(
-                "bash", "-c",
-                "export PYTHONPATH=. && source bin/activate && $run --quiet --nox11 --install --install-path=$path",
-            ).directory(File(venvPath)).runCommand()
-            ProcessBuilder("chmod", "-R", "+w", path).runCommand()
-            ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
         }
+
+        File("train/deps/$version").mkdirs()
+
+        println("安装华为虚拟环境相关依赖...")
+        ProcessBuilder(
+            "tar", "-xf", "Ascend-cann-amct_${version}_linux-x86_64.tar.gz", "-C", version,
+        ).directory(File("train/deps")).runCommand()
+
+        ProcessBuilder(
+            "uv", "pip", "install",
+            "onnx", "onnxruntime==1.8.0", "setuptools", "numpy<2", "opencv-python",
+            "pip", "decorator", "sympy", "scipy", "attrs", "psutil",
+            "../deps/$version/amct/amct_onnx/amct_onnx-$amctOnnxVersion-py3-none-linux_x86_64.whl",
+            "--directory", File(venvPath).absolutePath,
+        ).runCommand()
+
+        ProcessBuilder(
+            "chmod", "+x", "execstack",
+        ).directory(File("train/deps")).runCommand()
+
+        ProcessBuilder(
+            "./execstack", "-c",
+            File("$venvPath/lib/python3.9/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-39-x86_64-linux-gnu.so").absolutePath,
+        ).directory(File("train/deps")).runCommand()
+
+        ProcessBuilder(
+            "tar", "-xf",
+            "amct_onnx_op.tar.gz",
+        ).directory(File("train/deps/$version/amct/amct_onnx")).runCommand()
+
+        ProcessBuilder(
+            "bin/python", "../deps/$version/amct/amct_onnx/amct_onnx_op/setup.py", "install",
+        ).directory(File(venvPath)).apply {
+            environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+        }.runCommand()
+
+        ProcessBuilder(
+            "chmod", "+x", "Ascend-cann-toolkit_${version}_linux-x86_64.run",
+        ).directory(File("train/deps")).runCommand()
+
+        val run = "../deps/Ascend-cann-toolkit_${version}_linux-x86_64.run"
+        val path = File("train/deps/${version}").absolutePath
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && $run --quiet --nox11 --install --install-path=$path",
+        ).directory(File(venvPath)).runCommand()
+        ProcessBuilder("chmod", "-R", "+w", path).runCommand()
+        ProcessBuilder("rm", "-rf", "${System.getProperty("user.home")}/Ascend").runCommand()
         println("所有依赖安装完成")
     }
 
@@ -186,26 +169,26 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../ultralytics && python ultralytics/engine/exporter.py"
         ).directory(File(VENV_PATH)).runCommand()
 
-//        println("转换为 MNN 模型...")
-//        ProcessBuilder(
-//            "bash", "-c",
-//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
-//        ).directory(File(VENV_PATH)).runCommand()
-//
-//        println("重命名量化模型...")
-//        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
-//
-//        println("转换为 RKNN (RK3588) 模型...")
-//        ProcessBuilder(
-//            "bash", "-c",
-//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
-//        ).directory(File(VENV_PATH)).runCommand()
-//
-//        println("转换为 RKNN (RK3576) 模型...")
-//        ProcessBuilder(
-//            "bash", "-c",
-//            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
-//        ).directory(File(VENV_PATH)).runCommand()
+        println("转换为 MNN 模型...")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_mnn.py --quant"
+        ).directory(File(VENV_PATH)).runCommand()
+
+        println("重命名量化模型...")
+        ProcessBuilder("mv", "../best_quant.mnn", "../best.x86_64").directory(File(VENV_PATH)).runCommand()
+
+        println("转换为 RKNN (RK3588) 模型...")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3588.py"
+        ).directory(File(VENV_PATH)).runCommand()
+
+        println("转换为 RKNN (RK3576) 模型...")
+        ProcessBuilder(
+            "bash", "-c",
+            "export PYTHONPATH=. && source bin/activate && cd ../src && python to_rknn_rk3576.py"
+        ).directory(File(VENV_PATH)).runCommand()
 
         println("华为量化... (310)")
         ProcessBuilder(
@@ -213,7 +196,7 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend_310.py"
         ).apply {
             environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-        }.directory(File(VENV_PATH_HUAWEI_6)).runCommand()
+        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
 
         println("重命名量化模型...")
         ProcessBuilder("mv", "../best.om", "../best.ascend310").directory(File(VENV_PATH)).runCommand()
@@ -224,7 +207,7 @@ object TrainEnvBuilder {
             "export PYTHONPATH=. && source bin/activate && cd ../src && python to_ascend_310P3.py"
         ).apply {
             environment()["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-        }.directory(File(VENV_PATH_HUAWEI_8)).runCommand()
+        }.directory(File(VENV_PATH_HUAWEI)).runCommand()
 
         println("重命名量化模型...")
         ProcessBuilder("mv", "../best.om", "../best.ascend310P3").directory(File(VENV_PATH)).runCommand()
@@ -247,8 +230,7 @@ object TrainEnvBuilder {
         ).forEach { file -> File("train/$file").delete() }
 
         File(VENV_PATH).deleteRecursively()
-        File(VENV_PATH_HUAWEI_6).deleteRecursively()
-        File(VENV_PATH_HUAWEI_8).deleteRecursively()
+        File(VENV_PATH_HUAWEI).deleteRecursively()
 
         println("清理完成")
     }

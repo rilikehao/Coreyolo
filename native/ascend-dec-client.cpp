@@ -46,7 +46,7 @@ struct DecoderProcess* StartDecoder(  //
         libraryPath.append(QString::fromLocal8Bit(ldPath));
     }
     addArg(libraryPath.join(":"));
-    auto dec = "../usr/local/ascend" SUFFIX "/bin/dec";
+    auto dec = "../usr/local/ascend/bin/dec";
     addArg(dir.absoluteFilePath(dec));
     addArg(QString::number(device));
     addArg(QString::number(id));
