@@ -215,7 +215,8 @@ object TrainEnvBuilder {
         listOf(
             "best.onnx", "best_deploy_model.onnx", "best_fake_quant_model.onnx", "best.mnn",
             "best_quant.json", "best_quant.mnn.json", "quant_config.json", "fusion_result.json",
-        ).forEach { file -> File("train/$file").delete() }
+            "data/huawei",
+        ).forEach { file -> File("train/$file").deleteRecursively() }
 
         println("模型导出完成！")
     }
