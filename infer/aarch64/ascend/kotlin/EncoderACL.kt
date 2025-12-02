@@ -56,64 +56,67 @@ open class EncoderACL(
             coroutineScope {
                 launch {
                     try {
-                        input.collect { commandImage ->
-                            if (inputFrames == 0L) {
-                                timestamp0 = commandImage.timestamp
-                                val name = timestamp0.toTimeString()
-                                suggestedName?.complete(name)
-                                width = GetWidth(commandImage.data)
-                                height = GetHeight(commandImage.data)
-                                encoderProcess.complete(StartEncoder(0, 0, encodeType, width, height)!!)
-                                swsCtx = sws_getContext(
-                                    width, height, AV_PIX_FMT_RGB24,
-                                    width, height, AV_PIX_FMT_NV12,
-                                    SWS_BILINEAR.toInt(), null, null, null,
-                                )
-                                codec = when (encodeType) {
-                                    "h264" -> AV_CODEC_ID_H264
-                                    "hevc" -> AV_CODEC_ID_HEVC
-                                    else -> throw Error("不支持的视频编码")
-                                }.let { avcodec_find_encoder(it) }
+                        try {
+                            input.collect { commandImage ->
+                                if (inputFrames == 0L) {
+                                    timestamp0 = commandImage.timestamp
+                                    val name = timestamp0.toTimeString()
+                                    suggestedName?.complete(name)
+                                    width = GetWidth(commandImage.data)
+                                    height = GetHeight(commandImage.data)
+                                    encoderProcess.complete(StartEncoder(0, 0, encodeType, width, height)!!)
+                                    swsCtx = sws_getContext(
+                                        width, height, AV_PIX_FMT_RGB24,
+                                        width, height, AV_PIX_FMT_NV12,
+                                        SWS_BILINEAR.toInt(), null, null, null,
+                                    )
+                                    codec = when (encodeType) {
+                                        "h264" -> AV_CODEC_ID_H264
+                                        "hevc" -> AV_CODEC_ID_HEVC
+                                        else -> throw Error("不支持的视频编码")
+                                    }.let { avcodec_find_encoder(it) }
+                                }
+                                Logger.i {
+                                    if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
+                                    val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
+                                    val delayed = frame0.elapsedNow() - (commandImage.timestamp - timestamp0)
+                                    val delayMs = max(0L, delayed.inWholeMilliseconds)
+                                    "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
+                                }
+                                val wstride = (width + 15) / 16 * 16
+                                val hstride = (height + 1) / 2 * 2
+                                val nv12Size = wstride * hstride * 3 / 2
+                                memScoped {
+                                    val nv12 = allocArray<UByteVar>(nv12Size)
+                                    sws_scale(
+                                        swsCtx,
+                                        cValuesOf(Bits(commandImage.data)),
+                                        cValuesOf(BytesPerLine(commandImage.data)),
+                                        0, height,
+                                        cValuesOf(nv12, nv12 + wstride * hstride),
+                                        cValuesOf(wstride, wstride),
+                                    )
+                                    EncoderW(encoderProcess.await(), cValue {
+                                        timestamp_ = commandImage.timestamp.toEpochMilliseconds()
+                                        is_key_frame_ = inputFrames % 12L == 0L
+                                        size_ = nv12Size.toLong()
+                                        data_ = nv12.reinterpret()
+                                    }).let { if (!it) throw IllegalStateException() }
+                                }
+                                ++inputFrames
+                                DestroyImage(commandImage.data)
                             }
-                            Logger.i {
-                                if (outputFrames == 0L) frame0 = TimeSource.Monotonic.markNow()
-                                val fps = (1.seconds / frame0.elapsedNow() * (++outputFrames)).toString(2)
-                                val delayed = frame0.elapsedNow() - (commandImage.timestamp - timestamp0)
-                                val delayMs = max(0L, delayed.inWholeMilliseconds)
-                                "[$id] 编码 FPS: $fps, 额外延迟 / ms: $delayMs."
-                            }
-                            val wstride = (width + 15) / 16 * 16
-                            val hstride = (height + 1) / 2 * 2
-                            val nv12Size = wstride * hstride * 3 / 2
-                            memScoped {
-                                val nv12 = allocArray<UByteVar>(nv12Size)
-                                sws_scale(
-                                    swsCtx,
-                                    cValuesOf(Bits(commandImage.data)),
-                                    cValuesOf(BytesPerLine(commandImage.data)),
-                                    0, height,
-                                    cValuesOf(nv12, nv12 + wstride * hstride),
-                                    cValuesOf(wstride, wstride),
-                                )
-                                EncoderW(encoderProcess.await(), cValue {
-                                    timestamp_ = commandImage.timestamp.toEpochMilliseconds()
-                                    is_key_frame_ = inputFrames % 12L == 0L
-                                    size_ = nv12Size.toLong()
-                                    data_ = nv12.reinterpret()
-                                }).let { if (!it) throw IllegalStateException() }
-                            }
-                            ++inputFrames
-                            DestroyImage(commandImage.data)
+                        } catch (_: CancellationException) {
                         }
-                    } catch (_: CancellationException) {
-                    }
-                    if (encoderProcess.isCompleted) {
-                        EncoderW(encoderProcess.getCompleted(), cValue {
-                            timestamp_ = 0
-                            is_key_frame_ = false
-                            size_ = 0
-                            data_ = null
-                        })
+                        if (encoderProcess.isCompleted) {
+                            EncoderW(encoderProcess.getCompleted(), cValue {
+                                timestamp_ = 0
+                                is_key_frame_ = false
+                                size_ = 0
+                                data_ = null
+                            })
+                        }
+                    } catch (_: IllegalStateException) {
                     }
                 }
 

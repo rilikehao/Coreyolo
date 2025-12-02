@@ -10,9 +10,65 @@ drawScript = "lua/example.lua"
 id = "default-00"
 source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
 
+[[streams]]
+id = "default-01"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-02"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-03"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-04"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-05"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-06"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-07"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-08"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-09"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-10"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-11"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-12"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-13"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
+[[streams]]
+id = "default-14"
+source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+
 [processing]
-npuThreads = 2
+npuThreads = 8
 cpuThreads = 24
 fpsDecode = 30.0
-fpsYolo = 10.0
+fpsYolo = 30.0
 mute = false
