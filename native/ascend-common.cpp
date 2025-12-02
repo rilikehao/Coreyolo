@@ -52,7 +52,6 @@ pthread_t ParseArgsAndInit(char** argv) {
             ACLCHECK(aclrtSetCurrentContext(context));
         },
         Qt::BlockingQueuedConnection);
-    QThread;
     callbackWorker.moveToThread(&callbackThread);
     callbackThread.start();
     pthread_t callbackPid;

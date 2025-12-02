@@ -22,7 +22,6 @@
 
 extern aclrtMemcpyKind up, down;
 extern int width, height, wstride, hstride;
-extern aclvencChannelDesc* channel;
 extern QObject aclWorker, callbackWorker;
 extern acldvppStreamFormat codecType;
 extern int device, id, bitRate;
