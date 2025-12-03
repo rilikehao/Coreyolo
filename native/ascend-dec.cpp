@@ -37,9 +37,7 @@ void Callback(acldvppStreamDesc* input, acldvppPicDesc* output,
     delete timestamp;
 }
 
-int main(int argc, char** argv) {
-    QCoreApplication app(argc, argv);
-    auto callbackPid = ParseArgsAndInit(argv);
+void Work(pthread_t callbackPid) {
     channel = aclvdecCreateChannelDesc();
     if (!channel) throw std::runtime_error("aclvdecCreateChannelDesc");
     ACLCHECK(aclvdecSetChannelDescChannelId(channel, id));
@@ -101,6 +99,12 @@ int main(int argc, char** argv) {
     callbackThread.wait();
     ACLCHECK(aclvdecDestroyChannel(channel));
     ACLCHECK(aclvdecDestroyChannelDesc(channel));
+}
+
+int main(int argc, char** argv) {
+    QCoreApplication app(argc, argv);
+    auto callbackPid = ParseArgsAndInit(argv);
+    Work(callbackPid);
     Finalize();
     int64_t timestamp = 0, size = 0;
     Write(STDOUT_FILENO, &timestamp);
