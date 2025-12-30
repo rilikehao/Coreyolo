@@ -355,6 +355,12 @@ object ProjectBuilder {
             """.trimIndent()
         )
         File("${archConfig.cpu}/root/YoloInfer.png").writeText("")
+        val usrLibDir = File("${archConfig.cpu}/root/usr/lib")
+        if (usrLibDir.exists()) {
+            ProcessBuilder("ln", "-sf", "libcrypt.so.2", "libcrypt.so.1")
+                .directory(usrLibDir)
+                .runCommand()
+        }
         if (archConfig == Config.aarch64) {
             File("aarch64/root/lib").mkdirs()
             listOf(
