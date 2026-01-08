@@ -63,6 +63,6 @@ object Config {
     )
 
     val archConfigs = listOf(aarch64, x86_64)
-    val excludeList = setOf()
+    val excludeList = setOf<String>()
     val repos = listOf("core", "extra")
 }
