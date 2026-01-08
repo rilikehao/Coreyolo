@@ -85,7 +85,7 @@ object ProjectBuilder {
     fun buildMPP() {
         ToolchainManager.createCmakeToolchainFile(Config.aarch64)
         val mppDir = File("aarch64/rkmpp")
-        cloneIfNeeded(mppDir, "https://github.com/rockchip-linux/mpp.git")
+        cloneIfNeeded(mppDir, "https://github.com/HermanChen/mpp.git")
         val mppBuildDir = File("aarch64/rkmpp/build")
         mppBuildDir.mkdirs()
         ProcessBuilder(
