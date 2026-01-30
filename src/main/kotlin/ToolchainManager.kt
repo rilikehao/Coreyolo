@@ -24,7 +24,7 @@ object ToolchainManager {
 
             set(CMAKE_C_COMPILER ${archConfig.compilerPrefix}gcc)
             set(CMAKE_CXX_COMPILER ${archConfig.compilerPrefix}g++)
-            set(CMAKE_SYSROOT "${archConfig.sysrootDir}")
+            set(CMAKE_SYSROOT "${File(archConfig.targetDir()).absolutePath}")
             set(CMAKE_FIND_ROOT_PATH "$rootPath")
             set(CMAKE_PROGRAM_PATH "${File(Config.x86_64.targetDir()).absolutePath}/usr/bin")
             set(CMAKE_CXX_FLAGS "$includeFlags")

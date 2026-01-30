@@ -206,7 +206,7 @@ object ProjectBuilder {
             "--arch=arm64",
             "--target-os=linux",
             "--cross-prefix=${Config.aarch64.compilerPrefix}",
-            "--sysroot=${Config.aarch64.sysrootDir}",
+            "--sysroot=${File(Config.aarch64.targetDir()).absolutePath}",
             "--pkg-config=pkg-config",
             "--extra-cflags=${
                 arrayOf(
@@ -243,7 +243,7 @@ object ProjectBuilder {
 
     fun buildFFmpegAscend() {
         val ffmpegDir = File("aarch64/ffmpeg")
-        cloneIfNeeded(ffmpegDir, "https://git.ffmpeg.org/ffmpeg.git")
+        cloneIfNeeded(ffmpegDir, "https://github.com/FFmpeg/FFmpeg.git")
 
         val configureArgs = arrayOf(
             "./configure",
@@ -251,7 +251,7 @@ object ProjectBuilder {
             "--arch=arm64",
             "--target-os=linux",
             "--cross-prefix=${Config.aarch64.compilerPrefix}",
-            "--sysroot=${Config.aarch64.sysrootDir}",
+            "--sysroot=${File(Config.aarch64.targetDir()).absolutePath}",
             "--pkg-config=pkg-config",
             "--extra-cflags=${
                 arrayOf(
