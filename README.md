@@ -74,12 +74,119 @@ CoreYolo/
 ### 构建命令
 
 ```bash
-# 1. 构建所有依赖和组件
+# 1. 安装系统基本工具包
+sudo pacman -S cmake
+sudo pacman -S aarch64-linux-gnu-gcc
+
+# 2. 首次构建需要配置 arch 文件
+sudo vim /usr/local/bin/arch
+
+# 文件里填写下面的内容。
+#!/bin/bash
+exec uname -m
+
+# 3. 添加配置文件权限
+sudo chmod +x /usr/local/bin/arch
+
+# 4. 构建所有依赖和组件
 ./gradlew run
 
-# 2. 编译推理应用
+# 5. 编译推理应用
 ./gradlew image
 ```
+
+## 视频流媒体服务配置
+
+本部分介绍如何部署 ZLMediaKit 流媒体服务器，并通过 FFmpeg 循环推送本地视频流，最后在 `CoreYolo` 项目中进行调用。
+
+### ZLMediaKit 部署与配置
+
+*   **安装服务**
+    *   从 [ZLMediaKit GitHub](https://github.com/ZLMediaKit/ZLMediaKit) 下载二进制文件，依次：Issues => 各平台二进制包下载 => 找Linux对应的下载地址。
+    *   解压文件后，将Linux下的Release文件名改为 `ZLMediaKit` ，输入以下指令迁移至 `/opt` 目录：
+        ```bash
+        sudo mv ZLMediaKit /opt/
+        ```
+
+*   **修改端口配置**
+    *   在`ZLMediaKit`文件中，修改 `/opt/ZLMediaKit/config.ini`，调整以下协议端口以避免冲突：
+        *   **[http]** 模块：`port` 修改为 `8080`，`sslport` 修改为 `8443`。
+        *   **[rtsp]** 模块：`port` 修改为 `8554`。
+
+---
+
+### 服务配置与推流管理
+
+本部分介绍如何通过 Systemd 管理 ZLMediaKit 及推流任务，以便在需要时快速启动服务。
+
+*   **ZLMediaKit 服务定义**
+    *   创建服务文件：`sudo nano /etc/systemd/system/ZLMediaKit.service`
+    *   此配置文件定义了流媒体服务器的运行环境。
+        ```ini
+        [Unit]
+        Description=ZLMediaKit Media Server
+        After=network.target
+
+        [Service]
+        Type=simple
+        User=root
+        WorkingDirectory=/opt/ZLMediaKit
+        ExecStart=/opt/ZLMediaKit/MediaServer
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
+        ```
+
+*   **FFmpeg 推流服务定义**
+    *   创建服务文件：`sudo nano /etc/systemd/system/ffmpeg-stream.service`
+    *   **注意**：在 `ExecStart` 中，必须根据实际情况修改 `-i` 参数后的**视频文件绝对路径**。
+        ```ini
+        [Unit]
+        Description=FFmpeg RTSP Streaming Service
+        After=network.target
+
+        [Service]
+        User=root
+        # -i 后面请替换为你本地视频的实际绝对路径
+        ExecStart=/usr/bin/ffmpeg -re -stream_loop -1 -i /home/guozhengz/work/CoreYolo/test.mp4 -c copy -bsf:v h264_mp4toannexb -f rtsp rtsp://localhost:8554/2025/test.mp4 -rtsp_transport tcp
+
+        [Install]
+        WantedBy=multi-user.target
+        ```
+
+---
+
+### 服务操作指令
+
+配置完成后，可以根据需要手动启动或停止服务，无需设置开机自启。
+
+*   **启动视频流服务**
+    *   首次配置或修改路径后，需先重新加载配置，然后依次启动服务器和推流脚本：
+        ```bash
+        sudo systemctl daemon-reload
+        sudo systemctl start ZLMediaKit.service
+        sudo systemctl start ffmpeg-stream.service
+        ```
+
+*   **停止视频流服务**
+    *   不需要使用视频流时，可以手动关闭服务以释放系统资源：
+        ```bash
+        sudo systemctl stop ffmpeg-stream.service
+        sudo systemctl stop ZLMediaKit.service
+        ```
+
+*   **状态查看**
+    *   若推流异常，可通过以下命令查看状态：
+        ```bash
+        sudo systemctl status ffmpeg-stream.service
+        ```
+
+*   **项目集成 (CoreYolo)**
+    *   修改 `CoreYolo` 的配置文件 `configs/config-software.toml`。定位到视频源配置项（Source），将地址更新为 ZLMediaKit 生成的流地址（例如：`rtsp://127.0.0.1:8554/2025/test.mp4`）。
+
+*   **验证**
+    *   运行下面使用示例中流媒体推理方式的指令，访问项目的推理网页view.html，此时视频流应该已正确加载并显示实时推理结果。
 
 ## 平台支持
 
