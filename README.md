@@ -140,7 +140,7 @@ sudo chmod +x /usr/local/bin/arch
 
 *   **FFmpeg 推流服务定义**
     *   创建服务文件：`sudo nano /etc/systemd/system/ffmpeg-stream.service`
-    *   **注意**：在 `ExecStart` 中，必须根据实际情况修改 `-i` 参数后的**视频文件绝对路径**。
+    *   **注意**：在 `ExecStart` 中，必须根据实际情况修改 `-i` 参数后的**视频文件绝对路径**；`-f rtsp` 参数为推流的目标地址，后续接收视频流时用这个地址。
         ```ini
         [Unit]
         Description=FFmpeg RTSP Streaming Service
@@ -182,11 +182,10 @@ sudo chmod +x /usr/local/bin/arch
         sudo systemctl status ffmpeg-stream.service
         ```
 
-*   **项目集成 (CoreYolo)**
-    *   修改 `CoreYolo` 的配置文件 `configs/config-software.toml`。定位到视频源配置项（Source），将地址更新为 ZLMediaKit 生成的流地址（例如：`rtsp://127.0.0.1:8554/2025/test.mp4`）。
+### **项目集成 (CoreYolo)**
+*   **配置视频源地址**： 修改 `configs/config-software.toml` 配置文件，将 `stream/source` 项更新为 `FFmpeg` 推送的流地址（`-f rtsp`参数：`rtsp://127.0.0.1:8554/2025/test.mp4`）。
 
-*   **验证**
-    *   运行下面使用示例中流媒体推理方式的指令，访问项目的推理网页view.html，此时视频流应该已正确加载并显示实时推理结果。
+*   **验证**：运行下面使用示例中对应平台设备流媒体推理方式的指令，访问项目的推理网页`view.html`，此时视频流应该已正确加载并显示实时推理结果。
 
 ## 平台支持
 
