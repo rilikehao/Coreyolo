@@ -44,7 +44,7 @@ kotlin {
 tasks.register("install") {
     dependsOn("aarch64-rockchipBinaries")
 
-    val buildType = project.findProperty("buildType") as String
+    val buildType = (project.findProperty("buildType") as? String) ?: "Release"
 
     doLast {
         val targetName = "aarch64-rockchip"

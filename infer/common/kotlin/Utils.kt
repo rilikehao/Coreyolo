@@ -45,7 +45,7 @@ object Utils {
 
     fun <T : CPointed> CPointer<T>?.check(api: String): CPointer<T> = this ?: throw Error("$api 失败")
 
-    fun <T : CPointed> cPointer(block: (CPointer<CPointerVar<T>>) -> Unit) = memScoped {
+    fun <T : CPointed>  cPointer(block: (CPointer<CPointerVar<T>>) -> Unit) = memScoped {
         val ref = alloc<CPointerVar<T>>()
         block(ref.ptr)
         ref.value!!

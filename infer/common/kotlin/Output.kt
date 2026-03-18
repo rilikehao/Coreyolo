@@ -166,6 +166,7 @@ class Output(val encoder: Encoder, val input: Flow<CPointer<AVPacket>?>) : AutoC
                         context.stream!!.pointed.time_base.readValue(),
                     )
                     av_write_frame(context.formatContext, toWrite).check("av_write_frame")
+                    av_packet_unref(toWrite)
                     context.formatContext.pointed.pb?.let { avio_flush(it) }
                 }
                 av_packet_free(cValuesOf(toWrite))

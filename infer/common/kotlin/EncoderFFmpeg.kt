@@ -58,7 +58,6 @@ open class EncoderFFmpeg(
         var inputFrames = 0L
         var outputFrames = 0L
         var frame0 = TimeSource.Monotonic.markNow()
-
         return input.map { commandImage ->
             if (inputFrames++ == 0L) {
                 timestamp0 = commandImage.timestamp

@@ -46,7 +46,7 @@ kotlin {
 tasks.register("install") {
     dependsOn("x86_64-softwareBinaries")
 
-    val buildType = project.findProperty("buildType") as String
+    val buildType = (project.findProperty("buildType") as? String) ?: "Release"
 
     doLast {
         val targetName = "x86_64-software"
