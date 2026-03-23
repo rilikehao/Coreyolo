@@ -8,15 +8,19 @@ drawScript = "lua/example.lua"
 
 [[streams]]
 id = "default-00"
-source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+source = "rtsp://127.0.0.1:8554/2025/test1.mp4"
 
 [[streams]]
 id = "default-01"
-source = "rtsp://127.0.0.1:8554/2025/2025.mp4"
+source = "rtsp://127.0.0.1:8554/2025/test2.mp4"
+
+[[streams]]
+id = "default-02"
+source = "rtsp://127.0.0.1:8554/2025/test3.mp4"
 
 [processing]
 npuThreads = 2
 cpuThreads = 6
-fpsDecode = 3.0
-fpsYolo = 3.0
+fpsDecode = 13.0
+fpsYolo = 13.0
 mute = false

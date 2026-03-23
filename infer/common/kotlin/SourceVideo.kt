@@ -9,6 +9,7 @@ import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.Flow
 import platform.native.HttpServer
 import platform.native.SendData
 import platform.native.StopHttpServer
@@ -50,13 +51,22 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                 } else {
                     var vod: Job? = null
                     vod = scope.launch {
-                        val inputFmp4 = InputFmp4(id, begin, end, fast)
+                        val isRaw = id.endsWith("-raw")
+                        val actualId = if (isRaw) id.removeSuffix("-raw") else id
+                        val inputFmp4 = InputFmp4(actualId, begin, end, fast)
                         val decoded = Codec.DecoderVideo(inputFmp4, inputFmp4())()
-                        val inferred = scope.mux(decoded, Detections.loadAll(Inference.infer, id))
-                            .let { SpeedLimiter(it, inputFmp4.speed)() }
-                            .buffer(Channel.UNLIMITED)
-                        val drawn = Draw(inferred, false)()
-                        val encoder = EncoderVideoH264Vod("$id-vod", null, drawn)
+                        val streamToEncode = if (isRaw) {
+                            SpeedLimiter(decoded, inputFmp4.speed)()
+                                .buffer(Channel.UNLIMITED) as Flow<Command.CommandImage>
+                        } else {
+                            scope.mux(decoded, Detections.loadAll(Inference.infer, actualId))
+                                .let { SpeedLimiter(it, inputFmp4.speed)() }
+                                .buffer(Channel.UNLIMITED)
+
+                                .let { Draw(it, false)() }
+                        }
+                        
+                        val encoder = EncoderVideoH264Vod("$id-vod", null, streamToEncode)
                         Output(encoder, encoder()).use {
                             var context: Output.Context? = null
                             context = it.addFmp4StreamBlocking { buf, size ->
@@ -118,26 +128,41 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         val decoded = Codec.DecoderVideo(inputRtsp, inputRtsp())()
                                             .buffer(Channel.UNLIMITED)
                                         val (main, side) = ForkImage(decoded)()
-                                        scope.launch {
-                                            val encoder = Codec.EncoderVideoH265(config.id, name, side)
+                                        val (side1, side2) = ForkImage(side)()
+
+                                        val jobH265 = scope.launch {
+                                            val bufferedSide1 = side1.buffer(Channel.UNLIMITED)
+                                            val encoder = Codec.EncoderVideoH265(config.id, name, bufferedSide1)
                                             Output(encoder, encoder()).use {
                                                 it.addFmp4Blocking(config.id, name)
                                                 it.invoke()
                                             }
-                                        }.also {
-                                            val inferred = Inference(config.id, main)()
-                                            val (forked, dumped) = ForkLabel(inferred)()
-                                            scope.launch {
-                                                val filePath = "${config.id}/${name.await()}.txt"
-                                                Detections.dumpStrings(dumped, filePath)
-                                            }
-                                            val drawn = Draw(forked, true)()
-                                            val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
+                                        }
+
+                                        val jobRaw = scope.launch {
+                                            val bufferedSide2 = side2.buffer(Channel.UNLIMITED)
+                                            val encoder = Codec.EncoderVideoH264("${config.id}-raw", null, bufferedSide2)
                                             Output(encoder, encoder()).use {
-                                                CoroutineScope(mainContext).launch { outputs[config.id] = it }
+                                                CoroutineScope(mainContext).launch { outputs["${config.id}-raw"] = it }
                                                 it.invoke()
                                             }
-                                        }.join()
+                                        }
+
+                                        val inferred = Inference(config.id, main)()
+                                        val (forked, dumped) = ForkLabel(inferred)()
+                                        scope.launch {
+                                            val filePath = "${config.id}/${name.await()}.txt"
+                                            Detections.dumpStrings(dumped, filePath)
+                                        }
+                                        val drawn = Draw(forked, true)()
+                                        val encoder = Codec.EncoderVideoH264(config.id, null, drawn)
+                                        Output(encoder, encoder()).use {
+                                            CoroutineScope(mainContext).launch { outputs[config.id] = it }
+                                            it.invoke()
+                                        }
+
+                                        jobH265.join()
+                                        jobRaw.join()
                                     }
 
                                     AppConfig.SourceType.VIDEO_KEEP -> {
