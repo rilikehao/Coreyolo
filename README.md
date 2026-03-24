@@ -166,7 +166,9 @@ sudo chmod +x /usr/local/bin/arch
         ```bash
         sudo systemctl daemon-reload
         sudo systemctl start ZLMediaKit.service
+        
         sudo systemctl start ffmpeg-stream.service
+        sudo systemctl start ffmpeg-stream@test1 && sudo systemctl start ffmpeg-stream@test2 && sudo systemctl start ffmpeg-stream@test3
         ```
 
 *   **停止视频流服务**

@@ -126,13 +126,10 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         val name = CompletableDeferred<String>()
                                         val inputRtsp = InputRtsp(config.source)
                                         val decoded = Codec.DecoderVideo(inputRtsp, inputRtsp())()
-                                            .buffer(Channel.UNLIMITED)
-                                        val (main, side) = ForkImage(decoded)()
-                                        val (side1, side2) = ForkImage(side)()
+                                        val (main, side1, side2) = ForkImage3(decoded)()
 
                                         val jobH265 = scope.launch {
-                                            val bufferedSide1 = side1.buffer(Channel.UNLIMITED)
-                                            val encoder = Codec.EncoderVideoH265(config.id, name, bufferedSide1)
+                                            val encoder = Codec.EncoderVideoH265(config.id, name, side1)
                                             Output(encoder, encoder()).use {
                                                 it.addFmp4Blocking(config.id, name)
                                                 it.invoke()
@@ -140,8 +137,7 @@ object SourceVideo : AutoCloseable, suspend () -> Unit {
                                         }
 
                                         val jobRaw = scope.launch {
-                                            val bufferedSide2 = side2.buffer(Channel.UNLIMITED)
-                                            val encoder = Codec.EncoderVideoH264("${config.id}-raw", null, bufferedSide2)
+                                            val encoder = Codec.EncoderVideoH264("${config.id}-raw", null, side2)
                                             Output(encoder, encoder()).use {
                                                 CoroutineScope(mainContext).launch { outputs["${config.id}-raw"] = it }
                                                 it.invoke()

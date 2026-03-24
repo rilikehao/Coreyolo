@@ -21,6 +21,6 @@ source = "rtsp://127.0.0.1:8554/2025/test3.mp4"
 [processing]
 npuThreads = 2
 cpuThreads = 6
-fpsDecode = 13.0
-fpsYolo = 13.0
+fpsDecode = 6.0
+fpsYolo = 6.0
 mute = false
